@@ -28,6 +28,11 @@ Keep progress visible and report time saved for this run and cumulatively.
 
 Requirements: macOS, Codex with plugin and MCP support, and Python 3.10+. Ruby is only needed for Compose YAML analysis; Node.js 20+ is only needed to rebuild the browser indicator.
 
+The repository also conforms to the vendor-neutral
+[Agent Plugins 1.0.0](https://agent-plugins.org/) package layout through its
+root `plugin.json`, `skills/`, and local-stdio `mcp.json`. Codex-native clients
+continue to use `.codex-plugin/plugin.json` and `.mcp.json`.
+
 ## Why this exists
 
 Most “parallel” wrappers split command text and hope for the best. That can reorder `&&`/`||`, race `.next`, JUnit, database, Docker volume, or Git state, multiply nested worker pools, and hide failures until the end.

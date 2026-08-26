@@ -46,3 +46,7 @@ The official OpenAI Plugins Directory packet is maintained in
 verified publisher identity and confirmation that the local stdio runtime is
 eligible as a skills-only local workflow; the project must not be presented as
 a public remote MCP server.
+
+The repository also publishes the portable Agent Plugins 1.0.0 root manifests
+(`plugin.json` and `mcp.json`). This creates a no-cost discovery path for
+standards-based directories while retaining the Codex-native manifests.

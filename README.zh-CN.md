@@ -26,6 +26,10 @@ codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 
 要求：macOS、支持插件和 MCP 的 Codex、Python 3.10+。只有分析 Compose YAML 时需要 Ruby；只有重新构建浏览器指示器时需要 Node.js 20+。
 
+仓库还通过根目录的 `plugin.json`、`skills/` 与本地 stdio `mcp.json`
+兼容厂商中立的 [Agent Plugins 1.0.0](https://agent-plugins.org/) 标准；
+Codex 原生客户端仍使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。
+
 ## 它解决什么问题
 
 普通的“并行执行”经常只是拆分命令文本，容易改写 `&&` / `||` 的控制流，争用 `.next`、JUnit、数据库、Docker 卷或 Git 状态，叠加内部线程池，并且执行过程中只看到空白等待。

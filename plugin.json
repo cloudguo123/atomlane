@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mac-parallel-accelerator",
+  "version": "0.9.3",
+  "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
+  "author": {
+    "name": "cloudguo123",
+    "url": "https://github.com/cloudguo123"
+  },
+  "homepage": "https://cloudguo123.github.io/mac-parallel-accelerator/",
+  "repository": "https://github.com/cloudguo123/mac-parallel-accelerator",
+  "license": "MIT",
+  "keywords": [
+    "agent-plugins",
+    "agent-skills",
+    "codex",
+    "macos",
+    "mcp",
+    "parallel",
+    "performance",
+    "scheduler",
+    "atomic-planning",
+    "local-execution"
+  ]
+}

@@ -3,6 +3,7 @@
 **Make Codex finish builds, tests, Docker, and research pipelines faster on macOS—without breaking task semantics.**
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
 [![Five-minute benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
 [![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

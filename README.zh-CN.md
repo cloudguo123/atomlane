@@ -3,6 +3,7 @@
 **让 Codex 在 macOS 上更快完成构建、测试、Docker 和科研流水线，同时不破坏任务语义。**
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
 [![五分钟基准](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
 [![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
 

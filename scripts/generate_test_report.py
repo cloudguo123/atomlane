@@ -205,6 +205,21 @@ def sha256(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
+def load_long_benchmark() -> dict[str, Any]:
+    path = ROOT / "docs" / "benchmark-results.json"
+    if not path.exists():
+        return {"available": False}
+    try:
+        benchmark = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"available": False}
+    latest = benchmark.get("latest")
+    cumulative = benchmark.get("cumulative")
+    if not isinstance(latest, dict) or not isinstance(cumulative, dict):
+        return {"available": False}
+    return {"available": True, **benchmark}
+
+
 def build_report() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     python_sources = sorted(str(path.relative_to(ROOT)) for path in SCRIPTS.glob("*.py"))
@@ -280,6 +295,7 @@ def build_report() -> dict[str, Any]:
         "checks": checks,
         "domains": domain_rows,
         "tests": tests,
+        "benchmark": load_long_benchmark(),
         "scope_note": (
             "This dashboard reports behavioral regression and release-gate results. "
             "It is not a statement of line or branch coverage."
@@ -314,6 +330,7 @@ def render_html(report: dict[str, Any]) -> str:
     .seal:before {{ content:""; position:absolute; inset:11px; border-radius:50%; background:var(--bg); border:1px solid var(--line) }}
     .seal-inner {{ z-index:1; text-align:center }} .rate {{ font-size:46px; font-weight:850; letter-spacing:-.05em }} .seal-label {{ color:var(--muted); font-size:12px; letter-spacing:.13em; text-transform:uppercase }}
     .grid4 {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:30px 0 42px }}
+    .grid6 {{ display:grid; grid-template-columns:repeat(6,1fr); gap:10px }}
     .metric,.panel {{ background:linear-gradient(145deg,#10211dce,#0b1714e8); border:1px solid var(--line); border-radius:16px }}
     .metric {{ padding:20px }} .metric strong {{ display:block; font-size:28px; letter-spacing:-.03em }} .metric span {{ color:var(--muted); font-size:13px }}
     .section-title {{ display:flex; justify-content:space-between; align-items:end; margin:46px 0 16px }} .section-title h2 {{ margin:0; font-size:26px; letter-spacing:-.03em }} .section-title p {{ margin:0; color:var(--muted) }}
@@ -323,13 +340,21 @@ def render_html(report: dict[str, Any]) -> str:
     .pill {{ border-radius:999px; padding:3px 9px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; background:#65e6b418; color:var(--green); border:1px solid #65e6b43b }}
     .pill.failed {{ color:var(--red); border-color:#ff8f8f45; background:#ff8f8f12 }} .pill.skipped {{ color:#f4cf78; border-color:#f4cf7840; background:#f4cf7812 }}
     .bar {{ height:5px; background:#1a2a25; border-radius:10px; overflow:hidden; margin-top:14px }} .bar i {{ height:100%; display:block; background:linear-gradient(90deg,var(--green),var(--blue)); border-radius:10px }}
+    .benchmark {{ position:relative; overflow:hidden; border-color:#65e6b454; box-shadow:0 28px 80px #0005 }} .benchmark:before {{ content:""; position:absolute; width:420px; height:420px; border-radius:50%; background:#52dfa318; filter:blur(80px); right:-180px; top:-250px; pointer-events:none }}
+    .benchmark-head {{ display:flex; justify-content:space-between; gap:20px; align-items:start; margin-bottom:22px }} .benchmark-head h3 {{ font-size:28px; margin:4px 0 }} .benchmark-head p {{ color:var(--muted); margin:0; max-width:670px }}
+    .long-pill {{ display:inline-flex; gap:8px; align-items:center; color:var(--green); font-weight:750; background:#65e6b412; border:1px solid #65e6b43e; border-radius:999px; padding:8px 12px; white-space:nowrap }} .long-pill:before {{ content:""; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 12px var(--green) }}
+    .bench-metric {{ background:#08130fbd; border:1px solid var(--line); border-radius:12px; padding:14px }} .bench-metric strong {{ display:block; font-size:21px }} .bench-metric span {{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.07em }}
+    .comparison {{ display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px }} .compare-row {{ display:grid; grid-template-columns:130px 1fr 72px; gap:12px; align-items:center; margin:12px 0 }} .compare-track {{ height:12px; background:#152722; border-radius:999px; overflow:hidden }} .compare-fill {{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--blue),var(--purple)) }} .compare-fill.parallel {{ background:linear-gradient(90deg,var(--green),#9ef0d1) }}
+    .lanes {{ display:grid; gap:8px }} .lane {{ display:grid; grid-template-columns:180px 1fr 72px; gap:12px; align-items:center; font-size:13px }} .lane-track {{ height:26px; background:#142620; border-radius:7px; padding:3px }} .lane-fill {{ display:flex; align-items:center; height:100%; border-radius:5px; padding:0 8px; color:#06100d; background:linear-gradient(90deg,var(--green),#9ae7ff); font-size:10px; font-weight:850; letter-spacing:.07em }}
+    .history {{ display:flex; align-items:end; gap:7px; min-height:90px; padding-top:14px }} .history-bar {{ min-width:18px; flex:1; max-width:42px; border-radius:5px 5px 2px 2px; background:linear-gradient(180deg,var(--purple),#5f7ee7); position:relative }} .history-bar:hover:after {{ content:attr(data-label); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); color:var(--text); background:#07100e; border:1px solid var(--line); border-radius:6px; padding:4px 7px; white-space:nowrap; font-size:11px }}
     .domains {{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px }} .domain {{ position:relative; overflow:hidden }} .domain:before {{ content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent) }}
     .domain h3 {{ margin:0 0 7px; font-size:17px }} .domain p {{ margin:0; min-height:48px; color:var(--muted) }} .domain-foot {{ display:flex; justify-content:space-between; margin-top:18px; font-variant-numeric:tabular-nums }}
     .toolbar {{ display:flex; gap:10px; margin-bottom:13px }} input {{ flex:1; min-width:0; color:var(--text); background:#08120f; border:1px solid var(--line); border-radius:10px; padding:11px 13px; outline:none }} input:focus {{ border-color:#65e6b478 }}
     table {{ width:100%; border-collapse:collapse }} th {{ text-align:left; color:var(--muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid var(--line) }} td {{ padding:13px 12px; border-bottom:1px solid #172a25; vertical-align:top }} tr:last-child td {{ border-bottom:0 }} .test-title {{ font-weight:650 }} .test-id {{ font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted) }} .time {{ font-variant-numeric:tabular-nums; white-space:nowrap }}
     .provenance {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); padding:1px; border-radius:14px; overflow:hidden }} .prov {{ background:var(--panel); padding:18px }} .prov span {{ display:block; color:var(--muted); font-size:12px }} .prov code {{ display:block; margin-top:5px; overflow-wrap:anywhere; font-size:12px; color:#d9ece5 }}
     .note {{ margin-top:15px; color:var(--muted); font-size:13px }} footer {{ margin-top:46px; padding-top:22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; color:var(--muted); font-size:13px }}
-    @media(max-width:800px) {{ .hero {{ grid-template-columns:1fr }} .seal {{ margin:18px auto 0 }} .grid4 {{ grid-template-columns:repeat(2,1fr) }} .checks,.domains {{ grid-template-columns:1fr }} .provenance {{ grid-template-columns:1fr }} .navlinks {{ display:none }} }}
+    @media(max-width:1000px) {{ .grid6 {{ grid-template-columns:repeat(3,1fr) }} }}
+    @media(max-width:800px) {{ .hero {{ grid-template-columns:1fr }} .seal {{ margin:18px auto 0 }} .grid4 {{ grid-template-columns:repeat(2,1fr) }} .checks,.domains,.comparison {{ grid-template-columns:1fr }} .provenance {{ grid-template-columns:1fr }} .navlinks {{ display:none }} .benchmark-head {{ display:block }} .long-pill {{ margin-top:14px }} }}
     @media(max-width:520px) {{ .grid4 {{ grid-template-columns:1fr 1fr }} .wrap {{ width:min(100% - 22px,1180px); padding-top:24px }} .panel {{ padding:14px }} th:nth-child(2),td:nth-child(2) {{ display:none }} }}
   </style>
 </head>
@@ -341,6 +366,8 @@ def render_html(report: dict[str, Any]) -> str:
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>
+  <div class="section-title"><div><div class="eyebrow">Long-horizon evidence</div><h2>Five-minute parallel benchmark</h2></div><p>Fast regression report retained below</p></div>
+  <section class="panel benchmark" id="benchmark"></section>
   <div class="section-title"><div><div class="eyebrow">Quality gates</div><h2>Release checks</h2></div><p id="overall">{overall}</p></div>
   <section class="checks" id="checks"></section>
   <div class="section-title"><div><div class="eyebrow">Behavioral coverage</div><h2>Verified subsystems</h2></div><p>Every regression grouped by responsibility</p></div>
@@ -354,9 +381,10 @@ def render_html(report: dict[str, Any]) -> str:
 </main>
 <script id="report-data" type="application/json">{data}</script>
 <script>
-const d=JSON.parse(document.getElementById('report-data').textContent); const q=s=>document.querySelector(s); const ms=n=>n>=1000?(n/1000).toFixed(2)+'s':Math.round(n)+'ms';
+const d=JSON.parse(document.getElementById('report-data').textContent); const q=s=>document.querySelector(s); const ms=n=>n>=1000?(n/1000).toFixed(2)+'s':Math.round(n)+'ms'; const span=s=>s>=3600?(s/3600).toFixed(2)+'h':s>=60?(s/60).toFixed(2)+'m':s.toFixed(1)+'s';
 q('#version').textContent=d.version; q('#rate').textContent=d.summary.pass_rate+'%'; q('#seal').style.setProperty('--rate',d.summary.pass_rate); q('#overall').textContent=d.overall==='passed'?'ALL REQUIRED GATES PASSED':'VERIFICATION FAILED'; q('#overall').style.color=d.overall==='passed'?'var(--green)':'var(--red)';
 const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]]; q('#metrics').innerHTML=metrics.map(x=>`<div class="metric"><strong>${{x[1]}}</strong><span>${{x[0]}}</span></div>`).join('');
+const b=d.benchmark; if(!b.available){{q('#benchmark').innerHTML='<div class="benchmark-head"><div><h3>First long benchmark pending</h3><p>The five-minute evidence run is independent from fast CI and will appear here after its first successful execution.</p></div><span class="long-pill">Scheduled benchmark</span></div>';}}else{{const x=b.latest,c=b.cumulative,serial=x.serial_equivalent.seconds,wall=x.parallel.wall_time_seconds,maxSaved=Math.max(...b.history.map(h=>h.saved_seconds),1),longEnough=x.minimum_task_seconds>=300;const bm=[['Per-task minimum',span(x.minimum_task_seconds)],['Parallel wall time',span(wall)],['Serial equivalent',span(serial)],['Saved this run',span(x.savings.seconds)],['Cumulative saved',span(c.saved_seconds)],['Observed speedup',x.savings.speedup_multiplier.toFixed(2)+'×']];const taskLanes=x.tasks.map(t=>`<div class="lane"><span>${{t.label}}</span><div class="lane-track"><i class="lane-fill" style="width:${{Math.min(100,t.duration_seconds/x.target_task_seconds*100)}}%">${{t.status.toUpperCase()}}</i></div><strong>${{span(t.duration_seconds)}}</strong></div>`).join('');const hist=b.history.map(h=>`<i class="history-bar" style="height:${{Math.max(12,h.saved_seconds/maxSaved*76)}}px" data-label="${{span(h.saved_seconds)}} saved"></i>`).join('');q('#benchmark').innerHTML=`<div class="benchmark-head"><div><div class="eyebrow">${{x.status}} · ${{x.task_count}} independent workloads</div><h3>${{longEnough?'Every task ran beyond five minutes':'Every task met the configured duration gate'}}</h3><p>Observed task runtimes are summed for the serial equivalent; no synthetic multiplier and no 20-minute serial rerun. Savings equal that observed work minus actual parallel wall time.</p></div><span class="long-pill">Minimum gate ${{span(x.minimum_task_seconds)}}</span></div><div class="grid6">${{bm.map(v=>`<div class="bench-metric"><strong>${{v[1]}}</strong><span>${{v[0]}}</span></div>`).join('')}}</div><div class="comparison"><div><h4>Serial-equivalent vs parallel</h4><div class="compare-row"><span>Serial equivalent</span><div class="compare-track"><i class="compare-fill" style="width:100%"></i></div><strong>${{span(serial)}}</strong></div><div class="compare-row"><span>Parallel</span><div class="compare-track"><i class="compare-fill parallel" style="width:${{wall/serial*100}}%"></i></div><strong>${{span(wall)}}</strong></div><p class="note">${{x.savings.percent.toFixed(2)}}% less wall time · ${{(x.savings.parallel_efficiency*100).toFixed(1)}}% parallel efficiency · peak ${{x.parallel.peak_concurrency}} workers</p></div><div><h4>Cumulative savings history</h4><div class="history">${{hist}}</div><p class="note">${{c.run_count}} verified run${{c.run_count===1?'':'s'}} · ${{span(c.saved_seconds)}} saved in total</p></div></div><h4>Concurrent task timeline</h4><div class="lanes">${{taskLanes}}</div><p class="note">Method: ${{x.method}}. Latest run ${{x.run_id}} on ${{x.resource.machine}} (${{x.resource.logical_cpus}} logical CPUs). Source commit ${{x.commit.slice(0,10)}}.</p>`;}}
 const max=Math.max(...d.checks.map(x=>x.duration_ms),1); q('#checks').innerHTML=d.checks.map(x=>`<article class="check"><div class="checktop"><strong>${{x.name}}</strong><span class="pill ${{x.status}}">${{x.status}}</span></div><div class="bar"><i style="width:${{Math.max(2,x.duration_ms/max*100)}}%"></i></div><small style="color:var(--muted)">${{ms(x.duration_ms)}}</small></article>`).join('');
 q('#domains').innerHTML=d.domains.map(x=>`<article class="panel domain" style="--accent:${{x.accent}}"><h3>${{x.label}}</h3><p>${{x.description}}</p><div class="domain-foot"><strong>${{x.passed}} / ${{x.total}} passed</strong><span style="color:var(--muted)">${{ms(x.duration_ms)}}</span></div></article>`).join('');
 function draw(list){{ q('#test-count').textContent=list.length+' of '+d.tests.length+' shown'; q('#tests').innerHTML=list.map(x=>`<tr><td><div class="test-title">${{x.title}}</div><div class="test-id">${{x.class}}.${{x.name}}</div></td><td>${{x.domain}}</td><td><span class="pill ${{x.status}}">${{x.status}}</span></td><td class="time">${{ms(x.duration_ms)}}</td></tr>`).join('')||'<tr><td colspan="4">No matching tests.</td></tr>';}} draw(d.tests);

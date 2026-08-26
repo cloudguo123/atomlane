@@ -8,6 +8,9 @@ All notable changes to this project are documented here.
   coverage, release gates, environment metadata, and build provenance.
 - Added automatic GitHub Pages generation and deployment from the verified
   `main` branch.
+- Added a weekly and manually dispatchable five-minute benchmark with four
+  independent low-load workloads, live progress samples, observed serial
+  equivalent, per-run savings, cumulative savings, speedup, and efficiency.
 
 ## 0.9.0 - 2026-08-23
 

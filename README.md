@@ -1,6 +1,7 @@
 # Mac Parallel Accelerator
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
+[![Five-minute benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
 [![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -145,6 +146,19 @@ python3 scripts/generate_test_report.py
 
 The self-contained dashboard is written to `docs/index.html`; its complete
 machine-readable evidence is written to `docs/test-results.json`.
+
+The dashboard also retains a separate long-horizon benchmark. Four isolated,
+low-load workloads each run for at least five minutes through the real parallel
+executor. The report compares actual parallel wall time with the sum of the
+observed task runtimes, then shows per-run and cumulative savings, speedup,
+parallel efficiency, task timelines, and progress samples. The serial
+equivalent is derived from observed independent task durations; it is not
+presented as a separately executed serial run.
+
+The long benchmark runs weekly and may also be started manually from
+[GitHub Actions](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml).
+Its raw evidence is published as
+[`benchmark-results.json`](https://cloudguo123.github.io/mac-parallel-accelerator/benchmark-results.json).
 
 The lockfile and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) record the
 browser bundle inputs. `node_modules` is never part of the plugin package.

@@ -1,10 +1,13 @@
 {
   "name": "mac-parallel-accelerator",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
   "author": {
-    "name": "cloudguo123"
+    "name": "cloudguo123",
+    "url": "https://github.com/cloudguo123"
   },
+  "homepage": "https://cloudguo123.github.io/mac-parallel-accelerator/",
+  "repository": "https://github.com/cloudguo123/mac-parallel-accelerator",
   "license": "MIT",
   "keywords": [
     "macos",
@@ -37,6 +40,13 @@
       "Apple silicon routing"
     ],
     "brandColor": "#2563EB",
+    "websiteURL": "https://cloudguo123.github.io/mac-parallel-accelerator/",
+    "privacyPolicyURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/LICENSE",
+    "logo": "./assets/growth/social-preview.png",
+    "screenshots": [
+      "./assets/growth/social-preview.png"
+    ],
     "defaultPrompt": [
       "Use $accelerate-local-work to compile this workload and execute the exact verified atomic plan.",
       "Preserve the task's control flow while discovering safe atomic concurrency.",

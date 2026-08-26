@@ -314,7 +314,7 @@ def main() -> int:
             request(
                 13,
                 "resources/read",
-                {"uri": "ui://widget/mac-parallel-indicator-0.9.2.html"},
+                {"uri": "ui://widget/mac-parallel-indicator-0.9.3.html"},
             ),
         ]
         payload = "".join(json.dumps(message) + "\n" for message in messages)
@@ -342,7 +342,7 @@ def main() -> int:
         assert all(item["params"]["progressToken"] == "self-test-progress" for item in progress)
         assert any("当前预计节约" in item["params"]["message"] for item in progress)
         assert responses[0]["result"]["serverInfo"]["name"] == "mac-parallel-accelerator"
-        assert responses[0]["result"]["serverInfo"]["version"] == "0.9.2"
+        assert responses[0]["result"]["serverInfo"]["version"] == "0.9.3"
         assert "cheaply assess parallel eligibility" in responses[0]["result"]["instructions"]
 
         parallel = responses[1]["result"]["structuredContent"]

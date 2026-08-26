@@ -8,7 +8,7 @@
       "name": "mac-parallel-accelerator",
       "source": {
         "source": "local",
-        "path": "."
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -1,6 +1,7 @@
 ---
 name: accelerate-local-work
 description: Compile and execute safe atomic parallel plans for macOS tasks containing composite shell or package scripts, Make or Compose graphs, native test/build runners, repeated independent work, dependency DAGs, or Apple-silicon operators. Use at task start or an execution boundary when structured local work may contain two or more worthwhile units; skip plain answers, one quick command, and work whose effects cannot be safely bounded.
+license: MIT
 ---
 
 # Accelerate Local Work

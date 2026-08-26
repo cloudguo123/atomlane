@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.9.3 - 2026-08-26
+
+- Removed the bundled Zod dynamic-evaluation capability probe and added a
+  build-time plus regression-test gate that rejects `eval()` and
+  `new Function()` in the published MCP App bundle.
+- Added the SHA-pinned HOL marketplace scanner workflow, privacy metadata,
+  `.codexignore`, manifest discovery links, and explicit skill licensing.
+- Hardened scheduled growth metrics by retaining the last authorized traffic
+  sample when GitHub's default Actions token cannot read traffic endpoints.
+- Submitted the plugin and its skill to independent free Codex ecosystem
+  directories.
+
 ## 0.9.2 - 2026-08-26
 
 - Fixed immutable plan verification across MCP clients that serialize integral

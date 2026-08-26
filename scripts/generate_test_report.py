@@ -187,14 +187,13 @@ def bundle_check() -> dict[str, Any]:
         }
     build = run_command("Reproducible UI bundle", ["npm", "run", "build:indicator"])
     if build["status"] == "passed":
-        diff = subprocess.run(
-            ["git", "diff", "--quiet", "--", "assets/parallel-indicator-host.bundle.js"],
-            cwd=ROOT,
-            check=False,
-        )
-        if diff.returncode != 0:
+        bundle = ROOT / "assets" / "parallel-indicator-host.bundle.js"
+        first_digest = sha256(bundle)
+        second = run_command("Reproducible UI bundle", ["npm", "run", "build:indicator"])
+        build["duration_ms"] = round(build["duration_ms"] + second["duration_ms"], 2)
+        if second["status"] != "passed" or sha256(bundle) != first_digest:
             build["status"] = "failed"
-            build["returncode"] = diff.returncode
+            build["returncode"] = second["returncode"] or 1
     return build
 
 

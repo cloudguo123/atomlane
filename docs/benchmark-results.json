@@ -1,0 +1,297 @@
+{
+  "schema_version": "1.0",
+  "latest": {
+    "run_id": "32963131926",
+    "generated_at": "2026-08-26T11:29:37+00:00",
+    "commit": "59bf9a471fa5ae08f42c8dd0d341864d0098aeda",
+    "status": "passed",
+    "method": "controlled-duration low-load parallel execution",
+    "minimum_task_seconds": 300.0,
+    "target_task_seconds": 310.0,
+    "minimum_duration_met": true,
+    "task_count": 4,
+    "tasks": [
+      {
+        "id": "artifact-hash",
+        "scenario": "artifact-hash",
+        "label": "Artifact hashing and integrity verification",
+        "status": "succeeded",
+        "duration_seconds": 310.18256,
+        "iterations": 1075,
+        "work_units": 563609600
+      },
+      {
+        "id": "planner-json",
+        "scenario": "planner-json",
+        "label": "Atom-plan serialization and validation",
+        "status": "succeeded",
+        "duration_seconds": 310.178613,
+        "iterations": 1200,
+        "work_units": 115200
+      },
+      {
+        "id": "isolated-io",
+        "scenario": "isolated-io",
+        "label": "Isolated snapshot write/read verification",
+        "status": "succeeded",
+        "duration_seconds": 310.167145,
+        "iterations": 1121,
+        "work_units": 73465856
+      },
+      {
+        "id": "scheduler-sim",
+        "scenario": "scheduler-sim",
+        "label": "Capacity-aware scheduler simulation",
+        "status": "succeeded",
+        "duration_seconds": 310.159259,
+        "iterations": 1198,
+        "work_units": 76672
+      }
+    ],
+    "parallel": {
+      "wall_time_seconds": 310.185492,
+      "peak_concurrency": 4,
+      "chosen_concurrency": 4
+    },
+    "serial_equivalent": {
+      "seconds": 1240.687577,
+      "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
+    },
+    "savings": {
+      "seconds": 930.502085,
+      "percent": 74.9989,
+      "speedup_multiplier": 3.9998,
+      "parallel_efficiency": 1.0
+    },
+    "resource": {
+      "profile": "io",
+      "responsiveness": "throughput",
+      "logical_cpus": 3,
+      "physical_cpus": 3,
+      "machine": "Apple M1 (Virtual)"
+    },
+    "progress_samples": [
+      {
+        "elapsed_seconds": 0.0,
+        "running_tasks": 0,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": -0.0
+      },
+      {
+        "elapsed_seconds": 0.001,
+        "running_tasks": 1,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": -0.001
+      },
+      {
+        "elapsed_seconds": 0.004,
+        "running_tasks": 2,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": -0.001
+      },
+      {
+        "elapsed_seconds": 0.017,
+        "running_tasks": 3,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 0.011
+      },
+      {
+        "elapsed_seconds": 0.025,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 0.029
+      },
+      {
+        "elapsed_seconds": 15.044,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 45.084
+      },
+      {
+        "elapsed_seconds": 30.078,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 90.186
+      },
+      {
+        "elapsed_seconds": 45.129,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 135.338
+      },
+      {
+        "elapsed_seconds": 60.176,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 180.482
+      },
+      {
+        "elapsed_seconds": 75.222,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 225.617
+      },
+      {
+        "elapsed_seconds": 90.324,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 270.924
+      },
+      {
+        "elapsed_seconds": 105.394,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 316.136
+      },
+      {
+        "elapsed_seconds": 120.453,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 361.312
+      },
+      {
+        "elapsed_seconds": 135.515,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 406.497
+      },
+      {
+        "elapsed_seconds": 150.57,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 451.664
+      },
+      {
+        "elapsed_seconds": 165.647,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 496.893
+      },
+      {
+        "elapsed_seconds": 180.71,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 542.083
+      },
+      {
+        "elapsed_seconds": 195.788,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 587.317
+      },
+      {
+        "elapsed_seconds": 210.868,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 632.556
+      },
+      {
+        "elapsed_seconds": 225.946,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 677.79
+      },
+      {
+        "elapsed_seconds": 241.017,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 723.004
+      },
+      {
+        "elapsed_seconds": 256.087,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 768.213
+      },
+      {
+        "elapsed_seconds": 271.181,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 813.495
+      },
+      {
+        "elapsed_seconds": 286.291,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 858.824
+      },
+      {
+        "elapsed_seconds": 301.363,
+        "running_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 904.042
+      },
+      {
+        "elapsed_seconds": 310.184,
+        "running_tasks": 3,
+        "completed_tasks": 1,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 930.502
+      },
+      {
+        "elapsed_seconds": 310.184,
+        "running_tasks": 2,
+        "completed_tasks": 2,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 930.503
+      },
+      {
+        "elapsed_seconds": 310.184,
+        "running_tasks": 1,
+        "completed_tasks": 3,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 930.503
+      },
+      {
+        "elapsed_seconds": 310.185,
+        "running_tasks": 0,
+        "completed_tasks": 4,
+        "failed_tasks": 0,
+        "estimated_saved_seconds": 930.503
+      }
+    ]
+  },
+  "history": [
+    {
+      "run_id": "32963131926",
+      "generated_at": "2026-08-26T11:29:37+00:00",
+      "commit": "59bf9a471fa5ae08f42c8dd0d341864d0098aeda",
+      "status": "passed",
+      "wall_time_seconds": 310.185492,
+      "serial_equivalent_seconds": 1240.687577,
+      "saved_seconds": 930.502085,
+      "speedup_multiplier": 3.9998
+    }
+  ],
+  "cumulative": {
+    "run_count": 1,
+    "parallel_wall_seconds": 310.185492,
+    "serial_equivalent_seconds": 1240.687577,
+    "saved_seconds": 930.502085
+  }
+}

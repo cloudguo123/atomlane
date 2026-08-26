@@ -9,6 +9,7 @@ import os
 import pathlib
 import subprocess
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
@@ -40,6 +41,19 @@ def optional_json(path: str, token: str | None) -> tuple[Any | None, str | None]
         return request_json(path, token), None
     except (OSError, RuntimeError, ValueError, urllib.error.HTTPError) as exc:
         return None, f"{type(exc).__name__}: endpoint unavailable"
+
+
+def labeled_issue_count(
+    repository: str, label: str, token: str | None
+) -> tuple[int | None, str | None]:
+    """Return an aggregate public issue count without retaining issue content."""
+    query = urllib.parse.urlencode(
+        {"q": f"repo:{repository} is:issue label:{label}", "per_page": 1}
+    )
+    response, error = optional_json(f"search/issues?{query}", token)
+    if not isinstance(response, dict) or not isinstance(response.get("total_count"), int):
+        return None, error or "ValueError: endpoint returned an unexpected shape"
+    return int(response["total_count"]), None
 
 
 def load_existing(path: pathlib.Path) -> dict[str, Any]:
@@ -75,6 +89,8 @@ def collect(repository: str, token: str | None) -> dict[str, Any]:
     clones, clones_error = optional_json(f"repos/{repository}/traffic/clones?per=day", token)
     referrers, referrers_error = optional_json(f"repos/{repository}/traffic/popular/referrers", token)
     paths, paths_error = optional_json(f"repos/{repository}/traffic/popular/paths", token)
+    first_runs, first_runs_error = labeled_issue_count(repository, "first-run", token)
+    benchmarks, benchmarks_error = labeled_issue_count(repository, "benchmark", token)
     release_downloads = 0
     release_count = 0
     if isinstance(releases, list):
@@ -93,6 +109,8 @@ def collect(repository: str, token: str | None) -> dict[str, Any]:
         "open_issues_and_prs": int(repo.get("open_issues_count", 0)),
         "releases": release_count,
         "release_asset_downloads": release_downloads,
+        "first_run_reports": first_runs,
+        "benchmark_reports": benchmarks,
         "traffic_14d": {
             "views": views.get("count") if isinstance(views, dict) else None,
             "unique_visitors": views.get("uniques") if isinstance(views, dict) else None,
@@ -109,6 +127,8 @@ def collect(repository: str, token: str | None) -> dict[str, Any]:
                 ("traffic_clones", clones_error),
                 ("traffic_referrers", referrers_error),
                 ("traffic_paths", paths_error),
+                ("first_run_reports", first_runs_error),
+                ("benchmark_reports", benchmarks_error),
             )
             if error
         ],
@@ -137,6 +157,7 @@ def main() -> int:
                 "traffic_window": "GitHub returns repository traffic for the latest 14 days and may delay updates.",
                 "traffic_permission": "Scheduled traffic refresh requires an optional fine-grained MPA_TRAFFIC_TOKEN with repository Administration read access; otherwise the last authenticated sample is retained and marked stale.",
                 "clone_intent": "Clones and release downloads are interest signals, not verified plugin installations.",
+                "community_reports": "First-run and benchmark counts include public, self-selected issues with the corresponding label; they are not verified installations.",
                 "privacy": "Only aggregate GitHub counters are retained; no visitor identity or tracking cookie is collected.",
             },
             "targets_30d": {
@@ -144,6 +165,7 @@ def main() -> int:
                 "clone_or_download_intents": 100,
                 "stars": 50,
                 "external_benchmarks": 10,
+                "first_run_reports": 20,
                 "compatibility_reports": 5,
                 "contributors": 3,
                 "awesome_list_entries": 2,

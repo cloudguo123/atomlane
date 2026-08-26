@@ -6,7 +6,7 @@
 [![五分钟基准](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
 [![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
 
-[English](README.md) · [在线报告](https://cloudguo123.github.io/mac-parallel-accelerator/) · [提交实测结果](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
+[English](README.md) · [在线报告](https://cloudguo123.github.io/mac-parallel-accelerator/) · [反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
 
 ![Mac Parallel Accelerator：受控基准测试，串行等效 20 分 41 秒，并行实际 5 分 10 秒，节约 15 分 31 秒](assets/growth/social-preview.svg)
 
@@ -96,6 +96,6 @@ atomic_task_plan
 
 请先在一个真实任务上试用，再提交脱敏后的实测结果。即使没有加速、而是被安全规则拦住，也很有价值——它能告诉我们下一条需要补齐的语义规则。
 
-[提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [贡献代码](CONTRIBUTING.md)
+[反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [贡献代码](CONTRIBUTING.md)
 
 [MIT 许可](LICENSE) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)

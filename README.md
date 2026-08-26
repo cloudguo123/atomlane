@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/cloudguo123/mac-parallel-accelerator?color=80b7ff)](https://github.com/cloudguo123/mac-parallel-accelerator/discussions)
 
-[中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/mac-parallel-accelerator/) · [Share a benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
+[中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/mac-parallel-accelerator/) · [Report first run](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
 
 ![Mac Parallel Accelerator: controlled benchmark showing 20m41s serial equivalent, 5m10s parallel wall time, and 15m31s saved](assets/growth/social-preview.svg)
 
@@ -143,6 +143,6 @@ Useful references:
 
 Try it on one real task, then share the sanitized result card or submit a benchmark. If the planner blocks work that should be safe, that report is just as valuable as a speedup—it identifies the next missing semantic rule.
 
-[Open a benchmark report](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [View the roadmap](ROADMAP.md)
+[Report your first run](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [Open a benchmark report](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [View the roadmap](ROADMAP.md)
 
 [MIT licensed](LICENSE) · [Privacy](PRIVACY.md) · [Terms](TERMS.md)

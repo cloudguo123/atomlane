@@ -30,6 +30,12 @@ class GithubMetricsTests(unittest.TestCase):
             },
             "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/referrers": [],
             "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/paths": [],
+            "search/issues?q=repo%3Acloudguo123%2Fmac-parallel-accelerator+is%3Aissue+label%3Afirst-run&per_page=1": {
+                "total_count": 6
+            },
+            "search/issues?q=repo%3Acloudguo123%2Fmac-parallel-accelerator+is%3Aissue+label%3Abenchmark&per_page=1": {
+                "total_count": 3
+            },
         }
         with mock.patch.object(
             collect_github_metrics,
@@ -42,7 +48,21 @@ class GithubMetricsTests(unittest.TestCase):
         self.assertEqual(result["stars"], 2)
         self.assertEqual(result["traffic_14d"]["unique_cloners"], 4)
         self.assertEqual(result["release_asset_downloads"], 3)
+        self.assertEqual(result["first_run_reports"], 6)
+        self.assertEqual(result["benchmark_reports"], 3)
         self.assertNotIn("visitors", result)
+
+    def test_labeled_issue_count_fails_closed_on_unexpected_shape(self) -> None:
+        with mock.patch.object(
+            collect_github_metrics,
+            "optional_json",
+            return_value=({"items": []}, None),
+        ):
+            count, error = collect_github_metrics.labeled_issue_count(
+                "cloudguo123/mac-parallel-accelerator", "first-run", token=None
+            )
+        self.assertIsNone(count)
+        self.assertIn("unexpected shape", error or "")
 
     def test_missing_file_starts_empty_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -9,12 +9,13 @@ This project uses free, privacy-respecting distribution. It does not use paid ad
 | Unique repository visitors | 500 | GitHub 14-day traffic snapshots |
 | Clone or release-download intent | 100 | GitHub clones plus release asset downloads |
 | Stars | 50 | GitHub repository |
+| First-run reports | 20 | Public first-run-labeled issues |
 | External benchmark reports | 10 | Benchmark-labeled issues and discussions |
 | Compatibility reports | 5 | Bug/scenario reports with environment evidence |
 | Contributors | 3 | Merged external pull requests |
 | Awesome-list entries | 2 | Accepted directory pull requests |
 
-Clones and downloads indicate intent, not verified installation. Marketplace installs are not currently exposed as a public repository metric.
+Clones, downloads, and first-run reports indicate intent, not verified installation. First-run reports are public and self-selected; Marketplace installs are not currently exposed as a public repository metric.
 
 ## Distribution sequence
 
@@ -27,7 +28,7 @@ Clones and downloads indicate intent, not verified installation. Marketplace ins
 
 ## Measurement
 
-`scripts/collect_github_metrics.py` stores only aggregate GitHub counters in `docs/metrics.json`. A weekly GitHub Actions workflow refreshes public counters. Repository traffic covers GitHub's latest 14-day window and can lag. GitHub's default Actions token cannot read traffic; without the optional fine-grained `MPA_TRAFFIC_TOKEN` (repository Administration: read), the workflow retains the last authenticated traffic sample and marks it stale instead of inventing zeroes.
+`scripts/collect_github_metrics.py` stores only aggregate GitHub counters and counts of public `first-run` and `benchmark` issues in `docs/metrics.json`; it does not retain issue bodies. A weekly GitHub Actions workflow refreshes public counters. Repository traffic covers GitHub's latest 14-day window and can lag. GitHub's default Actions token cannot read traffic; without the optional fine-grained `MPA_TRAFFIC_TOKEN` (repository Administration: read), the workflow retains the last authenticated traffic sample and marks it stale instead of inventing zeroes.
 
 The most important qualitative signals are:
 

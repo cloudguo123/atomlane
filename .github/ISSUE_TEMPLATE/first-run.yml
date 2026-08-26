@@ -1,0 +1,83 @@
+name: First-run report
+description: Share whether your first real task accelerated, stayed serial, delegated, or safely stopped.
+title: "[First run]: "
+labels: [first-run, community-evidence]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A short result helps improve installation, discovery, safety rules, and live progress. Do not paste private paths, prompts, commands, logs, source, or environment values.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version or commit
+      placeholder: 0.9.3 / abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation route
+      options:
+        - Codex plugin marketplace
+        - Agent Plugins-compatible client
+        - Source checkout
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Project category
+      options:
+        - Web / TypeScript
+        - Docker / Compose
+        - Research / paper
+        - Native build / tests
+        - Media / data / ML batch
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: First-run outcome
+      options:
+        - Accelerated
+        - Delegated to a native runner
+        - Kept serial
+        - Correctly blocked unsafe work
+        - Installation or discovery failed
+    validations:
+      required: true
+  - type: dropdown
+    id: live_progress
+    attributes:
+      label: Live progress
+      options:
+        - Visible throughout
+        - Not visible
+        - Not applicable; run was under ten seconds
+    validations:
+      required: true
+  - type: input
+    id: savings
+    attributes:
+      label: Reported savings (optional)
+      description: Copy only the aggregate per-run savings or speedup shown by the plugin.
+      placeholder: 3m 12s saved / 1.8x
+  - type: textarea
+    id: friction
+    attributes:
+      label: What worked or got in the way?
+      description: Keep it sanitized. A sentence is enough.
+      placeholder: The plan found two independent checks; installation needed no extra help.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I reviewed this report and removed secrets and private project content.
+          required: true

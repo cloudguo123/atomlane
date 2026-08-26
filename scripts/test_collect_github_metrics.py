@@ -50,6 +50,16 @@ class GithubMetricsTests(unittest.TestCase):
             result = collect_github_metrics.load_existing(path)
         self.assertEqual(result["snapshots"], [])
 
+    def test_previous_authenticated_traffic_can_be_identified(self) -> None:
+        previous = {
+            "captured_at": "2026-08-25T00:00:00+00:00",
+            "traffic_14d": {"views": 12, "unique_visitors": 7},
+        }
+        current = {"traffic_14d": {"views": None, "unique_visitors": None}}
+        collect_github_metrics.retain_last_traffic(current, previous)
+        self.assertEqual(current["traffic_14d"]["unique_visitors"], 7)
+        self.assertEqual(current["traffic_stale_from"], previous["captured_at"])
+
 
 if __name__ == "__main__":
     unittest.main()

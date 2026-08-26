@@ -24,7 +24,7 @@ jobs:
 
       - name: Collect aggregate GitHub metrics
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MPA_TRAFFIC_TOKEN || secrets.GITHUB_TOKEN }}
         run: python3 scripts/collect_github_metrics.py
 
       - name: Record weekly snapshot

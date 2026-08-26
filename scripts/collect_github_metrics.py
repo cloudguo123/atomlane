@@ -54,6 +54,20 @@ def load_existing(path: pathlib.Path) -> dict[str, Any]:
     return data
 
 
+def retain_last_traffic(snapshot: dict[str, Any], previous: Any) -> dict[str, Any]:
+    """Carry forward an authenticated traffic sample when Actions lacks access."""
+    if not isinstance(previous, dict) or snapshot["traffic_14d"].get("views") is not None:
+        return snapshot
+    previous_traffic = previous.get("traffic_14d")
+    if not isinstance(previous_traffic, dict) or previous_traffic.get("views") is None:
+        return snapshot
+    snapshot["traffic_14d"] = previous_traffic
+    snapshot["top_referrers"] = previous.get("top_referrers", [])
+    snapshot["top_paths"] = previous.get("top_paths", [])
+    snapshot["traffic_stale_from"] = previous.get("captured_at")
+    return snapshot
+
+
 def collect(repository: str, token: str | None) -> dict[str, Any]:
     repo = request_json(f"repos/{repository}", token)
     releases, releases_error = optional_json(f"repos/{repository}/releases?per_page=100", token)
@@ -112,6 +126,7 @@ def main() -> int:
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     snapshot = collect(args.repository, token)
     data = load_existing(args.output)
+    snapshot = retain_last_traffic(snapshot, data.get("latest"))
     snapshots = [row for row in data["snapshots"] if row.get("captured_at") != snapshot["captured_at"]]
     snapshots.append(snapshot)
     data.update(
@@ -120,6 +135,7 @@ def main() -> int:
             "repository": args.repository,
             "metric_notes": {
                 "traffic_window": "GitHub returns repository traffic for the latest 14 days and may delay updates.",
+                "traffic_permission": "Scheduled traffic refresh requires an optional fine-grained MPA_TRAFFIC_TOKEN with repository Administration read access; otherwise the last authenticated sample is retained and marked stale.",
                 "clone_intent": "Clones and release downloads are interest signals, not verified plugin installations.",
                 "privacy": "Only aggregate GitHub counters are retained; no visitor identity or tracking cookie is collected.",
             },

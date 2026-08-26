@@ -27,7 +27,7 @@ Clones and downloads indicate intent, not verified installation. Marketplace ins
 
 ## Measurement
 
-`scripts/collect_github_metrics.py` stores only aggregate GitHub counters in `docs/metrics.json`. A weekly GitHub Actions workflow refreshes the snapshot. Repository traffic covers GitHub's latest 14-day window and can lag.
+`scripts/collect_github_metrics.py` stores only aggregate GitHub counters in `docs/metrics.json`. A weekly GitHub Actions workflow refreshes public counters. Repository traffic covers GitHub's latest 14-day window and can lag. GitHub's default Actions token cannot read traffic; without the optional fine-grained `MPA_TRAFFIC_TOKEN` (repository Administration: read), the workflow retains the last authenticated traffic sample and marks it stale instead of inventing zeroes.
 
 The most important qualitative signals are:
 

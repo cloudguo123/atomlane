@@ -1,5 +1,9 @@
 # OpenAI Developer Forum draft
 
+- Target category: https://community.openai.com/c/codex/37
+- Suggested tags: `codex-app`, `community`, `best-practices`
+- Publishing status: draft ready; the current browser session must be logged in before a topic can be created.
+
 ## Title
 
 I built a semantics-preserving parallel execution plugin for Codex on macOS

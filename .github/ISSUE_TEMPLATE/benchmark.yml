@@ -1,0 +1,68 @@
+name: Real-project benchmark
+description: Share a sanitized speedup, neutral result, slowdown, or safety refusal.
+title: "[Benchmark]: "
+labels: [benchmark, community-evidence]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every honest result helps. Read [BENCHMARKING.md](https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/BENCHMARKING.md) first. Do not disclose private source, prompts, command bodies, paths, logs, or environment values.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version and commit
+      placeholder: 0.9.2 / abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Project category
+      options:
+        - Web / TypeScript
+        - Docker / Compose
+        - Research / paper
+        - Native build / tests
+        - Media / data / ML batch
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Mac and run environment
+      placeholder: Mac model, macOS, power mode, logical CPUs, cold or warm
+    validations:
+      required: true
+  - type: textarea
+    id: workload
+    attributes:
+      label: Sanitized workload description
+      description: Describe stages and dependencies without private names or command bodies.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: Parallel wall time, measured baseline or labeled serial equivalent, savings, speedup, peak concurrency, repetitions, p50/p90, failures/skips/blockers.
+    validations:
+      required: true
+  - type: textarea
+    id: correctness
+    attributes:
+      label: Correctness evidence
+      description: Output hashes, test results, artifact comparison, or the reason execution correctly failed closed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: method
+    attributes:
+      label: Method checks
+      options:
+        - label: I labeled the comparison as measured or estimated/serial-equivalent.
+          required: true
+        - label: I did not rerun destructive or stateful work solely for a baseline.
+          required: true
+        - label: I reviewed this report and removed secrets and private project content.
+          required: true

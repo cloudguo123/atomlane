@@ -406,8 +406,38 @@ def canonical_plan_hash(
         "snapshots": sorted(snapshots, key=lambda item: item["path"]),
         "execution_contract": execution_contract or {},
     }
-    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    canonical = json.dumps(
+        normalize_json_numbers(payload),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def normalize_json_numbers(value: Any) -> Any:
+    """Normalize JSON numbers across Python and JavaScript round trips.
+
+    JSON has one numeric type, while Python's encoder distinguishes ``1`` from
+    ``1.0`` and JavaScript's encoder does not. Plan hashes cross an MCP JSON
+    boundary, so semantically equal integral values need one representation.
+    """
+    if isinstance(value, bool) or value is None or isinstance(value, (str, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise AtomError("canonical JSON numbers must be finite")
+        if value == 0 or value.is_integer():
+            return int(value)
+        return value
+    if isinstance(value, list):
+        return [normalize_json_numbers(item) for item in value]
+    if isinstance(value, tuple):
+        return [normalize_json_numbers(item) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_json_numbers(item) for key, item in value.items()}
+    return value
 
 
 def _canonicalize_atom(atom: dict[str, Any]) -> dict[str, Any]:

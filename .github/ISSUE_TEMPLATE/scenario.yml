@@ -1,0 +1,37 @@
+name: Scenario request
+description: Propose a new workload pattern or a more atomic optimization target.
+title: "[Scenario]: "
+labels: [scenario, enhancement]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Scenario name
+    validations:
+      required: true
+  - type: textarea
+    id: graph
+    attributes:
+      label: Typical task graph
+      description: List stages, data dependencies, success/failure conditions, daemons, and native concurrency owners.
+    validations:
+      required: true
+  - type: textarea
+    id: target
+    attributes:
+      label: Optimization target
+      description: Wall time, memory, responsiveness, I/O, energy, accelerator utilization, or process-startup reduction.
+    validations:
+      required: true
+  - type: textarea
+    id: hazards
+    attributes:
+      label: Shared state and hazards
+      description: Files, caches, databases, ports, containers, devices, external accounts, timing/provenance fences, and unknown effects.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or fixture
+      description: Link public examples or provide a minimal sanitized structure.

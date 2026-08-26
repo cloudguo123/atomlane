@@ -1,0 +1,13 @@
+title: "[Benchmark] "
+labels: [benchmark]
+body:
+  - type: markdown
+    attributes:
+      value: Share a sanitized real-project result. Negative and blocked results are welcome. Follow BENCHMARKING.md and remove private content.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Result summary
+      description: Project category, environment, wall times, comparison type, savings, speedup, correctness, and blockers.
+    validations:
+      required: true

@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "repository": "cloudguo123/mac-parallel-accelerator",
+  "snapshots": [
+    {
+      "captured_at": "2026-08-26T12:24:33+00:00",
+      "stars": 1,
+      "forks": 0,
+      "watchers": 0,
+      "open_issues_and_prs": 4,
+      "releases": 2,
+      "release_asset_downloads": 0,
+      "traffic_14d": {
+        "views": 0,
+        "unique_visitors": 0,
+        "clones": 0,
+        "unique_cloners": 0
+      },
+      "top_referrers": [],
+      "top_paths": [],
+      "unavailable": []
+    }
+  ],
+  "metric_notes": {
+    "traffic_window": "GitHub returns repository traffic for the latest 14 days and may delay updates.",
+    "clone_intent": "Clones and release downloads are interest signals, not verified plugin installations.",
+    "privacy": "Only aggregate GitHub counters are retained; no visitor identity or tracking cookie is collected."
+  },
+  "targets_30d": {
+    "unique_visitors": 500,
+    "clone_or_download_intents": 100,
+    "stars": 50,
+    "external_benchmarks": 10,
+    "compatibility_reports": 5,
+    "contributors": 3,
+    "awesome_list_entries": 2
+  },
+  "latest": {
+    "captured_at": "2026-08-26T12:24:33+00:00",
+    "stars": 1,
+    "forks": 0,
+    "watchers": 0,
+    "open_issues_and_prs": 4,
+    "releases": 2,
+    "release_asset_downloads": 0,
+    "traffic_14d": {
+      "views": 0,
+      "unique_visitors": 0,
+      "clones": 0,
+      "unique_cloners": 0
+    },
+    "top_referrers": [],
+    "top_paths": [],
+    "unavailable": []
+  }
+}

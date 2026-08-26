@@ -39,6 +39,21 @@ DOMAIN_META = {
         "description": "Failure propagation, output bounds, timeout semantics, and live progress",
         "accent": "#d7a6ff",
     },
+    "test_growth_assets": {
+        "label": "Growth assets & evidence sharing",
+        "description": "Exact benchmark metrics, share cards, and honest comparison labels",
+        "accent": "#f4cf78",
+    },
+    "test_collect_github_metrics": {
+        "label": "Privacy-safe growth metrics",
+        "description": "Aggregate repository signals and resilient snapshot storage",
+        "accent": "#ff9fc6",
+    },
+    "test_long_benchmark": {
+        "label": "Long-horizon benchmark evidence",
+        "description": "Observed task runtimes, duration gates, and cumulative savings history",
+        "accent": "#9ae7ff",
+    },
 }
 
 
@@ -143,6 +158,8 @@ def validate_metadata() -> dict[str, Any]:
         ROOT / "catalog" / "scenarios.json",
         ROOT / "package.json",
         ROOT / "package-lock.json",
+        ROOT / "benchmarks" / "project-result.schema.json",
+        ROOT / "benchmarks" / "external-results.json",
     ]
     try:
         for path in paths:
@@ -218,6 +235,21 @@ def load_long_benchmark() -> dict[str, Any]:
     if not isinstance(latest, dict) or not isinstance(cumulative, dict):
         return {"available": False}
     return {"available": True, **benchmark}
+
+
+def load_growth_metrics() -> dict[str, Any]:
+    path = ROOT / "docs" / "metrics.json"
+    if not path.exists():
+        return {"available": False}
+    try:
+        metrics = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"available": False}
+    latest = metrics.get("latest")
+    targets = metrics.get("targets_30d")
+    if not isinstance(latest, dict) or not isinstance(targets, dict):
+        return {"available": False}
+    return {"available": True, **metrics}
 
 
 def build_report() -> dict[str, Any]:
@@ -296,6 +328,7 @@ def build_report() -> dict[str, Any]:
         "domains": domain_rows,
         "tests": tests,
         "benchmark": load_long_benchmark(),
+        "growth": load_growth_metrics(),
         "scope_note": (
             "This dashboard reports behavioral regression and release-gate results. "
             "It is not a statement of line or branch coverage."
@@ -325,6 +358,7 @@ def render_html(report: dict[str, Any]) -> str:
     .eyebrow {{ text-transform:uppercase; letter-spacing:.18em; font-size:12px; color:var(--green); font-weight:800 }}
     h1 {{ margin:14px 0 12px; max-width:820px; font-size:clamp(42px,7vw,82px); line-height:.98; letter-spacing:-.055em }}
     .lede {{ color:var(--muted); font-size:18px; max-width:720px; margin:0 }}
+    .actions {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:25px }} .button {{ display:inline-flex; align-items:center; justify-content:center; border-radius:11px; padding:11px 16px; color:#06100d; background:var(--green); font-weight:800; border:1px solid var(--green) }} .button.secondary {{ color:var(--text); background:#0b1714; border-color:var(--line) }} .button:hover {{ text-decoration:none; filter:brightness(1.06) }}
     .hero {{ display:grid; grid-template-columns:1fr 260px; gap:32px; align-items:center; margin-bottom:46px }}
     .seal {{ width:220px; aspect-ratio:1; margin-left:auto; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--green) calc(var(--rate)*1%),#1a2b26 0); box-shadow:0 0 80px #45d89d1b; position:relative }}
     .seal:before {{ content:""; position:absolute; inset:11px; border-radius:50%; background:var(--bg); border:1px solid var(--line) }}
@@ -352,20 +386,24 @@ def render_html(report: dict[str, Any]) -> str:
     .toolbar {{ display:flex; gap:10px; margin-bottom:13px }} input {{ flex:1; min-width:0; color:var(--text); background:#08120f; border:1px solid var(--line); border-radius:10px; padding:11px 13px; outline:none }} input:focus {{ border-color:#65e6b478 }}
     table {{ width:100%; border-collapse:collapse }} th {{ text-align:left; color:var(--muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid var(--line) }} td {{ padding:13px 12px; border-bottom:1px solid #172a25; vertical-align:top }} tr:last-child td {{ border-bottom:0 }} .test-title {{ font-weight:650 }} .test-id {{ font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted) }} .time {{ font-variant-numeric:tabular-nums; white-space:nowrap }}
     .provenance {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); padding:1px; border-radius:14px; overflow:hidden }} .prov {{ background:var(--panel); padding:18px }} .prov span {{ display:block; color:var(--muted); font-size:12px }} .prov code {{ display:block; margin-top:5px; overflow-wrap:anywhere; font-size:12px; color:#d9ece5 }}
+    .growth {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px }} .growth-card {{ padding:18px; border:1px solid var(--line); background:#0b1714; border-radius:13px }} .growth-card strong {{ display:block; font-size:28px }} .growth-card span {{ color:var(--muted); font-size:12px }}
+    .demo {{ width:100%; display:block; border-radius:13px; border:1px solid var(--line); background:#07100e }}
     .note {{ margin-top:15px; color:var(--muted); font-size:13px }} footer {{ margin-top:46px; padding-top:22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; color:var(--muted); font-size:13px }}
     @media(max-width:1000px) {{ .grid6 {{ grid-template-columns:repeat(3,1fr) }} }}
-    @media(max-width:800px) {{ .hero {{ grid-template-columns:1fr }} .seal {{ margin:18px auto 0 }} .grid4 {{ grid-template-columns:repeat(2,1fr) }} .checks,.domains,.comparison {{ grid-template-columns:1fr }} .provenance {{ grid-template-columns:1fr }} .navlinks {{ display:none }} .benchmark-head {{ display:block }} .long-pill {{ margin-top:14px }} }}
+    @media(max-width:800px) {{ .hero {{ grid-template-columns:1fr }} .seal {{ margin:18px auto 0 }} .grid4,.growth {{ grid-template-columns:repeat(2,1fr) }} .checks,.domains,.comparison {{ grid-template-columns:1fr }} .provenance {{ grid-template-columns:1fr }} .navlinks {{ display:none }} .benchmark-head {{ display:block }} .long-pill {{ margin-top:14px }} }}
     @media(max-width:520px) {{ .grid4 {{ grid-template-columns:1fr 1fr }} .wrap {{ width:min(100% - 22px,1180px); padding-top:24px }} .panel {{ padding:14px }} th:nth-child(2),td:nth-child(2) {{ display:none }} }}
   </style>
 </head>
 <body>
 <main class="wrap">
-  <nav class="nav"><div class="brand">MPA / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml">CI</a><a href="test-results.json">Raw JSON</a></div></nav>
+  <nav class="nav"><div class="brand">MPA / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">Release verification · v<span id="version"></span></div><h1>Concurrency you can trust.</h1><p class="lede">A reproducible view of scheduler safety, static frontend behavior, MCP execution, live progress, and release gates.</p></div>
+    <div><div class="eyebrow">Release verification · v<span id="version"></span></div><h1>Finish local work faster. Keep semantics intact.</h1><p class="lede">A Codex plugin for safe atomic concurrency on macOS—with visible progress, verifiable execution, and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>
+  <div class="section-title"><div><div class="eyebrow">Visible by default</div><h2>Watch the work while it runs</h2></div><p>20-second deterministic demo</p></div>
+  <section class="panel"><img class="demo" src="share/demo.gif" width="960" height="540" alt="Live execution counters and estimated time saved updating during a parallel run"><p class="note">The real PTY runner streams elapsed time, running/ready/completed/failed counters, and current savings throughout long execution.</p></section>
   <div class="section-title"><div><div class="eyebrow">Long-horizon evidence</div><h2>Five-minute parallel benchmark</h2></div><p>Fast regression report retained below</p></div>
   <section class="panel benchmark" id="benchmark"></section>
   <div class="section-title"><div><div class="eyebrow">Quality gates</div><h2>Release checks</h2></div><p id="overall">{overall}</p></div>
@@ -376,6 +414,8 @@ def render_html(report: dict[str, Any]) -> str:
   <section class="panel"><div class="toolbar"><input id="search" type="search" placeholder="Filter by test, subsystem, or behavior…" aria-label="Filter tests"></div><div style="overflow:auto"><table><thead><tr><th>Behavior</th><th>Subsystem</th><th>Status</th><th>Duration</th></tr></thead><tbody id="tests"></tbody></table></div></section>
   <div class="section-title"><div><div class="eyebrow">Reproducibility</div><h2>Build provenance</h2></div><p>Machine-readable evidence included</p></div>
   <section class="provenance" id="provenance"></section>
+  <div class="section-title"><div><div class="eyebrow">Open growth</div><h2>Community pulse</h2></div><p>Aggregate GitHub signals only</p></div>
+  <section class="panel"><div class="growth" id="growth"></div><p class="note" id="growth-note"></p></section>
   <p class="note" id="scope"></p>
   <footer><span>Generated {generated}</span><span>Report schema 1.0</span></footer>
 </main>
@@ -390,6 +430,7 @@ q('#domains').innerHTML=d.domains.map(x=>`<article class="panel domain" style="-
 function draw(list){{ q('#test-count').textContent=list.length+' of '+d.tests.length+' shown'; q('#tests').innerHTML=list.map(x=>`<tr><td><div class="test-title">${{x.title}}</div><div class="test-id">${{x.class}}.${{x.name}}</div></td><td>${{x.domain}}</td><td><span class="pill ${{x.status}}">${{x.status}}</span></td><td class="time">${{ms(x.duration_ms)}}</td></tr>`).join('')||'<tr><td colspan="4">No matching tests.</td></tr>';}} draw(d.tests);
 q('#search').addEventListener('input',e=>{{const s=e.target.value.toLowerCase(); draw(d.tests.filter(x=>Object.values(x).join(' ').toLowerCase().includes(s)));}});
 const prov=[['Verified commit',d.source.commit],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]]; q('#provenance').innerHTML=prov.map(x=>`<div class="prov"><span>${{x[0]}}</span><code>${{x[1]}}</code></div>`).join(''); q('#scope').textContent=d.scope_note;
+const g=d.growth;if(!g.available){{q('#growth').innerHTML='<div class="growth-card"><strong>Pending</strong><span>First aggregate snapshot</span></div>';q('#growth-note').textContent='The weekly metrics workflow will publish stars, forks, release downloads, and GitHub’s rolling 14-day traffic counters.';}}else{{const x=g.latest,t=x.traffic_14d||{{}};const gm=[['Stars',x.stars],['Forks',x.forks],['14d unique visitors',t.unique_visitors??'—'],['14d unique cloners',t.unique_cloners??'—'],['Release downloads',x.release_asset_downloads],['Open issues + PRs',x.open_issues_and_prs],['30d star target',g.targets_30d.stars],['30d visitor target',g.targets_30d.unique_visitors]];q('#growth').innerHTML=gm.map(v=>`<div class="growth-card"><strong>${{v[1]}}</strong><span>${{v[0]}}</span></div>`).join('');q('#growth-note').textContent='Captured '+x.captured_at+'. Traffic is a rolling 14-day GitHub window and may lag. Clones and downloads indicate intent, not verified installations.';}}
 </script>
 </body>
 </html>
@@ -410,6 +451,8 @@ def main() -> int:
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(render_html(report), encoding="utf-8")
     args.json_output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    shutil.copy2(ROOT / "benchmarks" / "project-result.schema.json", ROOT / "docs")
+    shutil.copy2(ROOT / "benchmarks" / "external-results.json", ROOT / "docs")
     print(
         json.dumps(
             {

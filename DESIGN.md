@@ -313,6 +313,11 @@ plan-hash execution handshake, native-owner delegation, unknown-effect
 fail-closed behavior, and atomic live-run path. Open a new Codex task after
 installation so the updated skill metadata and instructions are loaded.
 
-Version 0.9.1 adds the reproducible GitHub Pages verification dashboard and
+Version 0.9.1 added the reproducible GitHub Pages verification dashboard and
 the independent five-minute benchmark with observed per-run and cumulative
 time-savings evidence.
+
+Version 0.9.2 canonicalizes integral JSON numbers before semantic and envelope
+hashing so immutable plans survive Python/JavaScript MCP round trips without
+weakening tamper detection. It also adds reproducible launch assets, aggregate
+growth evidence, and a real-project benchmark contribution protocol.

@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "project": "Mac Parallel Accelerator",
+  "source": "controlled-duration low-load benchmark",
+  "run_id": "32963131926",
+  "generated_at": "2026-08-26T11:29:37+00:00",
+  "parallel_wall_seconds": 310.185492,
+  "serial_equivalent_seconds": 1240.687577,
+  "time_saved_seconds": 930.502085,
+  "speedup_multiplier": 3.9998,
+  "cumulative_saved_seconds": 930.502085,
+  "method_note": "sum of observed task runtimes; tasks are independent and are not rerun serially",
+  "report_url": "https://cloudguo123.github.io/mac-parallel-accelerator/"
+}

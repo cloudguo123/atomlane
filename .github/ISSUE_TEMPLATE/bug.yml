@@ -1,0 +1,63 @@
+name: Bug report
+description: Report incorrect planning, execution, progress, or savings behavior.
+title: "[Bug]: "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove project names, paths, prompts, credentials, environment values, and private output before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: 0.9.2
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Atomic planning
+        - Static frontend
+        - Resource scheduling
+        - Live progress
+        - Savings reporting
+        - Installation or discovery
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Sanitized reproduction
+      description: Include the smallest safe fixture or pseudocode and whether the plan executed or failed closed.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Mac model, macOS, Python, Codex surface
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I reviewed this report and removed secrets and private project content.
+          required: true

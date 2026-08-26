@@ -1,0 +1,38 @@
+name: Public Growth Metrics
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 2 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-growth-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+
+      - name: Collect aggregate GitHub metrics
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/collect_github_metrics.py
+
+      - name: Record weekly snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/metrics.json
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: record weekly public growth metrics"
+            git push origin HEAD:main
+          fi

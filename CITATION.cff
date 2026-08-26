@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: If this software helps your research or engineering workflow, please cite the repository and release.
+title: Mac Parallel Accelerator
+type: software
+authors:
+  - family-names: cloudguo123
+version: 0.9.2
+date-released: 2026-08-26
+license: MIT
+repository-code: https://github.com/cloudguo123/mac-parallel-accelerator
+url: https://cloudguo123.github.io/mac-parallel-accelerator/
+keywords:
+  - Codex
+  - parallel computing
+  - macOS
+  - Apple silicon
+  - task scheduling
+  - build acceleration

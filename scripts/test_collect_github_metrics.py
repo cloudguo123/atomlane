@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+import pathlib
+import tempfile
+import unittest
+from unittest import mock
+
+import collect_github_metrics
+
+
+class GithubMetricsTests(unittest.TestCase):
+    def test_collect_keeps_only_aggregate_signals(self) -> None:
+        responses = {
+            "repos/cloudguo123/mac-parallel-accelerator": {
+                "stargazers_count": 2,
+                "forks_count": 1,
+                "subscribers_count": 1,
+                "open_issues_count": 4,
+            },
+            "repos/cloudguo123/mac-parallel-accelerator/releases?per_page=100": [
+                {"assets": [{"download_count": 3}]}
+            ],
+            "repos/cloudguo123/mac-parallel-accelerator/traffic/views?per=day": {
+                "count": 10,
+                "uniques": 7,
+            },
+            "repos/cloudguo123/mac-parallel-accelerator/traffic/clones?per=day": {
+                "count": 5,
+                "uniques": 4,
+            },
+            "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/referrers": [],
+            "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/paths": [],
+        }
+        with mock.patch.object(
+            collect_github_metrics,
+            "request_json",
+            side_effect=lambda path, token: responses[path],
+        ):
+            result = collect_github_metrics.collect(
+                "cloudguo123/mac-parallel-accelerator", token="test"
+            )
+        self.assertEqual(result["stars"], 2)
+        self.assertEqual(result["traffic_14d"]["unique_cloners"], 4)
+        self.assertEqual(result["release_asset_downloads"], 3)
+        self.assertNotIn("visitors", result)
+
+    def test_missing_file_starts_empty_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "metrics.json"
+            result = collect_github_metrics.load_existing(path)
+        self.assertEqual(result["snapshots"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()

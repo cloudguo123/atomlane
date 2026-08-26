@@ -33,12 +33,13 @@ from atom_engine import (
     atom_conflicts,
     canonical_plan_hash,
     compile_atomic_plan,
+    normalize_json_numbers,
     validate_source_snapshots,
 )
 from atom_frontends import compile_entrypoints
 
 SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.9.1"
+SERVER_VERSION = "0.9.2"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"
@@ -1324,7 +1325,7 @@ def _compiled_plan_envelope_hash(plan: dict[str, Any]) -> str:
         if isinstance(contract_arguments, dict) and "plan_hash" in contract_arguments:
             contract_arguments["plan_hash"] = "<self>"
     encoded = json.dumps(
-        canonical,
+        normalize_json_numbers(canonical),
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),

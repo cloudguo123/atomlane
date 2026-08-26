@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.9.2 - 2026-08-26
+
+- Fixed immutable plan verification across MCP clients that serialize integral
+  JSON numbers such as `1.0` as `1`; semantic and envelope hashes now use one
+  cross-language numeric representation.
+- Added an outcome-first bilingual README, exact-text social preview, 20-second
+  live-progress demo, reproducible sharing assets, and community templates.
+- Added privacy-safe weekly GitHub growth snapshots, a public measurement plan,
+  real-project benchmark protocol, roadmap, contribution guide, and launch kit.
+- Expanded the public verification dashboard with growth evidence, shareable
+  media, and regression coverage for the new publication tooling.
+
 ## 0.9.1 - 2026-08-26
 
 - Added a reproducible visual test dashboard with per-test timing, subsystem

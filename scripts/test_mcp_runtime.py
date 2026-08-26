@@ -218,6 +218,61 @@ class RuntimeTests(unittest.TestCase):
                 {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
             )
 
+    def test_atomic_plan_hash_survives_javascript_numeric_roundtrip(self) -> None:
+        atom = {
+            "id": "read",
+            "operation": {
+                "kind": "read",
+                "argv": ["/usr/bin/true"],
+                "cwd": str(self.project),
+                "completion": "process_exit",
+                "internal_parallelism": {"kind": "none", "tokens": None},
+            },
+            "dependencies": [],
+            "accesses": [{"resource": "input.txt", "mode": "read"}],
+            "claims": [{"resource": "cpu_core", "units": 1.0}],
+            "effects": [],
+            "side_effect": False,
+            "semantics": {
+                "idempotent": True,
+                "retryable": False,
+                "deterministic": True,
+                "cacheable": False,
+                "commutative": False,
+                "cancel_safe": True,
+                "splittable": False,
+                "reorderable": "explicit",
+            },
+            "cost": {"duration_seconds": 1.0, "startup_seconds": 0.0},
+            "batch": None,
+            "assurance": {
+                "parse": "exact",
+                "control": "exact",
+                "effects": "complete_declared",
+                "codegen": "exact_argv",
+                "rank": 1.0,
+                "blockers": [],
+            },
+        }
+        plan = mcp_server.atomic_task_plan(
+            {"project_path": str(self.project), "atoms": [atom], "max_concurrency": 1}
+        )
+
+        def javascript_numbers(value):
+            if isinstance(value, float) and value.is_integer():
+                return int(value)
+            if isinstance(value, list):
+                return [javascript_numbers(item) for item in value]
+            if isinstance(value, dict):
+                return {key: javascript_numbers(item) for key, item in value.items()}
+            return value
+
+        round_tripped = javascript_numbers(plan)
+        verified = mcp_server._verify_compiled_plan(
+            {"compiled_plan": round_tripped, "plan_hash": round_tripped["plan_hash"]}
+        )
+        self.assertEqual(verified["plan_hash"], plan["plan_hash"])
+
     def test_live_console_emits_periodic_unchanged_state(self) -> None:
         progress = ConsoleProgress()
         base = {

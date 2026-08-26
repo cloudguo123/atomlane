@@ -1,21 +1,21 @@
 {
   "schema_version": "1.0",
   "project": "Mac Parallel Accelerator",
-  "version": "0.9.1",
-  "generated_at": "2026-08-26T11:52:54+00:00",
+  "version": "0.9.2",
+  "generated_at": "2026-08-26T12:34:42+00:00",
   "overall": "passed",
   "summary": {
-    "total": 30,
-    "passed": 30,
+    "total": 35,
+    "passed": 35,
     "failed": 0,
     "pass_rate": 100.0,
     "checks_passed": 6,
     "checks_total": 6,
-    "elapsed_ms": 4424.24
+    "elapsed_ms": 4818.77
   },
   "source": {
-    "commit": "36847d4ddddcf6e9b1ddc6dc2507fd6973f7b5df",
-    "commit_short": "36847d4ddd",
+    "commit": "7f658a3e0367418aceca035b02fc1d2d39482912",
+    "commit_short": "7f658a3e03",
     "branch": "main",
     "repository": "cloudguo123/mac-parallel-accelerator"
   },
@@ -34,37 +34,37 @@
     {
       "name": "Python bytecode compilation",
       "status": "passed",
-      "duration_ms": 80.94,
+      "duration_ms": 80.75,
       "returncode": 0
     },
     {
       "name": "Regression suite",
       "status": "passed",
-      "duration_ms": 747.75,
+      "duration_ms": 833.94,
       "returncode": 0
     },
     {
       "name": "End-to-end MCP self-test",
       "status": "passed",
-      "duration_ms": 3423.67,
+      "duration_ms": 3011.33,
       "returncode": 0
     },
     {
       "name": "Ruff static analysis",
       "status": "passed",
-      "duration_ms": 52.81,
+      "duration_ms": 775.57,
       "returncode": 0
     },
     {
       "name": "Manifest & catalog integrity",
       "status": "passed",
-      "duration_ms": 1.63,
+      "duration_ms": 1.33,
       "returncode": 0
     },
     {
       "name": "Reproducible UI bundle",
       "status": "passed",
-      "duration_ms": 117.44,
+      "duration_ms": 115.85,
       "returncode": 0
     }
   ],
@@ -76,7 +76,7 @@
       "module": "test_atom_engine",
       "total": 12,
       "passed": 12,
-      "duration_ms": 13.52
+      "duration_ms": 14.04
     },
     {
       "label": "Static workload frontends",
@@ -85,16 +85,43 @@
       "module": "test_atom_frontends",
       "total": 9,
       "passed": 9,
-      "duration_ms": 73.72
+      "duration_ms": 69.34
     },
     {
       "label": "MCP runtime & live execution",
       "description": "Failure propagation, output bounds, timeout semantics, and live progress",
       "accent": "#d7a6ff",
       "module": "test_mcp_runtime",
-      "total": 7,
-      "passed": 7,
-      "duration_ms": 637.64
+      "total": 8,
+      "passed": 8,
+      "duration_ms": 721.76
+    },
+    {
+      "label": "Growth assets & evidence sharing",
+      "description": "Exact benchmark metrics, share cards, and honest comparison labels",
+      "accent": "#f4cf78",
+      "module": "test_growth_assets",
+      "total": 2,
+      "passed": 2,
+      "duration_ms": 0.73
+    },
+    {
+      "label": "Privacy-safe growth metrics",
+      "description": "Aggregate repository signals and resilient snapshot storage",
+      "accent": "#ff9fc6",
+      "module": "test_collect_github_metrics",
+      "total": 2,
+      "passed": 2,
+      "duration_ms": 0.5
+    },
+    {
+      "label": "Long-horizon benchmark evidence",
+      "description": "Observed task runtimes, duration gates, and cumulative savings history",
+      "accent": "#9ae7ff",
+      "module": "test_long_benchmark",
+      "total": 2,
+      "passed": 2,
+      "duration_ms": 0.05
     }
   ],
   "tests": [
@@ -106,7 +133,7 @@
       "name": "test_capacity_claims_are_never_overcommitted",
       "title": "capacity claims are never overcommitted",
       "status": "passed",
-      "duration_ms": 1.86
+      "duration_ms": 1.99
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_event_scheduler_releases_successor_without_wave_barrier",
@@ -116,7 +143,7 @@
       "name": "test_event_scheduler_releases_successor_without_wave_barrier",
       "title": "event scheduler releases successor without wave barrier",
       "status": "passed",
-      "duration_ms": 0.87
+      "duration_ms": 0.92
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_explicit_data_order_makes_overwrite_read_safe",
@@ -126,7 +153,7 @@
       "name": "test_explicit_data_order_makes_overwrite_read_safe",
       "title": "explicit data order makes overwrite read safe",
       "status": "passed",
-      "duration_ms": 0.82
+      "duration_ms": 1.1
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_fusion_split_and_native_delegate_suggestions_are_explicit",
@@ -136,7 +163,7 @@
       "name": "test_fusion_split_and_native_delegate_suggestions_are_explicit",
       "title": "fusion split and native delegate suggestions are explicit",
       "status": "passed",
-      "duration_ms": 0.91
+      "duration_ms": 0.75
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_lower_exact_data_edges_combines_same_direction_resources",
@@ -146,7 +173,7 @@
       "name": "test_lower_exact_data_edges_combines_same_direction_resources",
       "title": "lower exact data edges combines same direction resources",
       "status": "passed",
-      "duration_ms": 0.74
+      "duration_ms": 0.62
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_lower_exact_data_edges_handles_bidirectional_flow",
@@ -156,7 +183,7 @@
       "name": "test_lower_exact_data_edges_handles_bidirectional_flow",
       "title": "lower exact data edges handles bidirectional flow",
       "status": "passed",
-      "duration_ms": 0.66
+      "duration_ms": 0.61
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_macos_casefold_and_hardlink_aliases_fail_closed",
@@ -166,7 +193,7 @@
       "name": "test_macos_casefold_and_hardlink_aliases_fail_closed",
       "title": "macos casefold and hardlink aliases fail closed",
       "status": "passed",
-      "duration_ms": 2.04
+      "duration_ms": 2.02
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_nested_parallelism_is_budgeted_or_outer_serialized",
@@ -176,7 +203,7 @@
       "name": "test_nested_parallelism_is_budgeted_or_outer_serialized",
       "title": "nested parallelism is budgeted or outer serialized",
       "status": "passed",
-      "duration_ms": 0.96
+      "duration_ms": 1.19
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_plan_hash_and_schedule_ignore_input_permutation",
@@ -186,7 +213,7 @@
       "name": "test_plan_hash_and_schedule_ignore_input_permutation",
       "title": "plan hash and schedule ignore input permutation",
       "status": "passed",
-      "duration_ms": 2.38
+      "duration_ms": 2.55
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_source_snapshot_detects_toctou_write",
@@ -196,7 +223,7 @@
       "name": "test_source_snapshot_detects_toctou_write",
       "title": "source snapshot detects toctou write",
       "status": "passed",
-      "duration_ms": 0.91
+      "duration_ms": 0.95
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_unknown_effect_is_a_hard_execution_blocker",
@@ -206,7 +233,7 @@
       "name": "test_unknown_effect_is_a_hard_execution_blocker",
       "title": "unknown effect is a hard execution blocker",
       "status": "passed",
-      "duration_ms": 0.54
+      "duration_ms": 0.5
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_unordered_write_conflict_is_serialized_and_ineligible",
@@ -216,7 +243,7 @@
       "name": "test_unordered_write_conflict_is_serialized_and_ineligible",
       "title": "unordered write conflict is serialized and ineligible",
       "status": "passed",
-      "duration_ms": 0.83
+      "duration_ms": 0.84
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_mapping_syntax_profiles_completion_and_leases",
@@ -226,7 +253,7 @@
       "name": "test_mapping_syntax_profiles_completion_and_leases",
       "title": "mapping syntax profiles completion and leases",
       "status": "passed",
-      "duration_ms": 23.31
+      "duration_ms": 21.04
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_missing_healthcheck_and_profile_dependency_fail_closed",
@@ -236,7 +263,7 @@
       "name": "test_missing_healthcheck_and_profile_dependency_fail_closed",
       "title": "missing healthcheck and profile dependency fail closed",
       "status": "passed",
-      "duration_ms": 43.94
+      "duration_ms": 42.03
     },
     {
       "id": "test_atom_frontends.MakeFrontendTests.test_python_argparse_dataflow_repairs_sibling_prerequisites",
@@ -246,7 +273,7 @@
       "name": "test_python_argparse_dataflow_repairs_sibling_prerequisites",
       "title": "python argparse dataflow repairs sibling prerequisites",
       "status": "passed",
-      "duration_ms": 2.47
+      "duration_ms": 2.42
     },
     {
       "id": "test_atom_frontends.MakeFrontendTests.test_static_discovery_never_executes_shell_and_recipe_is_atomic",
@@ -256,7 +283,7 @@
       "name": "test_static_discovery_never_executes_shell_and_recipe_is_atomic",
       "title": "static discovery never executes shell and recipe is atomic",
       "status": "passed",
-      "duration_ms": 0.93
+      "duration_ms": 0.91
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_npm_test_lifecycle_and_recursive_expansion",
@@ -266,7 +293,7 @@
       "name": "test_npm_test_lifecycle_and_recursive_expansion",
       "title": "npm test lifecycle and recursive expansion",
       "status": "passed",
-      "duration_ms": 1.53
+      "duration_ms": 1.47
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_recursive_cycle_collapses_fail_closed",
@@ -276,7 +303,7 @@
       "name": "test_recursive_cycle_collapses_fail_closed",
       "title": "recursive cycle collapses fail closed",
       "status": "passed",
-      "duration_ms": 0.53
+      "duration_ms": 0.51
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_exact_success_and_order_edges",
@@ -286,7 +313,7 @@
       "name": "test_exact_success_and_order_edges",
       "title": "exact success and order edges",
       "status": "passed",
-      "duration_ms": 0.49
+      "duration_ms": 0.4
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_literal_inner_worker_count_is_bounded",
@@ -306,12 +333,52 @@
       "name": "test_unsupported_shell_regions_are_one_opaque_island",
       "title": "unsupported shell regions are one opaque island",
       "status": "passed",
-      "duration_ms": 0.3
+      "duration_ms": 0.34
+    },
+    {
+      "id": "test_collect_github_metrics.GithubMetricsTests.test_collect_keeps_only_aggregate_signals",
+      "module": "test_collect_github_metrics",
+      "domain": "Privacy-safe growth metrics",
+      "class": "GithubMetricsTests",
+      "name": "test_collect_keeps_only_aggregate_signals",
+      "title": "collect keeps only aggregate signals",
+      "status": "passed",
+      "duration_ms": 0.29
+    },
+    {
+      "id": "test_collect_github_metrics.GithubMetricsTests.test_missing_file_starts_empty_history",
+      "module": "test_collect_github_metrics",
+      "domain": "Privacy-safe growth metrics",
+      "class": "GithubMetricsTests",
+      "name": "test_missing_file_starts_empty_history",
+      "title": "missing file starts empty history",
+      "status": "passed",
+      "duration_ms": 0.21
+    },
+    {
+      "id": "test_growth_assets.GrowthAssetTests.test_share_outputs_are_machine_readable_and_honestly_labeled",
+      "module": "test_growth_assets",
+      "domain": "Growth assets & evidence sharing",
+      "class": "GrowthAssetTests",
+      "name": "test_share_outputs_are_machine_readable_and_honestly_labeled",
+      "title": "share outputs are machine readable and honestly labeled",
+      "status": "passed",
+      "duration_ms": 0.71
+    },
+    {
+      "id": "test_growth_assets.GrowthAssetTests.test_social_preview_has_exact_dimensions_and_metrics",
+      "module": "test_growth_assets",
+      "domain": "Growth assets & evidence sharing",
+      "class": "GrowthAssetTests",
+      "name": "test_social_preview_has_exact_dimensions_and_metrics",
+      "title": "social preview has exact dimensions and metrics",
+      "status": "passed",
+      "duration_ms": 0.02
     },
     {
       "id": "test_long_benchmark.LongBenchmarkTests.test_history_accumulates_savings_without_duplicate_run",
       "module": "test_long_benchmark",
-      "domain": "test_long_benchmark",
+      "domain": "Long-horizon benchmark evidence",
       "class": "LongBenchmarkTests",
       "name": "test_history_accumulates_savings_without_duplicate_run",
       "title": "history accumulates savings without duplicate run",
@@ -321,12 +388,12 @@
     {
       "id": "test_long_benchmark.LongBenchmarkTests.test_summary_uses_observed_task_runtimes",
       "module": "test_long_benchmark",
-      "domain": "test_long_benchmark",
+      "domain": "Long-horizon benchmark evidence",
       "class": "LongBenchmarkTests",
       "name": "test_summary_uses_observed_task_runtimes",
       "title": "summary uses observed task runtimes",
       "status": "passed",
-      "duration_ms": 0.24
+      "duration_ms": 0.03
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor",
@@ -336,7 +403,7 @@
       "name": "test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor",
       "title": "atomic executor rejects lifecycle edges it cannot honor",
       "status": "passed",
-      "duration_ms": 398.44
+      "duration_ms": 450.73
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
@@ -346,7 +413,17 @@
       "name": "test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
       "title": "atomic plan hash covers scheduler and resource envelope",
       "status": "passed",
-      "duration_ms": 42.52
+      "duration_ms": 40.13
+    },
+    {
+      "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
+      "module": "test_mcp_runtime",
+      "domain": "MCP runtime & live execution",
+      "class": "RuntimeTests",
+      "name": "test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
+      "title": "atomic plan hash survives javascript numeric roundtrip",
+      "status": "passed",
+      "duration_ms": 40.44
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_live_console_emits_periodic_unchanged_state",
@@ -356,7 +433,7 @@
       "name": "test_live_console_emits_periodic_unchanged_state",
       "title": "live console emits periodic unchanged state",
       "status": "passed",
-      "duration_ms": 0.27
+      "duration_ms": 0.29
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_output_is_bounded_during_read",
@@ -366,7 +443,7 @@
       "name": "test_output_is_bounded_during_read",
       "title": "output is bounded during read",
       "status": "passed",
-      "duration_ms": 21.59
+      "duration_ms": 20.71
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_reverse_order_failure_propagates_to_fixed_point",
@@ -376,7 +453,7 @@
       "name": "test_reverse_order_failure_propagates_to_fixed_point",
       "title": "reverse order failure propagates to fixed point",
       "status": "passed",
-      "duration_ms": 64.71
+      "duration_ms": 59.84
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_side_effect_timeout_has_unknown_outcome",
@@ -386,7 +463,7 @@
       "name": "test_side_effect_timeout_has_unknown_outcome",
       "title": "side effect timeout has unknown outcome",
       "status": "passed",
-      "duration_ms": 54.51
+      "duration_ms": 54.45
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_timeout_covers_blocked_stdin_delivery",
@@ -396,7 +473,7 @@
       "name": "test_timeout_covers_blocked_stdin_delivery",
       "title": "timeout covers blocked stdin delivery",
       "status": "passed",
-      "duration_ms": 55.6
+      "duration_ms": 55.17
     }
   ],
   "benchmark": {
@@ -695,6 +772,63 @@
       "parallel_wall_seconds": 310.185492,
       "serial_equivalent_seconds": 1240.687577,
       "saved_seconds": 930.502085
+    }
+  },
+  "growth": {
+    "available": true,
+    "schema_version": "1.0",
+    "repository": "cloudguo123/mac-parallel-accelerator",
+    "snapshots": [
+      {
+        "captured_at": "2026-08-26T12:24:33+00:00",
+        "stars": 1,
+        "forks": 0,
+        "watchers": 0,
+        "open_issues_and_prs": 4,
+        "releases": 2,
+        "release_asset_downloads": 0,
+        "traffic_14d": {
+          "views": 0,
+          "unique_visitors": 0,
+          "clones": 0,
+          "unique_cloners": 0
+        },
+        "top_referrers": [],
+        "top_paths": [],
+        "unavailable": []
+      }
+    ],
+    "metric_notes": {
+      "traffic_window": "GitHub returns repository traffic for the latest 14 days and may delay updates.",
+      "clone_intent": "Clones and release downloads are interest signals, not verified plugin installations.",
+      "privacy": "Only aggregate GitHub counters are retained; no visitor identity or tracking cookie is collected."
+    },
+    "targets_30d": {
+      "unique_visitors": 500,
+      "clone_or_download_intents": 100,
+      "stars": 50,
+      "external_benchmarks": 10,
+      "compatibility_reports": 5,
+      "contributors": 3,
+      "awesome_list_entries": 2
+    },
+    "latest": {
+      "captured_at": "2026-08-26T12:24:33+00:00",
+      "stars": 1,
+      "forks": 0,
+      "watchers": 0,
+      "open_issues_and_prs": 4,
+      "releases": 2,
+      "release_asset_downloads": 0,
+      "traffic_14d": {
+        "views": 0,
+        "unique_visitors": 0,
+        "clones": 0,
+        "unique_cloners": 0
+      },
+      "top_referrers": [],
+      "top_paths": [],
+      "unavailable": []
     }
   },
   "scope_note": "This dashboard reports behavioral regression and release-gate results. It is not a statement of line or branch coverage."

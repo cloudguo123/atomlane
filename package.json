@@ -1,0 +1,20 @@
+{
+  "name": "mac-parallel-accelerator-ui-build",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible build inputs for the Mac Parallel Accelerator MCP App indicator.",
+  "scripts": {
+    "build:indicator": "esbuild assets/parallel-indicator-host.js --bundle --format=iife --target=es2020 --minify --legal-comments=none --outfile=assets/parallel-indicator-host.bundle.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mac Parallel Accelerator</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --accent: #2563eb;
+      --good: #16a34a;
+      --danger: #dc2626;
+      --muted: color-mix(in srgb, CanvasText 62%, transparent);
+      --line: color-mix(in srgb, CanvasText 14%, transparent);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 10px; background: transparent; color: CanvasText; font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: color-mix(in srgb, Canvas 96%, var(--accent) 4%); }
+    .top { display: flex; align-items: center; }
+    .top { justify-content: space-between; gap: 16px; }
+    .state { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+    .dot.running { animation: pulse 1.2s ease-in-out infinite; }
+    .dot.failed { background: var(--danger); }
+    .speed { font-size: 26px; font-weight: 750; letter-spacing: -0.03em; }
+    .qualifier { margin-left: 5px; color: var(--muted); font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 11px; }
+    .metric { min-width: 0; }
+    .label { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+    .value { font-variant-numeric: tabular-nums; font-weight: 650; white-space: nowrap; }
+    .track { height: 5px; margin-top: 12px; background: var(--line); border-radius: 99px; overflow: hidden; }
+    .fill { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
+    .note { margin-top: 8px; color: var(--muted); font-size: 11px; }
+    @keyframes pulse { 50% { opacity: .35; transform: scale(.78); } }
+    @media (max-width: 430px) {
+      .metrics { display: grid; grid-template-columns: 1fr 1fr; row-gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card" aria-live="polite">
+    <div class="top">
+      <div class="state"><span id="dot" class="dot running"></span><span id="state">等待调度数据…</span></div>
+      <div><span id="speed" class="speed">—</span><span id="qualifier" class="qualifier"></span></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="label">峰值并发</div><div id="peak" class="value">—</div></div>
+      <div class="metric"><div class="label">任务</div><div id="tasks" class="value">—</div></div>
+      <div class="metric"><div class="label">耗时</div><div id="elapsed" class="value">—</div></div>
+      <div class="metric"><div class="label">结果</div><div id="result" class="value">等待中</div></div>
+      <div class="metric"><div class="label">本次节约</div><div id="current-saved" class="value">—</div></div>
+      <div class="metric"><div class="label">累计节约</div><div id="cumulative-saved" class="value">—</div></div>
+    </div>
+    <div class="track" aria-hidden="true"><div id="fill" class="fill"></div></div>
+    <div id="note" class="note">会根据本机负载、温度、内存和电源状态自动限制并发。</div>
+  </main>
+  <script>
+    const byId = (id) => document.getElementById(id);
+    const number = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "—";
+
+    let hasHostData = false;
+    let liveStartedAt = null;
+    let liveTimer = null;
+
+    function stopLiveTimer() {
+      if (liveTimer != null) clearInterval(liveTimer);
+      liveTimer = null;
+      liveStartedAt = null;
+    }
+
+    function savedText(value) {
+      return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} 秒` : "—";
+    }
+
+    function render(payload) {
+      if (!payload || typeof payload !== "object") return;
+      stopLiveTimer();
+      hasHostData = true;
+      const indicator = payload.indicator || {};
+      const summary = payload.summary || {};
+      const counts = summary.status_counts || {};
+      const plan = payload.resource_plan || {};
+      const parallel = Boolean(indicator.parallel);
+      const failed = Number(counts.failed || 0) + Number(counts.timed_out || 0);
+      const succeeded = Number(counts.succeeded || 0);
+      const skipped = Number(counts.skipped || 0);
+      const speedup = Number(indicator.speedup_multiplier || 0);
+      const efficiency = Math.max(0, Math.min(1, Number(indicator.parallel_efficiency || 0)));
+
+      byId("dot").className = `dot${failed ? " failed" : ""}`;
+      byId("state").textContent = parallel ? "并行加速已完成" : "串行执行已完成";
+      byId("speed").textContent = `${number(speedup)}×`;
+      byId("qualifier").textContent = indicator.speedup_kind === "measured_serial_baseline" ? "实测" : "估算";
+      byId("peak").textContent = `${indicator.peak_concurrency ?? summary.peak_concurrency ?? "—"} 路`;
+      byId("tasks").textContent = String(summary.task_count ?? "—");
+      byId("elapsed").textContent = `${number(summary.elapsed_seconds ?? indicator.wall_time_seconds, 3)} 秒`;
+      byId("result").textContent = failed ? `${failed} 失败 · ${succeeded} 成功` : `${succeeded} 成功${skipped ? ` · ${skipped} 跳过` : ""}`;
+      byId("current-saved").textContent = savedText(summary.time_saved_seconds ?? indicator.time_saved_seconds);
+      byId("cumulative-saved").textContent = savedText(summary.cumulative_saved_seconds ?? indicator.cumulative_saved_seconds);
+      byId("fill").style.width = `${Math.round(efficiency * 100)}%`;
+      byId("note").textContent = `策略 ${plan.responsiveness || "adaptive"} · 计划 ${plan.chosen_concurrency ?? "—"} 路 · 并行效率 ${Math.round(efficiency * 100)}%`;
+    }
+
+    function renderRunning(argumentsValue) {
+      hasHostData = true;
+      const count = Array.isArray(argumentsValue?.tasks)
+        ? argumentsValue.tasks.length
+        : Array.isArray(argumentsValue?.items) ? argumentsValue.items.length : null;
+      byId("dot").className = "dot running";
+      byId("state").textContent = "正在自适应并行调度…";
+      byId("speed").textContent = "—";
+      byId("qualifier").textContent = "执行后计算";
+      byId("tasks").textContent = count == null ? "—" : String(count);
+      byId("result").textContent = "运行中";
+      byId("current-saved").textContent = "实时计算中";
+      byId("cumulative-saved").textContent = "完成后更新";
+      byId("note").textContent = "正在按本机负载、温度、内存和电源状态限制并发。";
+      if (liveStartedAt == null) liveStartedAt = performance.now();
+      if (liveTimer == null) {
+        const tick = () => {
+          const elapsed = Math.max(0, (performance.now() - liveStartedAt) / 1000);
+          byId("elapsed").textContent = `${elapsed.toFixed(1)} 秒`;
+          byId("note").textContent = `实时运行中 · 已用 ${elapsed.toFixed(1)} 秒 · 等待任务进度`;
+        };
+        tick();
+        liveTimer = setInterval(tick, 250);
+      }
+    }
+
+    function renderProgress(params) {
+      const message = params?.message;
+      if (typeof message !== "string") return;
+      const elapsed = message.match(/已运行\s+([0-9.]+)s/);
+      const running = message.match(/运行中\s+(\d+)/);
+      const completed = message.match(/已完成\s+(\d+\/\d+)/);
+      const saved = message.match(/当前预计节约\s+(-?[0-9.]+)s/);
+      if (elapsed) byId("elapsed").textContent = `${elapsed[1]} 秒`;
+      if (running || completed) {
+        byId("result").textContent = `${running ? `${running[1]} 运行` : ""}${running && completed ? " · " : ""}${completed ? `${completed[1]} 完成` : ""}`;
+      }
+      if (saved) byId("current-saved").textContent = `${saved[1]} 秒（实时估算）`;
+      byId("note").textContent = message;
+    }
+
+    function readHostPayload(event) {
+      return event?.detail?.globals?.toolOutput || event?.detail || window.openai?.toolOutput || window.openai?.toolResponseMetadata;
+    }
+
+    render(readHostPayload());
+    window.addEventListener("openai:set_globals", (event) => render(readHostPayload(event)));
+    window.addEventListener("mac-parallel-accelerator:tool-input", (event) => renderRunning(event.detail));
+    window.addEventListener("mac-parallel-accelerator:tool-result", (event) => render(event.detail));
+    window.addEventListener("mac-parallel-accelerator:progress", (event) => renderProgress(event.detail));
+    window.addEventListener("message", (event) => {
+      const message = event?.data;
+      if (message?.method === "notifications/progress") renderProgress(message.params);
+    });
+    window.addEventListener("mac-parallel-accelerator:tool-cancelled", () => {
+      hasHostData = true;
+      byId("dot").className = "dot failed";
+      byId("state").textContent = "执行已取消";
+      byId("result").textContent = "已取消";
+    });
+
+    if (location.protocol === "file:") {
+      setTimeout(() => {
+        if (hasHostData) return;
+        render({
+          indicator: { parallel: true, speedup_multiplier: 3.42, speedup_kind: "preview", peak_concurrency: 4, parallel_efficiency: 0.86 },
+          summary: { task_count: 8, elapsed_seconds: 1.284, status_counts: { succeeded: 8 }, peak_concurrency: 4 },
+          resource_plan: { responsiveness: "interactive", chosen_concurrency: 4 },
+        });
+        byId("state").textContent = "指示器预览";
+        byId("qualifier").textContent = "示例";
+        byId("note").textContent = "这是静态预览；真实数据会在 Codex 调用插件执行工具后显示。";
+      }, 120);
+    }
+  </script>
+  <script src="./parallel-indicator-host.bundle.js" data-mcp-app-bridge></script>
+</body>
+</html>

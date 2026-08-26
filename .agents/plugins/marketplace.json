@@ -1,0 +1,20 @@
+{
+  "name": "mac-parallel-accelerator",
+  "interface": {
+    "displayName": "Mac Parallel Accelerator"
+  },
+  "plugins": [
+    {
+      "name": "mac-parallel-accelerator",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

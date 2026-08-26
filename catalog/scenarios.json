@@ -1,0 +1,1330 @@
+{
+  "schema_version": "1.3.0",
+  "catalog_name": "Mac Parallel Accelerator preset scenarios",
+  "global_guardrails": [
+    "Parallelize only work units with explicit independence or an explicit dependency graph.",
+    "Keep concurrent writes to one file, Git index, database, device, external account, or release manifest serial unless the underlying tool provides safe isolation and locking.",
+    "Give every parallel worker an isolated output, cache, and temporary directory, then merge deterministically in one coordinator step.",
+    "Keep deterministic seeds, environment locks, resource limits, and preregistered execution order intact for reproducible scientific work.",
+    "Treat network, approval, queue, and user-interaction delay separately from compute time; never report them as parallel compute savings.",
+    "Use live_runner for executions expected to exceed ten seconds so progress and estimated savings remain visible in real time.",
+    "For safety-critical hardware, production release, medical, automotive, mains, battery, RF, or high-voltage work, require the project-specific checks and human engineering sign-off."
+  ],
+  "scenarios": [
+    {
+      "id": "scientific-experiment-sweep",
+      "title_zh": "科研实验矩阵与参数扫描",
+      "category": "research",
+      "mode": "parallel",
+      "detectors": {
+        "directories": ["experiments", "benchmarks", "simulations"],
+        "glob_patterns": ["experiments/*.py", "benchmarks/*.py", "**/*_results.csv", "**/*_design.json"],
+        "task_keywords": ["实验", "参数扫描", "种子", "benchmark", "sweep", "ablation"],
+        "trace_signatures": ["experiment_python"],
+        "make_target_patterns": ["(^|[-_.])(run|benchmark|calibrat|pilot|sweep)([-_.]|$)"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one result/receipt and temporary directory per case"},
+      "optimization_goals": [
+        {"id": "case-fanout", "objective": "Parallelize independent dataset, seed, parameter, rank, fold, or method cases.", "metric": "experiment makespan and completed cases per minute"},
+        {"id": "deterministic-merge", "objective": "Write one immutable receipt per case and merge in a stable key order.", "metric": "zero output collisions and byte-stable merged manifests"},
+        {"id": "resume-failures", "objective": "Resume only missing or failed cases without rerunning successful work.", "metric": "avoided duplicate case runtime"}
+      ],
+      "guardrails": ["Do not split a preregistered sequential phase unless its protocol explicitly permits it.", "Set BLAS/OpenMP threads per worker to prevent oversubscription when using process-level parallelism."]
+    },
+    {
+      "id": "statistical-resampling",
+      "title_zh": "Bootstrap、交叉验证与统计重采样",
+      "category": "research",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*bootstrap*.py", "**/*cross_validation*.py", "**/*resampl*.py"],
+        "task_keywords": ["bootstrap", "交叉验证", "重采样", "置换检验", "蒙特卡洛"],
+        "trace_signatures": ["experiment_python"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "deterministic child seed and one shard per resample range"},
+      "optimization_goals": [
+        {"id": "seed-sharding", "objective": "Use deterministic SeedSequence-style child streams for independent repetitions.", "metric": "reproducible resamples per second"},
+        {"id": "chunked-statistics", "objective": "Aggregate sufficient statistics instead of retaining all samples in every worker.", "metric": "peak memory per worker"},
+        {"id": "stable-reduction", "objective": "Merge shards in a fixed order with numerically stable reductions.", "metric": "agreement with serial reference tolerance"}
+      ],
+      "guardrails": ["Do not reuse random streams across workers.", "Keep sequential stopping rules and adaptive sampling decisions in the coordinator."]
+    },
+    {
+      "id": "scientific-paper-pipeline",
+      "title_zh": "论文、补充材料与投稿包构建",
+      "category": "research",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["paper", "manuscript", "references"],
+        "glob_patterns": ["paper/*.tex", "manuscript/*.tex", "**/*.bib"],
+        "task_keywords": ["论文", "投稿", "补充材料", "latex", "manuscript"],
+        "trace_signatures": ["latex", "pdf"],
+        "make_target_patterns": ["paper", "submission", "supplement", "cover[-_.]?letter", "package"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "separate latex output directory per root document"},
+      "optimization_goals": [
+        {"id": "document-fanout", "objective": "Build independent main papers, supplements, appendices, and cover letters concurrently.", "metric": "submission bundle build makespan"},
+        {"id": "parallel-render", "objective": "Render independent PDFs or page ranges concurrently for visual QA.", "metric": "pages rendered per second"},
+        {"id": "single-final-gate", "objective": "Run citation, claim, package, and artifact-integrity checks after all builds finish.", "metric": "one authoritative final validation result"}
+      ],
+      "guardrails": ["Keep one document's LaTeX/BibTeX rerun chain serial.", "Never let two workers share the same auxiliary or output directory."]
+    },
+    {
+      "id": "numerical-linear-algebra",
+      "title_zh": "数值线性代数与高维计算",
+      "category": "research",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["requirements.txt", "pyproject.toml"],
+        "glob_patterns": ["**/*.npz", "**/*.npy", "**/*linalg*.py", "**/*matrix*.py"],
+        "task_keywords": ["矩阵", "线性代数", "特征值", "SVD", "凸包", "优化求解"],
+        "trace_signatures": ["numerical_python"]
+      },
+      "default_execution": {"executor": "mac_accelerator_plan", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "choose either threaded kernel or process fan-out, not both at full width"},
+      "optimization_goals": [
+        {"id": "accelerate-backend", "objective": "Prefer Accelerate-backed BLAS/LAPACK or an explicitly implemented Metal/MPS backend.", "metric": "kernel runtime and backend confirmation"},
+        {"id": "oversubscription-control", "objective": "Coordinate process count with BLAS/OpenMP thread count.", "metric": "CPU efficiency and thermal stability"},
+        {"id": "memory-aware-blocking", "objective": "Block matrices and cap workers using per-task unified-memory estimates.", "metric": "peak memory and avoided swap"}
+      ],
+      "guardrails": ["Do not claim GPU or Accelerate use unless the invoked implementation exposes and confirms it.", "Preserve numerical tolerances and deterministic comparison baselines."]
+    },
+    {
+      "id": "software-test-matrix",
+      "title_zh": "单元测试、集成测试与兼容性矩阵",
+      "category": "software",
+      "mode": "parallel",
+      "detectors": {
+        "directories": ["tests", "test", "spec"],
+        "glob_patterns": ["tests/test_*.py", "**/*.spec.ts", "**/*.test.ts", "**/*Tests.swift"],
+        "task_keywords": ["测试", "回归", "pytest", "unittest", "test matrix"],
+        "trace_signatures": ["tests"],
+        "make_target_patterns": ["test", "verify", "check"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one temporary/cache/output root per test shard"},
+      "optimization_goals": [
+        {"id": "module-sharding", "objective": "Shard independent test modules or platform/configuration cells.", "metric": "test wall time and shard balance"},
+        {"id": "history-balancing", "objective": "Balance shards using historical per-module duration rather than test count alone.", "metric": "slowest shard / average shard duration"},
+        {"id": "failure-rerun", "objective": "Rerun only failed idempotent shards with full diagnostics.", "metric": "avoided successful-test runtime"}
+      ],
+      "guardrails": ["Keep tests that share ports, devices, fixed databases, simulators, or mutable fixtures serial unless isolated.", "Run one final aggregate or release gate after sharded tests."]
+    },
+    {
+      "id": "fullstack-quality-gate",
+      "title_zh": "多应用全栈质量门与集成构建",
+      "category": "software",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["package.json", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "directories": ["src", "server", "backend", "api", "packages"],
+        "glob_patterns": ["server/package.json", "backend/package.json", "api/package.json", "packages/*/package.json", "src/app/**/page.tsx", "server/src/**/*.ts"],
+        "task_keywords": ["全栈", "前后端", "quality gate", "质量门", "integration build", "full stack"],
+        "trace_signatures": ["tests", "audit"]
+      },
+      "match_requirements": {
+        "minimum_evidence_sources": 3,
+        "required_any_glob_patterns": ["server/package.json", "backend/package.json", "api/package.json"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "one cache/output root per application; explicit service-contract and final integration stages"},
+      "optimization_goals": [
+        {"id": "fullstack-independent-quality-gates", "objective": "Run read-only lint, typecheck, frontend tests, backend tests, and package checks concurrently when their outputs are isolated.", "metric": "quality-gate makespan and slowest branch"},
+        {"id": "fullstack-service-contract-stage", "objective": "Build shared contracts first, then fan out dependent frontend and backend checks.", "metric": "critical-path duration and avoided duplicate contract builds"},
+        {"id": "fullstack-final-integrated-gate", "objective": "Run one dependency-ordered production build and cross-service acceptance gate after branch checks pass.", "metric": "one authoritative integration result"}
+      ],
+      "guardrails": ["Do not run two framework builds against the same cache or output directory.", "Keep database migration, fixed ports, shared services, and final deployment dependency-ordered."]
+    },
+    {
+      "id": "compiled-build-graph",
+      "title_zh": "C/C++/Rust/Go 编译图",
+      "category": "software",
+      "mode": "parallel",
+      "detectors": {
+        "marker_files": ["CMakeLists.txt", "Cargo.toml", "go.mod", "meson.build", "Makefile"],
+        "glob_patterns": ["**/*.c", "**/*.cc", "**/*.cpp", "**/*.rs", "**/*.go"],
+        "task_keywords": ["编译", "构建", "link", "cmake", "cargo", "go build"],
+        "trace_signatures": ["native_build"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "cpu", "initial_concurrency_cap": 6, "isolation": "use the build system dependency graph and separate build directories per configuration"},
+      "optimization_goals": [
+        {"id": "native-jobs", "objective": "Use the build system's native job server for independent compilation units.", "metric": "clean and incremental build time"},
+        {"id": "config-fanout", "objective": "Build independent architectures, sanitizers, and configurations in isolated directories.", "metric": "matrix makespan"},
+        {"id": "cache-preservation", "objective": "Reuse safe compiler caches while avoiding concurrent cache corruption.", "metric": "incremental cache hit rate"}
+      ],
+      "guardrails": ["Keep final linking and shared generated-file steps dependency-ordered.", "Do not stack plugin fan-out on top of an already saturated native build job server."]
+    },
+    {
+      "id": "monorepo-package-graph",
+      "title_zh": "Monorepo 多包依赖图",
+      "category": "software",
+      "mode": "parallel",
+      "detectors": {
+        "marker_files": ["pnpm-workspace.yaml", "turbo.json", "nx.json", "lerna.json"],
+        "directories": ["packages", "apps", "server", "backend"],
+        "glob_patterns": ["packages/*/package.json", "apps/*/package.json", "server/package.json", "backend/package.json"],
+        "task_keywords": ["monorepo", "workspace", "多包", "turbo", "nx", "本地包"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "respect package dependencies and per-package outputs"},
+      "optimization_goals": [
+        {"id": "affected-only", "objective": "Run work only for changed packages and their dependents.", "metric": "packages skipped and wall time"},
+        {"id": "dependency-stages", "objective": "Execute dependency-ready packages concurrently.", "metric": "critical-path duration"},
+        {"id": "package-cache", "objective": "Reuse content-addressed package build outputs.", "metric": "cache hit rate"}
+      ],
+      "guardrails": ["Keep lockfile writes and workspace installation serial.", "Do not run dependents before required generated artifacts are complete."]
+    },
+    {
+      "id": "ai-generated-project-stabilization",
+      "title_zh": "AI 辅助生成工程的稳定化与收敛验证",
+      "category": "software",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["AGENTS.md", "CLAUDE.md", "repomix-output.xml"],
+        "directories": ["src", "tests", "server", "docs"],
+        "glob_patterns": ["**/*.spec.ts", "**/*.test.ts", "**/*acceptance*.ts", "**/*audit*.ts"],
+        "task_keywords": ["AI生成", "AI 生成", "AI辅助", "vibe coding", "agent-built", "稳定化"],
+        "trace_signatures": ["agent_orchestration", "audit", "mutation", "search"],
+        "agent_task_patterns": ["audit|review|diagnos|design|implement|stabil|verify"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 3},
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "parallel read-only audits and isolated test branches; one coordinated mutation and convergence path"},
+      "optimization_goals": [
+        {"id": "ai-stabilize-risk-map", "objective": "Classify generated surfaces by authority, statefulness, public contract, and change frequency before spending build time.", "metric": "high-risk surfaces covered and irrelevant work skipped"},
+        {"id": "ai-stabilize-readonly-audits", "objective": "Run independent contract, permission, schema, UX, dead-code, and test-coverage audits concurrently with normalized evidence.", "metric": "audit makespan and duplicate findings"},
+        {"id": "ai-stabilize-convergence-gate", "objective": "Apply fixes in dependency order and finish with affected checks plus one full authoritative quality gate.", "metric": "iterations to green and regression escape rate"}
+      ],
+      "guardrails": ["Do not let multiple workers edit overlapping source files or silently choose conflicting product behavior.", "Read-only audit parallelism must converge into one deduplicated risk-ranked plan before mutation."]
+    },
+    {
+      "id": "realtime-collaboration-stack",
+      "title_zh": "实时协作、WebSocket 与多服务联调",
+      "category": "software",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml", "collab-hocuspocus.ts"],
+        "directories": ["src", "server"],
+        "glob_patterns": ["**/*collab*.ts", "**/*realtime*.ts", "**/*websocket*.ts", "**/*socket*.ts", "**/*hocuspocus*.ts"],
+        "task_keywords": ["实时协作", "WebSocket", "Hocuspocus", "Yjs", "多人编辑", "realtime"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "unique ports, rooms, users, databases, and trace directories per test cell"},
+      "optimization_goals": [
+        {"id": "realtime-service-health-dag", "objective": "Start database and backing services first, then application and collaboration services, with health-gated readiness.", "metric": "time to ready and eliminated blind sleeps"},
+        {"id": "realtime-protocol-matrix", "objective": "Run independent authorization, reconnect, conflict, awareness, persistence, and cross-service contract tests concurrently.", "metric": "protocol matrix makespan"},
+        {"id": "realtime-isolated-load", "objective": "Fan out room or document load cases only with isolated identities and bounded socket counts.", "metric": "operations per second, convergence latency, and error rate"}
+      ],
+      "guardrails": ["Do not share fixed ports, room identifiers, users, mutable documents, or one database fixture across parallel cells.", "Keep migrations, destructive resets, and final convergence assertions dependency-ordered."]
+    },
+    {
+      "id": "ai-agent-governance-audit",
+      "title_zh": "AI Agent、MCP 与权限治理审计",
+      "category": "guardrail",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["AGENTS.md"],
+        "directories": ["src/app/mcp", "src/lib/agent-gateway", "server/src"],
+        "glob_patterns": ["**/*agent*.ts", "**/*mcp*.ts", "**/*auth*.ts", "**/*permission*.ts", "**/*retention*.ts"],
+        "task_keywords": ["Agent治理", "MCP", "权限审计", "delegation", "OAuth", "代理网关"],
+        "trace_signatures": ["agent_orchestration", "audit", "remote"],
+        "agent_task_patterns": ["agent|mcp|auth|permission|origin|retention|receipt|delegation"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 3},
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "parallel read-only boundary and contract audits; one serial policy-decision and mutation stage"},
+      "optimization_goals": [
+        {"id": "agent-boundary-audit", "objective": "Audit authentication, authorization, delegation, origin, retention, rate-limit, and evidence boundaries concurrently.", "metric": "boundary coverage per wall minute"},
+        {"id": "agent-transport-contracts", "objective": "Run independent native, MCP, HTTP, CLI, and persistence contract tests using isolated identities and stores.", "metric": "transport matrix makespan"},
+        {"id": "agent-policy-merge", "objective": "Deduplicate findings and make authority-changing policy decisions in one explicit serial gate.", "metric": "zero contradictory policies and complete decision evidence"}
+      ],
+      "guardrails": ["Never parallelize writes to one policy store, token registry, audit log, or external account.", "Optimization does not grant permission to invoke agents or mutate external systems beyond the requested scope."]
+    },
+    {
+      "id": "static-analysis-security",
+      "title_zh": "静态分析、类型检查与安全扫描",
+      "category": "software",
+      "mode": "parallel",
+      "detectors": {
+        "marker_files": ["pyproject.toml", "ruff.toml", "mypy.ini", ".eslintrc", "eslint.config.js", "eslint.config.mjs", "tsconfig.json", "sonar-project.properties"],
+        "glob_patterns": [".github/workflows/*.yml", "**/*lock*"],
+        "task_keywords": ["静态分析", "安全扫描", "lint", "type check", "SAST", "secret scan"],
+        "trace_signatures": ["audit"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "independent read-only scanners with separate reports"},
+      "optimization_goals": [
+        {"id": "scanner-fanout", "objective": "Run independent linters, type checkers, secret scanners, SBOM, and static security checks concurrently.", "metric": "audit makespan"},
+        {"id": "scope-partition", "objective": "Partition scanners by language or immutable source subtree.", "metric": "files analyzed per second"},
+        {"id": "unified-findings", "objective": "Normalize and deduplicate findings in one serial report step.", "metric": "duplicate finding rate"}
+      ],
+      "guardrails": ["Do not execute untrusted project code as part of a static scan.", "Keep auto-fix mode serial because it mutates shared files."]
+    },
+    {
+      "id": "codebase-readonly-discovery",
+      "title_zh": "大型代码库只读检索与盘点",
+      "category": "software",
+      "mode": "conditional",
+      "detectors": {
+        "task_keywords": ["查找", "盘点", "梳理", "代码库", "依赖关系", "inventory"],
+        "trace_signatures": ["search"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "io", "initial_concurrency_cap": 4, "isolation": "coarse read-only search batches"},
+      "optimization_goals": [
+        {"id": "coarse-batching", "objective": "Combine many tiny rg/sed/find calls into a few independent searches.", "metric": "tool round trips and discovery latency"},
+        {"id": "subtree-fanout", "objective": "Search independent large subtrees concurrently when each scan is substantial.", "metric": "scan makespan"},
+        {"id": "single-index", "objective": "Reuse one file inventory or symbol index across follow-up questions.", "metric": "avoided repeated scans"}
+      ],
+      "guardrails": ["Do not parallelize tiny commands when process startup dominates.", "Exclude generated, dependency, cache, and VCS directories unless explicitly needed."]
+    },
+    {
+      "id": "browser-ui-test-matrix",
+      "title_zh": "浏览器端到端测试矩阵",
+      "category": "software",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["playwright.config.ts", "playwright.config.js", "cypress.config.ts", "wdio.conf.js"],
+        "directories": ["e2e"],
+        "task_keywords": ["浏览器测试", "E2E", "Playwright", "Cypress"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "unique browser profile, port, account, artifact directory, and test data per shard"},
+      "optimization_goals": [
+        {"id": "browser-shards", "objective": "Shard independent specs across isolated browser workers.", "metric": "suite makespan"},
+        {"id": "project-matrix", "objective": "Run independent browser/device projects concurrently within service capacity.", "metric": "matrix completion time"},
+        {"id": "artifact-stream", "objective": "Stream failures while keeping trace, video, and screenshot outputs per worker.", "metric": "time to first actionable failure"}
+      ],
+      "guardrails": ["Cap workers when they share a local server or authenticated external account.", "Keep database reset and environment provisioning dependency-ordered."]
+    },
+    {
+      "id": "data-partition-etl",
+      "title_zh": "分区数据 ETL 与格式转换",
+      "category": "data",
+      "mode": "parallel",
+      "detectors": {
+        "directories": ["data", "etl", "pipelines"],
+        "glob_patterns": ["**/*.parquet", "**/*.csv", "**/*.jsonl", "**/*etl*.py"],
+        "task_keywords": ["ETL", "分区", "数据转换", "清洗", "parquet"],
+        "trace_signatures": ["data"]
+      },
+      "match_requirements": {"minimum_file_pattern_matches": 2},
+      "default_execution": {"executor": "parallel_map", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "one immutable output partition per input partition"},
+      "optimization_goals": [
+        {"id": "partition-map", "objective": "Transform independent files, partitions, dates, or entities concurrently.", "metric": "rows or bytes processed per second"},
+        {"id": "columnar-pushdown", "objective": "Read only required columns and row groups before parallel work.", "metric": "bytes read and peak memory"},
+        {"id": "manifest-commit", "objective": "Validate all partitions before one atomic manifest publication.", "metric": "zero partial dataset publication"}
+      ],
+      "guardrails": ["Do not let workers append to one CSV or JSONL file.", "Keep schema evolution and destination table commits serial unless transactional partitioning is proven."]
+    },
+    {
+      "id": "data-quality-validation",
+      "title_zh": "数据质量与证据一致性验证",
+      "category": "data",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*schema*.json", "**/*validation*.py", "**/*audit*.py"],
+        "task_keywords": ["数据质量", "一致性", "schema validation", "校验", "审计"],
+        "trace_signatures": ["audit", "data"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "read-only validation partitions and independent evidence reports"},
+      "optimization_goals": [
+        {"id": "rule-fanout", "objective": "Run independent schema, range, uniqueness, referential, and drift checks concurrently.", "metric": "validation makespan"},
+        {"id": "partition-validation", "objective": "Validate immutable partitions in parallel and reduce counts centrally.", "metric": "validated rows per second"},
+        {"id": "fail-early", "objective": "Surface blocking integrity failures immediately while other independent checks continue safely.", "metric": "time to first blocking finding"}
+      ],
+      "guardrails": ["Keep repair or imputation writes out of the parallel validation stage.", "Use one authoritative aggregation step for final pass/fail status."]
+    },
+    {
+      "id": "database-stateful-workflow",
+      "title_zh": "数据库迁移与共享状态工作流",
+      "category": "data",
+      "mode": "serial_guardrail",
+      "detectors": {
+        "marker_files": ["prisma", "drizzle.config.ts", "alembic.ini"],
+        "directories": ["migrations", "prisma", "prisma/migrations", "db/migrations"],
+        "glob_patterns": ["**/*.sqlite", "**/*.db", "**/migrations/*.sql", "**/migrations/**/*.sql", "prisma/schema.prisma"],
+        "task_keywords": ["数据库迁移", "schema migration", "回填", "写数据库", "Prisma", "数据库状态"],
+        "trace_signatures": ["database", "data"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 1, "isolation": "parallelize read-only preparation only; serialize mutation and commit"},
+      "optimization_goals": [
+        {"id": "parallel-preflight", "objective": "Run independent backups, schema checks, row counts, and dry-run analyses before mutation.", "metric": "preflight makespan"},
+        {"id": "partitioned-backfill", "objective": "Parallelize backfill only when the database and key ranges provide proven isolation and transactions.", "metric": "rows updated per second without lock contention"},
+        {"id": "single-commit-path", "objective": "Keep migration ordering, metadata updates, and final commit serial.", "metric": "zero ordering violations"}
+      ],
+      "guardrails": ["Default shared database writes to concurrency one.", "Require explicit locking, transactions, idempotency, and recovery plan before partitioned writes."]
+    },
+    {
+      "id": "database-fixture-seed-matrix",
+      "title_zh": "数据库种子、Fixture 与验收数据矩阵",
+      "category": "data",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["prisma", "fixtures", "seeds"],
+        "glob_patterns": ["prisma/schema.prisma", "prisma/seed*.ts", "**/fixtures/**/*", "**/seeds/**/*"],
+        "task_keywords": ["种子数据", "seed matrix", "fixture", "验收数据", "模拟数据"],
+        "trace_signatures": ["database", "data"]
+      },
+      "match_requirements": {"minimum_file_pattern_matches": 2},
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 3, "isolation": "one disposable database/schema and one receipt per seed profile"},
+      "optimization_goals": [
+        {"id": "seed-dryrun-fanout", "objective": "Validate independent seed profiles, fixture syntax, references, and deterministic identifiers concurrently without writes.", "metric": "seed preflight makespan"},
+        {"id": "isolated-database-matrix", "objective": "Run seed and acceptance profiles concurrently only against separate disposable databases or schemas.", "metric": "profiles validated per minute without cross-contamination"},
+        {"id": "seed-authoritative-commit", "objective": "Keep the selected shared-environment seed, migration metadata, and publication path serial and receipted.", "metric": "zero duplicate or conflicting shared records"}
+      ],
+      "guardrails": ["Never run multiple seed writers against one shared database unless the scripts are explicitly transactional and idempotent.", "Use deterministic identifiers, cleanup receipts, and disposable test databases for parallel cells."]
+    },
+    {
+      "id": "image-batch-processing",
+      "title_zh": "批量图片处理与视觉资产导出",
+      "category": "media",
+      "mode": "parallel",
+      "detectors": {
+        "directories": ["images", "assets", "photos"],
+        "glob_patterns": ["**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.tiff", "**/*.heic"],
+        "task_keywords": ["批量图片", "缩放", "裁剪", "水印", "图片导出"],
+        "trace_signatures": ["image"]
+      },
+      "match_requirements": {"minimum_file_pattern_matches": 3},
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one output path per source image"},
+      "optimization_goals": [
+        {"id": "per-image-map", "objective": "Transform independent images concurrently.", "metric": "images per second"},
+        {"id": "vimage-backend", "objective": "Prefer vImage/Accelerate or an explicitly supported GPU backend for resize, color, and convolution operators.", "metric": "per-megapixel runtime and backend confirmation"},
+        {"id": "decode-reuse", "objective": "Combine multiple requested transforms per image to avoid repeated decode and encode.", "metric": "decode count and total bytes processed"}
+      ],
+      "guardrails": ["Keep metadata policy and overwrite behavior explicit.", "Use low accelerator fan-out when each worker drives the same GPU or unified-memory-heavy model."]
+    },
+    {
+      "id": "video-transcode",
+      "title_zh": "视频转码、切片与代理文件生成",
+      "category": "media",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.mp4", "**/*.mov", "**/*.mkv", "**/*.m4v"],
+        "task_keywords": ["视频转码", "切片", "代理文件", "HLS", "编码"],
+        "trace_signatures": ["video"]
+      },
+      "default_execution": {"executor": "mac_accelerator_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one output family per source with shared media-engine-aware cap"},
+      "optimization_goals": [
+        {"id": "videotoolbox", "objective": "Use an explicitly selected VideoToolbox encoder/decoder when quality and codec requirements permit.", "metric": "realtime factor and hardware encoder confirmation"},
+        {"id": "source-fanout", "objective": "Process independent source videos with a low shared-media-engine concurrency cap.", "metric": "batch makespan"},
+        {"id": "single-decode-ladder", "objective": "Generate multiple renditions from one decode/filter graph when supported.", "metric": "decode work avoided"}
+      ],
+      "guardrails": ["More concurrent hardware encoders may reduce total throughput; measure at caps one and two first.", "Preserve color, HDR, audio, subtitle, and timing metadata requirements."]
+    },
+    {
+      "id": "audio-signal-batch",
+      "title_zh": "音频、语音与信号批处理",
+      "category": "media",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.wav", "**/*.flac", "**/*.mp3", "**/*.m4a"],
+        "task_keywords": ["音频", "语音", "降噪", "频谱", "转录前处理"],
+        "trace_signatures": ["audio"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one result per source or independent time chunk with deterministic overlap handling"},
+      "optimization_goals": [
+        {"id": "per-file-audio", "objective": "Process independent audio files concurrently.", "metric": "audio-hours processed per wall hour"},
+        {"id": "vdsp", "objective": "Use vDSP/Accelerate for FFT, filtering, convolution, and vector transforms when implemented.", "metric": "signal samples per second and backend confirmation"},
+        {"id": "chunk-overlap", "objective": "Chunk long signals with explicit overlap and one serial boundary merge.", "metric": "boundary continuity and makespan"}
+      ],
+      "guardrails": ["Do not chunk stateful codecs or filters without preserving state and overlap semantics.", "Cap shared speech-model/GPU workers to unified-memory capacity."]
+    },
+    {
+      "id": "pdf-document-qa",
+      "title_zh": "PDF 渲染、抽取与视觉验收",
+      "category": "documents",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.pdf", "**/*.tex"],
+        "task_keywords": ["PDF", "视觉检查", "渲染", "版式", "抽取"],
+        "trace_signatures": ["pdf", "image"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "unique render prefix per PDF/page range"},
+      "optimization_goals": [
+        {"id": "page-render-shards", "objective": "Render independent PDFs or page ranges concurrently.", "metric": "pages rendered per second"},
+        {"id": "extract-and-render", "objective": "Run independent text/metadata extraction alongside visual rendering.", "metric": "document QA makespan"},
+        {"id": "targeted-rerender", "objective": "After edits, rerender changed or representative pages before the final complete pass.", "metric": "pages avoided during iteration"}
+      ],
+      "guardrails": ["Final delivery still requires complete relevant-page verification.", "Use separate output prefixes to prevent Poppler output collisions."]
+    },
+    {
+      "id": "ocr-document-conversion",
+      "title_zh": "OCR 与文档格式批量转换",
+      "category": "documents",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.docx", "**/*.pptx", "**/*.xlsx", "**/*.tif", "**/*.tiff"],
+        "task_keywords": ["OCR", "文档转换", "批量转换", "识别扫描件"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "one output package per source document"},
+      "optimization_goals": [
+        {"id": "document-map", "objective": "Convert independent documents concurrently.", "metric": "documents or pages per minute"},
+        {"id": "page-ocr", "objective": "OCR independent pages in bounded shards and reassemble in page order.", "metric": "OCR pages per second"},
+        {"id": "selective-ocr", "objective": "Skip OCR on pages with trustworthy embedded text.", "metric": "pages avoided and extraction quality"}
+      ],
+      "guardrails": ["Preserve document order, accessibility structure, and source fidelity in one final assembly step.", "Do not overwrite source documents by default."]
+    },
+    {
+      "id": "ml-batch-inference",
+      "title_zh": "机器学习批量推理",
+      "category": "ml",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.mlmodel", "**/*.mlpackage", "**/*.onnx", "**/*.safetensors"],
+        "task_keywords": ["批量推理", "inference", "Core ML", "模型预测"],
+        "trace_signatures": ["ml"]
+      },
+      "default_execution": {"executor": "mac_accelerator_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "batch within one model process before adding competing accelerator processes"},
+      "optimization_goals": [
+        {"id": "coreml-route", "objective": "Prefer Core ML all compute units when the model is compatible and conversion is validated.", "metric": "latency, throughput, and backend confirmation"},
+        {"id": "dynamic-batching", "objective": "Increase in-process batch size before process fan-out.", "metric": "items per second within memory limit"},
+        {"id": "model-reuse", "objective": "Load each model once and stream many items through it.", "metric": "model load count and warm throughput"}
+      ],
+      "guardrails": ["Multiple GPU/ANE processes can reduce throughput; default to one or two.", "Validate numerical and task-quality equivalence after model conversion."]
+    },
+    {
+      "id": "ml-hyperparameter-sweep",
+      "title_zh": "机器学习超参数与训练试验",
+      "category": "ml",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["models", "checkpoints", "runs"],
+        "glob_patterns": ["**/*train*.py", "**/*sweep*.yaml"],
+        "task_keywords": ["训练", "超参数", "网格搜索", "MLX", "MPS"],
+        "trace_signatures": ["ml", "experiment_python"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "accelerator", "initial_concurrency_cap": 1, "isolation": "one run directory, seed, checkpoint namespace, and metrics receipt per trial"},
+      "optimization_goals": [
+        {"id": "trial-scheduling", "objective": "Schedule independent trials within unified-memory and accelerator limits.", "metric": "successful trials per hour"},
+        {"id": "early-stop", "objective": "Stop underperforming trials using coordinator-owned evidence.", "metric": "compute-hours avoided"},
+        {"id": "data-cache", "objective": "Reuse immutable preprocessed data without duplicating it per trial.", "metric": "I/O and memory avoided"}
+      ],
+      "guardrails": ["Start at concurrency one for shared GPU/ANE training and increase only from measured throughput.", "Keep checkpoints and experiment trackers isolated by trial."]
+    },
+    {
+      "id": "model-conversion-benchmark",
+      "title_zh": "模型转换、量化与后端基准",
+      "category": "ml",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.onnx", "**/*.mlpackage", "**/*quant*.py", "**/*convert*.py"],
+        "task_keywords": ["模型转换", "量化", "后端比较", "benchmark backend"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "separate converted artifact and benchmark output per backend/precision"},
+      "optimization_goals": [
+        {"id": "conversion-fanout", "objective": "Convert independent precision and backend variants concurrently.", "metric": "conversion matrix makespan"},
+        {"id": "quality-gate", "objective": "Run correctness comparisons before performance benchmarking.", "metric": "maximum output deviation"},
+        {"id": "backend-bench", "objective": "Benchmark accepted variants with warmup and controlled serial baselines.", "metric": "measured latency, throughput, and memory"}
+      ],
+      "guardrails": ["Do not compare performance for variants that fail quality equivalence.", "Avoid benchmarking multiple shared-accelerator variants concurrently."]
+    },
+    {
+      "id": "container-multiarch-build",
+      "title_zh": "容器、多架构构建与隔离实验",
+      "category": "build-release",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile", "docker-compose.yml", "compose.yaml"],
+        "glob_patterns": ["**/*.Dockerfile", "**/Dockerfile.*"],
+        "task_keywords": ["Docker", "容器", "多架构", "arm64", "amd64"],
+        "trace_signatures": ["docker"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "unique image tag, build directory, container name, and output per architecture/case"},
+      "optimization_goals": [
+        {"id": "case-containers", "objective": "Run independent resource-bounded containers concurrently.", "metric": "container experiment makespan"},
+        {"id": "multiarch-stages", "objective": "Build independent architectures or images concurrently when cache and builder capacity permit.", "metric": "build matrix duration"},
+        {"id": "layer-cache", "objective": "Order Dockerfiles and contexts to maximize immutable layer reuse.", "metric": "cache hit rate and transferred bytes"}
+      ],
+      "guardrails": ["Cap emulated x86 containers on Apple silicon after measuring contention.", "Keep shared tags, manifests, registry publication, and cleanup serial."]
+    },
+    {
+      "id": "docker-desktop-vm-envelope",
+      "title_zh": "Docker Desktop 虚拟机总资源边界",
+      "category": "containers",
+      "layer": "resource",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "glob_patterns": ["**/Dockerfile", "**/Dockerfile.*", "**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"],
+        "task_keywords": ["Docker Desktop资源", "容器CPU", "容器内存", "虚拟机资源", "VM envelope"],
+        "trace_signatures": ["docker"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "container_resource_plan", "profile": "mixed", "initial_concurrency_cap": 1, "isolation": "measure and reserve the Docker Linux VM envelope before distributing resources to containers"},
+      "optimization_goals": [
+        {"id": "docker-vm-budget", "objective": "Base container budgets on Docker Desktop VM CPUs and memory, not directly on the larger macOS host totals.", "metric": "allocated container resources / Docker VM envelope"},
+        {"id": "docker-vm-memory-headroom", "objective": "Reserve VM memory and CPU for dockerd, BuildKit, networking, filesystem sharing, and interactive host responsiveness.", "metric": "VM swap, OOM events, and host responsiveness"},
+        {"id": "docker-vm-observe", "objective": "Use container stats and measured throttling to revise limits after a representative run.", "metric": "CPU throttling, memory peak, I/O, and wall time"}
+      ],
+      "guardrails": ["Changing Docker Desktop's VM-wide settings is an explicit user action and may restart the engine.", "Host RAM and cores unavailable to the Docker VM cannot be assigned to containers."]
+    },
+    {
+      "id": "container-resource-partitioning",
+      "title_zh": "多容器 CPU、内存、PID 与 vCPU 分区",
+      "category": "containers",
+      "layer": "resource",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"],
+        "content_patterns": [
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(?m)^services:\\s*$[\\s\\S]*^\\s{2}[A-Za-z0-9_.-]+:\\s*$", "label": "multi-service Compose topology"},
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(cpus:|cpuset:|cpu_shares:|mem_limit:|mem_reservation:|pids_limit:|resources:)", "label": "existing container resource controls"}
+        ],
+        "task_keywords": ["不同CPU", "资源分配", "容器配额", "cpuset", "cpu shares", "mem_limit"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 3},
+      "default_execution": {"executor": "container_resource_plan", "profile": "mixed", "initial_concurrency_cap": 1, "isolation": "weighted quotas inside one detected Docker VM envelope; optional non-overlapping VM-vCPU cpusets"},
+      "optimization_goals": [
+        {"id": "container-cpu-quota", "objective": "Assign CPU-heavy builds larger CPU ceilings and contention weights while keeping I/O services smaller.", "metric": "per-container throttling and total makespan"},
+        {"id": "container-memory-pids", "objective": "Set memory limit/reservation and PID ceilings from measured working sets and runtime behavior.", "metric": "zero OOMs, fork storms, and VM swap"},
+        {"id": "container-cpuset-policy", "objective": "Use cpuset only when non-overlap is beneficial and enough Docker VM vCPUs exist.", "metric": "cross-container interference and CPU utilization"}
+      ],
+      "guardrails": ["Docker Desktop cpuset IDs are VM vCPUs, not stable Apple P-core/E-core identities.", "CPU quotas are ceilings and cpu_shares are relative weights under contention, not guaranteed reservations."]
+    },
+    {
+      "id": "compose-service-health-dag",
+      "title_zh": "Compose 服务依赖、健康检查与就绪 DAG",
+      "category": "containers",
+      "layer": "workflow",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "content_patterns": [
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(depends_on:|condition:\\s*service_(healthy|completed_successfully)|healthcheck:)", "label": "Compose health dependency graph"}
+        ],
+        "task_keywords": ["Compose依赖", "健康检查", "服务就绪", "depends_on", "healthcheck"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "dependency-ready service groups with health-gated transitions and unique project/network names"},
+      "optimization_goals": [
+        {"id": "compose-health-gates", "objective": "Replace fixed sleeps with service health and completion conditions.", "metric": "startup latency and flaky readiness failures"},
+        {"id": "compose-ready-fanout", "objective": "Start independent services together as soon as their dependencies are healthy.", "metric": "critical-path startup time"},
+        {"id": "compose-one-shot-jobs", "objective": "Model migrations, initialization, and asset generation as one-shot dependency nodes.", "metric": "zero application starts before required state exists"}
+      ],
+      "guardrails": ["A running process is not necessarily a ready service.", "Keep migrations and other shared-state initialization single-writer and dependency-ordered."]
+    },
+    {
+      "id": "buildkit-solver-resource-control",
+      "title_zh": "BuildKit 求解器并发、缓存与构建容器预算",
+      "category": "containers",
+      "layer": "cache",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile"],
+        "glob_patterns": ["**/Dockerfile", "**/Dockerfile.*", "**/buildkitd.toml", "**/docker-bake.hcl"],
+        "content_patterns": [
+          {"glob_patterns": ["**/Dockerfile", "**/Dockerfile.*"], "regex": "(?m)^FROM\\s+.+\\s+AS\\s+|--mount=type=cache|--mount=type=bind", "label": "parallelizable or cached BuildKit stages"},
+          {"glob_patterns": ["**/buildkitd.toml", "**/*.sh", "**/*.yml", "**/*.yaml"], "regex": "(max-parallelism|docker\\s+buildx|docker\\s+build|cache-from|cache-to)", "label": "BuildKit solver or cache controls"}
+        ],
+        "task_keywords": ["BuildKit并发", "max-parallelism", "buildx", "Docker构建慢", "多镜像构建"],
+        "trace_signatures": ["docker", "cache"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "container_resource_plan", "profile": "build", "initial_concurrency_cap": 3, "isolation": "bounded BuildKit solver parallelism, immutable cache inputs, unique tags, and one manifest publication path"},
+      "optimization_goals": [
+        {"id": "buildkit-max-parallelism", "objective": "Set BuildKit worker max-parallelism from Docker VM CPU and memory headroom.", "metric": "build wall time, VM memory peak, and throttling"},
+        {"id": "buildkit-stage-graph", "objective": "Expose independent multi-stage build branches while keeping dependent and final image stages ordered.", "metric": "BuildKit critical path"},
+        {"id": "buildkit-cache-mounts", "objective": "Use safe cache mounts and remote/local cache imports without concurrent cache corruption.", "metric": "layer and package cache hit rate"}
+      ],
+      "guardrails": ["Do not stack many outer docker build processes on top of an already saturated BuildKit solver.", "Keep shared image tags, multi-arch manifests, signing, and pushes serial."]
+    },
+    {
+      "id": "container-test-matrix-isolation",
+      "title_zh": "容器化测试矩阵与环境隔离",
+      "category": "containers",
+      "layer": "workflow",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "directories": ["tests", "test", "e2e"],
+        "content_patterns": [
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(profiles:|test|e2e|smoke)", "label": "Compose test profile"}
+        ],
+        "task_keywords": ["容器测试矩阵", "多个测试容器", "隔离测试", "Compose profile"],
+        "trace_signatures": ["docker", "tests"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 3},
+      "default_execution": {"executor": "parallel_exec", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "unique Compose project, network, ports, database schema/volume, container names, and output artifacts per matrix cell"},
+      "optimization_goals": [
+        {"id": "container-test-cell-fanout", "objective": "Run independent runtime, dependency, schema, or configuration cells concurrently within VM resource limits.", "metric": "test matrix makespan"},
+        {"id": "container-project-isolation", "objective": "Assign unique Compose project names, networks, ports, volumes, and fixture identities.", "metric": "zero cross-cell collisions"},
+        {"id": "container-failed-cell-retry", "objective": "Retain logs and retry only failed idempotent cells without rebuilding successful cells.", "metric": "avoided rebuild and rerun time"}
+      ],
+      "guardrails": ["Do not reuse one mutable database or named volume across concurrent test cells.", "Apply per-cell resource limits so one failure cannot starve the entire Docker VM."]
+    },
+    {
+      "id": "docker-volume-io-path",
+      "title_zh": "Bind Mount、Named Volume 与宿主机文件 I/O",
+      "category": "containers",
+      "layer": "storage",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "content_patterns": [
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(?m)^\\s+volumes:\\s*$|\\./[^:\\n]+:[^\\n]+|type:\\s*bind|type:\\s*volume", "label": "container bind mount or named volume"},
+          {"glob_patterns": ["**/.dockerignore", "**/Dockerfile", "**/Dockerfile.*"], "regex": "(node_modules|\\.git|COPY\\s+\\.\\s+\\.|ADD\\s+\\.\\s+\\.)", "label": "container build-context I/O"}
+        ],
+        "task_keywords": ["Docker文件IO", "bind mount慢", "named volume", "构建上下文", "文件共享"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "scenario_plan", "profile": "io", "initial_concurrency_cap": 2, "isolation": "source bind mounts only where interactive editing is needed; named volumes for high-churn Linux data; minimal build context"},
+      "optimization_goals": [
+        {"id": "docker-volume-placement", "objective": "Use named volumes for databases, package caches, and high-churn Linux data while retaining source bind mounts where needed.", "metric": "filesystem operations and latency"},
+        {"id": "docker-context-minimize", "objective": "Exclude dependencies, VCS, outputs, archives, and caches from build contexts.", "metric": "context bytes and upload time"},
+        {"id": "docker-file-share-measure", "objective": "Measure representative bind-mount and synchronized-share workflows before changing storage topology.", "metric": "edit-build-test loop latency"}
+      ],
+      "guardrails": ["Changing volumes can alter persistence and backup semantics.", "Do not move authoritative user data without an explicit migration and recovery plan."]
+    },
+    {
+      "id": "container-platform-emulation",
+      "title_zh": "Apple Silicon 容器架构与仿真成本",
+      "category": "containers",
+      "layer": "runtime",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "content_patterns": [
+          {"glob_patterns": ["**/Dockerfile", "**/Dockerfile.*", "**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(linux/amd64|linux/arm64|--platform|BUILDPLATFORM|TARGETPLATFORM|TARGETARCH)", "label": "container platform selection"}
+        ],
+        "task_keywords": ["amd64容器", "arm64容器", "QEMU", "Rosetta容器", "跨架构"],
+        "trace_signatures": ["docker"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_dag", "profile": "cpu", "initial_concurrency_cap": 2, "isolation": "native arm64 path first; separately tagged and resource-capped emulated compatibility cells"},
+      "optimization_goals": [
+        {"id": "container-native-arch", "objective": "Prefer native linux/arm64 images and toolchains on Apple silicon whenever compatibility permits.", "metric": "native versus emulated runtime"},
+        {"id": "container-cross-build", "objective": "Use BuildKit build/target platform separation and cross-compilation instead of executing every build step under emulation.", "metric": "emulated CPU time avoided"},
+        {"id": "container-emulation-cap", "objective": "Run amd64 compatibility cells with low measured concurrency and isolated caches.", "metric": "matrix throughput and thermal stability"}
+      ],
+      "guardrails": ["Never silently substitute architectures when binary compatibility is part of the test.", "Emulated containers may need different timing thresholds and lower fan-out."]
+    },
+    {
+      "id": "container-shared-service-contention",
+      "title_zh": "共享数据库、缓存、搜索与对象存储容器竞争",
+      "category": "containers",
+      "layer": "resource",
+      "mode": "serial_guardrail",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "content_patterns": [
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(postgres|mysql|mariadb|redis|elasticsearch|opensearch|minio|mongodb|kafka)", "label": "shared stateful backing service"},
+          {"glob_patterns": ["**/docker-compose*.yml", "**/docker-compose*.yaml", "**/compose*.yml", "**/compose*.yaml"], "regex": "(mem_limit:|cpus:|ulimits:|shm_size:|max_connections)", "label": "stateful service resource controls"}
+        ],
+        "task_keywords": ["共享数据库容器", "Redis竞争", "Elasticsearch资源", "MinIO并发", "容器共享状态"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "container_resource_plan", "profile": "database", "initial_concurrency_cap": 1, "isolation": "one authoritative shared service with bounded clients, or one disposable isolated service per independent test cell"},
+      "optimization_goals": [
+        {"id": "container-stateful-budget", "objective": "Reserve explicit CPU, memory, PID, file-descriptor, and storage headroom for stateful services.", "metric": "query latency, OOMs, compaction, and queue depth"},
+        {"id": "container-client-budget", "objective": "Bound aggregate application workers and connection pools below shared-service capacity.", "metric": "active connections, lock waits, and rejected requests"},
+        {"id": "container-state-isolation", "objective": "Use disposable databases, schemas, topics, buckets, or indexes for truly parallel mutation tests.", "metric": "zero cross-test state contamination"}
+      ],
+      "guardrails": ["Shared stateful services remain the bottleneck even when client containers have separate CPUs.", "Do not run destructive or migration tests concurrently against one authoritative data volume."]
+    },
+    {
+      "id": "container-registry-layer-pipeline",
+      "title_zh": "镜像层、Registry 传输与清单发布",
+      "category": "containers",
+      "layer": "network",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["Dockerfile"],
+        "glob_patterns": ["**/Dockerfile", "**/Dockerfile.*", "**/docker-bake.hcl"],
+        "content_patterns": [
+          {"glob_patterns": ["**/Dockerfile", "**/Dockerfile.*"], "regex": "(?m)^(FROM|COPY|ADD|RUN)\\s+", "label": "container image layers"},
+          {"glob_patterns": ["**/*.sh", "**/*.yml", "**/*.yaml", "**/docker-bake.hcl"], "regex": "(docker\\s+(pull|push|buildx)|cache-from|cache-to|--push|registry)", "label": "registry or build cache transfer"}
+        ],
+        "task_keywords": ["镜像拉取", "镜像推送", "Registry", "镜像层优化", "远程构建缓存"],
+        "trace_signatures": ["docker", "network"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 3, "isolation": "immutable content-addressed layers and tags per job; one final manifest/signing/publication coordinator"},
+      "optimization_goals": [
+        {"id": "container-layer-reuse", "objective": "Order stable dependencies before frequently changing sources and share immutable base layers across images.", "metric": "reused layer bytes"},
+        {"id": "container-registry-bounds", "objective": "Respect BuildKit and registry connection limits rather than multiplying outer pull/push processes.", "metric": "transfer throughput and throttling"},
+        {"id": "container-manifest-commit", "objective": "Build and verify architecture-specific images independently, then publish one manifest and tag set serially.", "metric": "complete verified manifest"}
+      ],
+      "guardrails": ["Parallelism does not authorize registry pushes or overwriting shared tags.", "Keep signing credentials and final release publication on one explicit path."]
+    },
+    {
+      "id": "archive-hash-packaging",
+      "title_zh": "归档、哈希与发布包生成",
+      "category": "build-release",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.zip", "**/*.tar", "**/*.tar.gz", "**/*manifest*.json"],
+        "task_keywords": ["打包", "归档", "校验和", "checksum", "release package"],
+        "trace_signatures": ["archive"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 4, "isolation": "one immutable artifact per task followed by serial manifest assembly"},
+      "optimization_goals": [
+        {"id": "artifact-fanout", "objective": "Build independent archives and artifact variants concurrently.", "metric": "package makespan"},
+        {"id": "parallel-hash", "objective": "Hash independent immutable artifacts concurrently.", "metric": "bytes hashed per second"},
+        {"id": "manifest-finalize", "objective": "Create and sign one final manifest after all artifacts are stable.", "metric": "manifest completeness and reproducibility"}
+      ],
+      "guardrails": ["Do not hash or package files that are still being written.", "Keep signing keys and publication steps serial and within the user's authorization."]
+    },
+    {
+      "id": "apple-platform-build-test",
+      "title_zh": "Xcode、Swift 与 Apple 平台构建测试",
+      "category": "build-release",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["*.xcodeproj/**", "*.xcworkspace/**", "**/Package.swift", "**/*.swift"],
+        "task_keywords": ["Xcode", "Swift", "iOS", "macOS", "模拟器测试"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "cpu", "initial_concurrency_cap": 3, "isolation": "separate DerivedData, result bundle, simulator/device, and destination per build/test shard"},
+      "optimization_goals": [
+        {"id": "destination-matrix", "objective": "Run independent schemes, destinations, and test plans concurrently when isolated.", "metric": "Apple platform matrix makespan"},
+        {"id": "test-without-building", "objective": "Build once for testing, then fan out compatible test destinations.", "metric": "duplicate compilation avoided"},
+        {"id": "derived-data-isolation", "objective": "Use explicit per-job DerivedData and result bundle paths.", "metric": "zero build database collisions"}
+      ],
+      "guardrails": ["Do not share one simulator, DerivedData directory, or signing destination across workers.", "Keep archive, notarization, signing, and upload steps serial."]
+    },
+    {
+      "id": "website-multipage-build",
+      "title_zh": "网站多页面构建与静态资源处理",
+      "category": "build-release",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["package.json", "next.config.js", "next.config.ts", "next.config.mjs", "astro.config.mjs", "vite.config.js", "vite.config.ts"],
+        "directories": ["pages", "app", "src/pages", "src/app", "public"],
+        "glob_patterns": ["src/app/**/page.tsx", "src/pages/**/*", "app/**/page.tsx", "pages/**/*"],
+        "task_keywords": ["网站构建", "静态站点", "页面生成", "SSG"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "framework-native page graph and immutable asset outputs"},
+      "optimization_goals": [
+        {"id": "page-generation", "objective": "Generate independent routes or locale variants concurrently through the framework's native scheduler.", "metric": "pages generated per second"},
+        {"id": "asset-pipeline", "objective": "Process independent images, fonts, and bundles concurrently.", "metric": "asset pipeline makespan"},
+        {"id": "incremental-build", "objective": "Rebuild only affected pages and assets.", "metric": "outputs skipped and incremental time"}
+      ],
+      "guardrails": ["Prefer framework-native concurrency over nested process fan-out.", "Keep deployment and shared cache publication serial unless provider semantics guarantee safety."]
+    },
+    {
+      "id": "three-d-frame-render",
+      "title_zh": "三维渲染、动画帧与仿真帧",
+      "category": "media",
+      "mode": "parallel",
+      "detectors": {
+        "glob_patterns": ["**/*.blend", "**/*.usd", "**/*.usdz", "**/*.obj"],
+        "task_keywords": ["三维渲染", "动画帧", "Blender", "渲染序列"]
+      },
+      "default_execution": {"executor": "parallel_map", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one frame range and output directory per worker"},
+      "optimization_goals": [
+        {"id": "frame-sharding", "objective": "Render independent frames or shots concurrently.", "metric": "frames per wall hour"},
+        {"id": "adaptive-frame-balance", "objective": "Use historical frame cost to balance nonuniform shots.", "metric": "slowest worker / average worker duration"},
+        {"id": "resume-frames", "objective": "Resume only missing or invalid frames before final encoding.", "metric": "frames avoided"}
+      ],
+      "guardrails": ["GPU render processes compete for one GPU and unified memory; start with one or two.", "Encode the final sequence only after frame completeness and consistency checks."]
+    },
+    {
+      "id": "eda-verification",
+      "title_zh": "EDA、PCB 与硬件设计验证",
+      "category": "hardware",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.kicad_pro", "**/*.kicad_sch", "**/*.kicad_pcb", "**/*.brd", "**/*.sch", "**/*.gbr"],
+        "task_keywords": ["PCB", "原理图", "DRC", "ERC", "Gerber", "BOM"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "cpu", "initial_concurrency_cap": 3, "isolation": "read-only or separately emitted verification artifacts"},
+      "optimization_goals": [
+        {"id": "independent-checks", "objective": "Run independent ERC, DRC, BOM, footprint, Gerber, and static rule checks concurrently when source tools support read-only operation.", "metric": "verification makespan"},
+        {"id": "eda-artifact-fanout", "objective": "Generate independent preview, drill, assembly, and documentation artifacts into isolated outputs.", "metric": "artifact generation time"},
+        {"id": "single-fabrication-gate", "objective": "Aggregate all automated evidence before a serial fabrication-readiness decision.", "metric": "complete checked evidence set"}
+      ],
+      "guardrails": ["Do not concurrently mutate one schematic or board database.", "Automated checks do not replace human engineering sign-off, especially for safety-critical or production hardware."]
+    },
+    {
+      "id": "network-download-sync",
+      "title_zh": "数据下载、镜像拉取与同步",
+      "category": "operations",
+      "mode": "conditional",
+      "detectors": {
+        "task_keywords": ["下载", "同步", "镜像拉取", "数据集获取", "curl"],
+        "trace_signatures": ["network"]
+      },
+      "default_execution": {"executor": "parallel_exec", "profile": "io", "initial_concurrency_cap": 2, "isolation": "one verified temporary destination per object"},
+      "optimization_goals": [
+        {"id": "bounded-downloads", "objective": "Download independent objects with a low host- and bandwidth-aware cap.", "metric": "batch makespan and retry rate"},
+        {"id": "resume-cache", "objective": "Resume partial transfers and reuse checksum-verified local cache entries.", "metric": "bytes avoided"},
+        {"id": "verify-before-publish", "objective": "Verify size, checksum, provenance, and archive structure before moving into final location.", "metric": "verified objects / downloaded objects"}
+      ],
+      "guardrails": ["Authorization, approval, rate-limit, and queue delay are not compute savings.", "Do not overload one host or hide transfer failures behind high concurrency."]
+    },
+    {
+      "id": "background-worker-cron-verification",
+      "title_zh": "后台 Worker、Cron 与 Outbox 可靠性验证",
+      "category": "operations",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"],
+        "directories": ["scripts", "workers", "jobs"],
+        "glob_patterns": ["scripts/*worker*.sh", "scripts/*cron*.sh", "**/*worker*.ts", "**/*job*.ts", "**/*outbox*.ts", "**/*outbox*.sql"],
+        "task_keywords": ["后台任务", "worker", "cron", "outbox", "队列", "租约", "fencing"],
+        "trace_signatures": ["database", "audit"]
+      },
+      "match_requirements": {"minimum_file_pattern_matches": 2},
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 3, "isolation": "one disposable queue/database namespace and clock/control channel per worker scenario"},
+      "optimization_goals": [
+        {"id": "worker-script-matrix", "objective": "Run independent worker types, retry policies, retention windows, and batch-size cases concurrently in isolated environments.", "metric": "worker scenario matrix makespan"},
+        {"id": "lease-fencing-chaos", "objective": "Exercise timeout, duplicate delivery, lease expiry, fencing, crash recovery, and idempotency cases with deterministic clocks and receipts.", "metric": "failure modes covered per minute"},
+        {"id": "worker-shared-queue-gate", "objective": "Finish with one bounded shared-queue integration test to verify ordering, contention, and exactly-once-or-idempotent effects.", "metric": "zero duplicate effects and complete retry evidence"}
+      ],
+      "guardrails": ["Do not parallelize workers against one production or shared development queue/database.", "Use explicit time budgets, stable idempotency keys, isolated ports, and cleanup receipts."]
+    },
+    {
+      "id": "remote-api-batch",
+      "title_zh": "远程 API、连接器与云端批量调用",
+      "category": "operations",
+      "mode": "native_batch",
+      "detectors": {
+        "task_keywords": ["API 批量", "连接器", "远程工具", "云端任务"],
+        "trace_signatures": ["remote"]
+      },
+      "default_execution": {"executor": "native_tool_batch", "profile": "io", "initial_concurrency_cap": 4, "isolation": "provider-native batch requests and rate-limit-aware independent calls"},
+      "optimization_goals": [
+        {"id": "native-batch", "objective": "Use the owning provider's batch or Codex native concurrent tool calls instead of proxying through local subprocesses.", "metric": "remote round trips"},
+        {"id": "rate-aware", "objective": "Bound concurrency using provider quotas and backoff headers.", "metric": "successful requests without throttling"},
+        {"id": "idempotent-retry", "objective": "Retry only idempotent failed calls with stable request identifiers.", "metric": "recovered calls without duplicate side effects"}
+      ],
+      "guardrails": ["This MCP server cannot internally accelerate another provider's API.", "Keep external mutations serial unless their targets and idempotency are independent and authorized."]
+    },
+    {
+      "id": "native-thread-oversubscription",
+      "title_zh": "嵌套线程池与原生计算过度订阅",
+      "category": "runtime",
+      "layer": "runtime",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.c", "**/*.cpp", "**/*.m", "**/*.mm", "**/*.sh"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py", "**/*.sh", "Makefile"], "regex": "(OMP_NUM_THREADS|MKL_NUM_THREADS|OPENBLAS_NUM_THREADS|VECLIB_MAXIMUM_THREADS|ProcessPoolExecutor|multiprocessing)", "label": "native and process thread controls"},
+          {"glob_patterns": ["**/*.py", "**/*.cpp", "**/*.c", "**/*.m", "**/*.mm"], "regex": "(numpy|scipy|blas|lapack|openmp|#pragma\\s+omp)", "label": "threaded native kernels"}
+        ],
+        "task_keywords": ["过度订阅", "线程池", "OpenMP", "BLAS线程", "nested parallelism"],
+        "trace_signatures": ["runtime_parallelism", "vector_kernel"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "mac_resource_plan", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one concurrency hierarchy: either process fan-out or native kernel threads receive the core budget"},
+      "optimization_goals": [
+        {"id": "single-thread-hierarchy", "objective": "Choose one top-level parallel hierarchy instead of multiplying process, runtime, BLAS, and OpenMP widths.", "metric": "runnable threads / active cores and CPU efficiency"},
+        {"id": "per-worker-thread-budget", "objective": "Derive native thread limits from the chosen worker count and current active cores.", "metric": "throughput without context-switch or thermal regression"},
+        {"id": "oversubscription-cap-sweep", "objective": "Benchmark small safe caps and retain the fastest thermally stable configuration.", "metric": "wall time at caps 1, 2, 4, and adaptive default"}
+      ],
+      "guardrails": ["Do not set every process and every native library to all cores.", "Preserve deterministic numerical tolerances while changing execution width."]
+    },
+    {
+      "id": "python-gil-executor",
+      "title_zh": "Python GIL、线程池与进程池选择",
+      "category": "runtime",
+      "layer": "runtime",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["src", "scripts", "experiments"],
+        "glob_patterns": ["**/*.py"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(ThreadPoolExecutor|ProcessPoolExecutor|multiprocessing\\.|joblib\\.|concurrent\\.futures)", "label": "Python executor usage"},
+          {"glob_patterns": ["**/*.py"], "regex": "(asyncio|aiohttp|httpx|requests\\.)", "label": "Python I/O concurrency"}
+        ],
+        "task_keywords": ["GIL", "Python并行", "进程池", "线程池", "multiprocessing"],
+        "trace_signatures": ["runtime_parallelism"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_map", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "threads for blocking I/O or GIL-releasing kernels; processes for substantial Python CPU units with bounded IPC"},
+      "optimization_goals": [
+        {"id": "gil-aware-executor", "objective": "Use threads for I/O and GIL-releasing native kernels, processes for coarse pure-Python CPU work, and vectorization before either.", "metric": "useful CPU time and wall time"},
+        {"id": "python-chunk-amortization", "objective": "Batch items so serialization and process startup remain a small fraction of task time.", "metric": "payload compute time / scheduling overhead"},
+        {"id": "python-ipc-minimization", "objective": "Pass compact immutable references or shared read-only data instead of copying large Python objects.", "metric": "IPC bytes and worker peak memory"}
+      ],
+      "guardrails": ["Do not use a process pool for tiny functions or unpicklable state.", "Use spawn-safe entry points and deterministic child seeds."]
+    },
+    {
+      "id": "javascript-worker-pool",
+      "title_zh": "Node.js 事件循环、Worker Threads 与进程池",
+      "category": "runtime",
+      "layer": "runtime",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["package.json"],
+        "glob_patterns": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.ts", "**/*.js", "**/*.mjs"], "regex": "(worker_threads|new\\s+Worker\\s*\\(|Piscina|child_process|cluster\\.)", "label": "Node worker or child process"},
+          {"glob_patterns": ["**/*.ts", "**/*.tsx", "**/*.js"], "regex": "(Promise\\.all|Promise\\.allSettled|p-limit|p-map)", "label": "JavaScript asynchronous fan-out"}
+        ],
+        "task_keywords": ["worker_threads", "Node并行", "事件循环", "Piscina", "Promise.all"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_exec", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "native async concurrency for I/O; reusable worker pool and transferable buffers for substantial CPU work"},
+      "optimization_goals": [
+        {"id": "node-io-vs-cpu-routing", "objective": "Keep network and filesystem concurrency on native async APIs; move only CPU-heavy operators to worker threads.", "metric": "event-loop delay and throughput"},
+        {"id": "node-worker-reuse", "objective": "Reuse a bounded worker pool instead of creating one worker or child process per tiny item.", "metric": "worker startups avoided"},
+        {"id": "node-transferable-buffers", "objective": "Transfer or share ArrayBuffers where ownership semantics permit instead of cloning payloads.", "metric": "copied bytes and peak memory"}
+      ],
+      "guardrails": ["Promise concurrency does not accelerate CPU-bound JavaScript on one event loop.", "Do not share mutable non-atomic state across worker threads."]
+    },
+    {
+      "id": "simd-vector-kernel",
+      "title_zh": "SIMD、Accelerate 与向量化内核",
+      "category": "compute",
+      "layer": "kernel",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.swift", "**/*.c", "**/*.cpp", "**/*.m", "**/*.mm"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(numpy\\.|np\\.|scipy\\.|numba\\.|jax\\.)", "label": "array/vector library"},
+          {"glob_patterns": ["**/*.swift", "**/*.m", "**/*.mm", "**/*.c", "**/*.cpp"], "regex": "(Accelerate|vDSP|vImage|BNNS|cblas_|LAPACK|simd_)", "label": "Apple/native vector backend"}
+        ],
+        "task_keywords": ["SIMD", "向量化", "Accelerate", "vDSP", "vImage", "BNNS"],
+        "trace_signatures": ["vector_kernel", "numerical_python"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "mac_accelerator_plan", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "fused contiguous vector kernels with coordinated library thread limits"},
+      "optimization_goals": [
+        {"id": "scalar-to-vector-kernel", "objective": "Replace scalar interpreter or element loops with fused array, vDSP, vImage, BNNS, or BLAS operations.", "metric": "elements processed per second"},
+        {"id": "vector-layout-alignment", "objective": "Use contiguous aligned layouts and stride-aware kernels to reduce gather, conversion, and cache misses.", "metric": "memory bandwidth and temporary allocations"},
+        {"id": "vector-backend-proof", "objective": "Confirm the invoked implementation actually selects Accelerate or another vectorized backend.", "metric": "backend evidence and kernel benchmark"}
+      ],
+      "guardrails": ["Vectorization changes floating-point reduction order; preserve required tolerances.", "Avoid process fan-out that competes with an already threaded vector kernel."]
+    },
+    {
+      "id": "metal-mps-operator",
+      "title_zh": "Metal、MPSGraph 与统一内存算子",
+      "category": "compute",
+      "layer": "kernel",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.metal", "**/*.swift", "**/*.m", "**/*.mm", "**/*.py"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.metal", "**/*.swift", "**/*.m", "**/*.mm"], "regex": "(MTLDevice|MTLCommandQueue|MPSGraph|MetalPerformanceShaders|kernel\\s+void)", "label": "Metal or MPS operator"},
+          {"glob_patterns": ["**/*.py"], "regex": "(torch\\.device\\(['\"]mps|device\\s*=\\s*['\"]mps|mlx\\.|mx\\.|mps\\.is_available)", "label": "Python Apple GPU backend"}
+        ],
+        "task_keywords": ["Metal", "MPSGraph", "MPS", "GPU算子", "统一内存"],
+        "trace_signatures": ["ml"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "mac_accelerator_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one shared accelerator budget; batch operators and reuse command queues, compiled graphs, and buffers"},
+      "optimization_goals": [
+        {"id": "gpu-operator-eligibility", "objective": "Offload only sufficiently large data-parallel kernels whose implementation exposes Metal, MPSGraph, MLX, or MPS.", "metric": "end-to-end operator time including dispatch"},
+        {"id": "gpu-batch-fusion", "objective": "Batch and fuse compatible kernels to amortize command submission and intermediate materialization.", "metric": "command buffers and temporary bytes per item"},
+        {"id": "unified-memory-residency", "objective": "Reuse buffers and keep working sets within available unified-memory headroom.", "metric": "allocations, paging, and accelerator utilization"}
+      ],
+      "guardrails": ["Do not claim GPU acceleration from hardware availability alone.", "Multiple GPU-driving processes often contend; start at concurrency one or two."]
+    },
+    {
+      "id": "memory-copy-buffer-reuse",
+      "title_zh": "内存复制、临时对象与缓冲区复用",
+      "category": "memory",
+      "layer": "memory",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.ts", "**/*.js", "**/*.swift", "**/*.c", "**/*.cpp"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(np\\.copy|numpy\\.copy|ascontiguousarray|deepcopy|tobytes\\(|frombuffer\\()", "label": "Python buffer copies"},
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(Buffer\\.concat|Buffer\\.from|structuredClone|ArrayBuffer|Uint8Array)", "label": "JavaScript buffer materialization"},
+          {"glob_patterns": ["**/*.c", "**/*.cpp", "**/*.m", "**/*.mm", "**/*.swift"], "regex": "(memcpy|memmove|Data\\(|UnsafeMutableRawBufferPointer)", "label": "native buffer copies"}
+        ],
+        "task_keywords": ["零拷贝", "内存复制", "buffer复用", "峰值内存", "zero copy"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "mac_resource_plan", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "bounded reusable buffers with explicit ownership and per-worker memory estimates"},
+      "optimization_goals": [
+        {"id": "buffer-copy-accounting", "objective": "Identify unavoidable versus accidental full-buffer copies across parsing, IPC, transforms, and output.", "metric": "bytes copied per input byte"},
+        {"id": "buffer-pool-reuse", "objective": "Reuse bounded buffers and temporaries across items when ownership is explicit.", "metric": "allocations and peak resident memory"},
+        {"id": "zero-copy-boundaries", "objective": "Use views, memory maps, transferable buffers, or shared read-only pages where correctness permits.", "metric": "materializations avoided"}
+      ],
+      "guardrails": ["Zero-copy designs require explicit lifetime and ownership rules.", "Reduce concurrency when aggregate working sets approach unified-memory headroom."]
+    },
+    {
+      "id": "streaming-chunked-io",
+      "title_zh": "流式、分块与背压 I/O",
+      "category": "storage",
+      "layer": "storage",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.ts", "**/*.js", "**/*.go", "**/*.rs"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(mmap\\.|iter_content|read_csv\\([^\\n]*chunksize|chunk_size|yield\\s+from)", "label": "Python streaming or chunks"},
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(createReadStream|createWriteStream|TransformStream|ReadableStream|pipeline\\()", "label": "JavaScript stream pipeline"},
+          {"glob_patterns": ["**/*.go", "**/*.rs"], "regex": "(bufio\\.|io\\.Copy|BufReader|BufWriter|read_to_end)", "label": "native buffered I/O"}
+        ],
+        "task_keywords": ["流式处理", "分块读取", "背压", "mmap", "streaming"],
+        "trace_signatures": ["streaming_io"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 3, "isolation": "bounded producer-transform-consumer queues and one immutable output per stream"},
+      "optimization_goals": [
+        {"id": "bounded-streaming", "objective": "Process large inputs incrementally instead of loading every input and intermediate into memory.", "metric": "peak memory and time to first output"},
+        {"id": "io-transform-overlap", "objective": "Overlap read, transform, and write stages with bounded queues and backpressure.", "metric": "pipeline utilization and wall time"},
+        {"id": "chunk-size-tuning", "objective": "Choose chunks large enough to amortize syscalls but small enough for cache and memory headroom.", "metric": "throughput across measured chunk sizes"}
+      ],
+      "guardrails": ["Do not let unbounded queues convert an I/O optimization into a memory spike.", "Preserve record, Unicode, compression-frame, and transaction boundaries when chunking."]
+    },
+    {
+      "id": "filesystem-metadata-scan",
+      "title_zh": "目录遍历、元数据查询与源码索引",
+      "category": "storage",
+      "layer": "storage",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["src", "data", "docs", "packages"],
+        "task_keywords": ["目录扫描", "文件盘点", "源码索引", "stat风暴", "metadata scan"],
+        "trace_signatures": ["search"],
+        "trace_tool_min_counts": [{"pattern": "(^|\\.)exec_command$", "minimum": 100, "label": "high local command volume"}]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2, "minimum_project_files": 500},
+      "default_execution": {"executor": "parallel_exec", "profile": "io", "initial_concurrency_cap": 3, "isolation": "one reusable inventory; coarse independent subtrees; generated and dependency trees excluded"},
+      "optimization_goals": [
+        {"id": "single-filesystem-inventory", "objective": "Build one bounded file inventory and reuse it across searches, counts, and classifiers.", "metric": "directory walks avoided"},
+        {"id": "coarse-subtree-scan", "objective": "Scan only substantial independent subtrees concurrently instead of spawning per-file commands.", "metric": "metadata calls and process startups"},
+        {"id": "index-reuse", "objective": "Reuse ripgrep, language-server, build-system, or content indexes for repeated questions.", "metric": "warm-query latency"}
+      ],
+      "guardrails": ["Exclude VCS, dependency, generated, cache, and output trees by default.", "Do not parallelize tiny directory walks that compete for one disk metadata queue."]
+    },
+    {
+      "id": "small-file-batch-io",
+      "title_zh": "海量小文件的批量读取与聚合",
+      "category": "storage",
+      "layer": "storage",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["src", "data", "docs", "tests"],
+        "glob_patterns": ["**/*.ts", "**/*.tsx", "**/*.py", "**/*.json", "**/*.md", "**/*.csv"],
+        "task_keywords": ["大量小文件", "小文件聚合", "批量读取", "文件过多", "small files"],
+        "trace_tool_min_counts": [{"pattern": "(^|\\.)exec_command$", "minimum": 100, "label": "high local command volume"}]
+      },
+      "match_requirements": {"minimum_evidence_sources": 3, "minimum_file_pattern_matches": 5, "minimum_project_files": 500},
+      "default_execution": {"executor": "parallel_map", "profile": "io", "initial_concurrency_cap": 3, "isolation": "coarse file batches with one result shard per batch and deterministic merge"},
+      "optimization_goals": [
+        {"id": "small-file-coalescing", "objective": "Group many tiny files into coarse read/parse work units to amortize process, open, and metadata overhead.", "metric": "files per worker invocation"},
+        {"id": "small-file-manifest", "objective": "Persist a compact manifest of path, size, mtime, and content hash for incremental reuse.", "metric": "unchanged files skipped"},
+        {"id": "small-file-stable-reduction", "objective": "Emit batch-local results and merge once in path order.", "metric": "zero shared append contention"}
+      ],
+      "guardrails": ["More workers do not help when one storage metadata queue is saturated.", "Do not archive source trees merely for speed when random access or incremental builds require individual files."]
+    },
+    {
+      "id": "incremental-cache-reuse",
+      "title_zh": "增量构建、内容寻址缓存与受影响范围",
+      "category": "runtime",
+      "layer": "cache",
+      "mode": "conditional",
+      "detectors": {
+        "marker_files": ["package.json", "tsconfig.json", "turbo.json", "Cargo.toml", "CMakeLists.txt", "Makefile"],
+        "content_patterns": [
+          {"glob_patterns": ["tsconfig*.json", "next.config.*", "turbo.json", "package.json"], "regex": "(incremental|tsBuildInfoFile|cache|turbo|next\\s+build)", "label": "JavaScript incremental cache"},
+          {"glob_patterns": ["Makefile", "CMakeLists.txt", "**/*.sh", "**/*.yml", "**/*.yaml"], "regex": "(ccache|sccache|cache-from|cache-to|content[-_ ]address)", "label": "native or container cache"}
+        ],
+        "task_keywords": ["增量构建", "缓存命中", "affected only", "ccache", "sccache"],
+        "trace_signatures": ["cache"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "content-addressed cache keys, per-job temporary caches, and one serial cache publication step"},
+      "optimization_goals": [
+        {"id": "affected-scope", "objective": "Use dependency and content fingerprints to run only affected packages, routes, tests, or artifacts.", "metric": "work units skipped"},
+        {"id": "cache-key-correctness", "objective": "Include source, toolchain, flags, environment, and dependency inputs in cache keys.", "metric": "valid cache hit rate"},
+        {"id": "cache-publication", "objective": "Let workers read safe caches but publish or compact shared cache state through one coordinator.", "metric": "zero cache corruption"}
+      ],
+      "guardrails": ["Never trade correctness for a high hit rate; stale outputs must fail validation.", "Avoid concurrent writers to cache formats without documented locking."]
+    },
+    {
+      "id": "serialization-parser-hotpath",
+      "title_zh": "JSON、CSV、XML 与结构化解析热点",
+      "category": "data",
+      "layer": "kernel",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.ts", "**/*.js", "**/*.rs", "**/*.go"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(json\\.(loads|dumps)|orjson|ujson|pandas\\.read_csv|pd\\.read_csv|lxml|ElementTree)", "label": "Python structured parsing"},
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(JSON\\.(parse|stringify)|csv-parse|fast-xml-parser|yaml\\.parse)", "label": "JavaScript structured parsing"},
+          {"glob_patterns": ["**/*.rs", "**/*.go"], "regex": "(serde_json|csv::Reader|encoding/json|xml\\.NewDecoder)", "label": "native structured parsing"}
+        ],
+        "task_keywords": ["JSON解析", "CSV解析", "序列化热点", "simdjson", "orjson"],
+        "trace_signatures": ["serialization", "data"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one immutable input partition and typed output shard per parser worker"},
+      "optimization_goals": [
+        {"id": "parser-backend-selection", "objective": "Use a measured native or SIMD parser when semantics and deployment constraints match.", "metric": "MB parsed per second"},
+        {"id": "parse-once", "objective": "Parse and validate once, then pass typed or columnar representations through downstream stages.", "metric": "duplicate parses avoided"},
+        {"id": "partitioned-parsing", "objective": "Parallelize independent files or boundary-safe record partitions and reduce centrally.", "metric": "parser makespan and balance"}
+      ],
+      "guardrails": ["Preserve number precision, Unicode, duplicate-key, date, and schema semantics when changing parsers.", "Do not split compressed or quoted record streams at arbitrary byte offsets."]
+    },
+    {
+      "id": "compression-hash-pipeline",
+      "title_zh": "压缩、解压、校验和与内容寻址流水线",
+      "category": "storage",
+      "layer": "kernel",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.ts", "**/*.js", "**/*.swift", "**/*.c", "**/*.cpp", "**/*.zip", "**/*.gz", "**/*.zst", "**/*.sha256"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(gzip|zipfile|zlib|zstandard|hashlib|blake3)", "label": "Python compression or hashing"},
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(createGzip|createHash|adm-zip|archiver|zstd)", "label": "JavaScript compression or hashing"},
+          {"glob_patterns": ["**/*.swift", "**/*.c", "**/*.cpp"], "regex": "(Compression\\.framework|compression_encode|compression_decode|CommonCrypto|CryptoKit)", "label": "Apple/native compression or hashing"}
+        ],
+        "task_keywords": ["压缩", "解压", "校验和", "哈希", "zstd", "内容寻址"],
+        "trace_signatures": ["archive"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_map", "profile": "cpu", "initial_concurrency_cap": 3, "isolation": "one archive member, independent object, or hash shard per worker; one deterministic manifest coordinator"},
+      "optimization_goals": [
+        {"id": "compression-streaming", "objective": "Stream compression and hashing in one pass where output and verification semantics permit.", "metric": "input bytes reread"},
+        {"id": "compression-backend", "objective": "Use Apple Compression, hardware-supported codecs, or measured native libraries exposed by the implementation.", "metric": "MB/s and backend evidence"},
+        {"id": "tree-hash-reduction", "objective": "Hash independent immutable objects concurrently and build the final manifest or tree hash serially.", "metric": "hash makespan with deterministic root"}
+      ],
+      "guardrails": ["Do not parallelize writes into one archive unless the archive library explicitly supports deterministic safe assembly.", "Verification must cover final bytes, not only worker-local intermediates."]
+    },
+    {
+      "id": "database-read-fanout",
+      "title_zh": "数据库只读查询扇出与连接池",
+      "category": "data",
+      "layer": "database",
+      "mode": "conditional",
+      "detectors": {
+        "directories": ["prisma", "db", "database", "server"],
+        "glob_patterns": ["prisma/schema.prisma", "**/*repository*.ts", "**/*service*.ts", "**/*.sql"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(prisma\\.|findMany\\(|findUnique\\(|\\$queryRaw|Promise\\.all)", "label": "JavaScript database reads"},
+          {"glob_patterns": ["**/*.py"], "regex": "(select\\(|execute\\(|fetchall\\(|SQLAlchemy|asyncpg|psycopg)", "label": "Python database reads"},
+          {"glob_patterns": ["**/*.sql"], "regex": "^\\s*SELECT\\b", "label": "SQL read query"}
+        ],
+        "task_keywords": ["查询并行", "连接池", "只读查询", "N+1", "read fanout"],
+        "trace_signatures": ["database"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2, "minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_exec", "profile": "io", "initial_concurrency_cap": 3, "isolation": "read-only snapshot-consistent queries bounded below the database connection-pool and server capacity"},
+      "optimization_goals": [
+        {"id": "independent-query-fanout", "objective": "Run truly independent read queries concurrently within a measured connection budget.", "metric": "request latency and database active sessions"},
+        {"id": "n-plus-one-collapse", "objective": "Prefer joins, batched keys, prefetch, or data loaders before multiplying round trips.", "metric": "queries per request"},
+        {"id": "read-snapshot-consistency", "objective": "Use an explicit consistency model when parallel reads must describe one logical point in time.", "metric": "cross-query consistency violations"}
+      ],
+      "guardrails": ["Do not exceed the connection pool or shift the bottleneck into database lock, CPU, or disk pressure.", "Parallel reads are unsafe when later queries depend on earlier results or must share one transaction snapshot."]
+    },
+    {
+      "id": "database-bulk-write-transaction",
+      "title_zh": "数据库批量写入、事务与分区提交",
+      "category": "data",
+      "layer": "database",
+      "mode": "serial_guardrail",
+      "detectors": {
+        "directories": ["prisma", "db", "database", "migrations"],
+        "glob_patterns": ["**/*.ts", "**/*.py", "**/*.sql"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(createMany|updateMany|deleteMany|\\$transaction|bulkWrite)", "label": "JavaScript bulk database mutation"},
+          {"glob_patterns": ["**/*.py"], "regex": "(executemany|bulk_insert|bulk_save|insert_many|copy_expert)", "label": "Python bulk database mutation"},
+          {"glob_patterns": ["**/*.sql"], "regex": "(COPY\\s+.+\\s+FROM|INSERT\\s+INTO|UPDATE\\s+.+\\s+SET)", "label": "SQL mutation"}
+        ],
+        "task_keywords": ["批量写入", "bulk insert", "createMany", "事务优化", "COPY FROM"],
+        "trace_signatures": ["database", "mutation"]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2, "minimum_content_matches": 1},
+      "default_execution": {"executor": "parallel_dag", "profile": "io", "initial_concurrency_cap": 1, "isolation": "batch within transactions; parallelize only disjoint key ranges or disposable database partitions with one commit coordinator"},
+      "optimization_goals": [
+        {"id": "bulk-write-amortization", "objective": "Replace per-row round trips with bounded bulk APIs, prepared statements, or database-native loading.", "metric": "round trips and rows written per second"},
+        {"id": "transaction-batch-sizing", "objective": "Choose transaction batches that balance log pressure, locks, rollback cost, and throughput.", "metric": "commit latency and lock wait"},
+        {"id": "partitioned-write-proof", "objective": "Parallelize writes only after proving disjoint keys, idempotency, locking, and recovery.", "metric": "zero conflicts, duplicates, and partial publication"}
+      ],
+      "guardrails": ["Default shared database mutation concurrency to one.", "Migrations, metadata, sequences, uniqueness constraints, and final publication remain dependency-ordered."]
+    },
+    {
+      "id": "http-connection-pool",
+      "title_zh": "HTTP 连接复用、多路复用与限流",
+      "category": "operations",
+      "layer": "network",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.py", "**/*.ts", "**/*.js", "**/*.swift", "**/*.go"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py"], "regex": "(requests\\.Session|httpx\\.(Client|AsyncClient)|aiohttp\\.ClientSession|urllib3\\.PoolManager)", "label": "Python HTTP connection pool"},
+          {"glob_patterns": ["**/*.ts", "**/*.js"], "regex": "(undici|Agent\\s*\\(|keepAlive|fetch\\(|axios\\.)", "label": "JavaScript HTTP client"},
+          {"glob_patterns": ["**/*.swift"], "regex": "(URLSessionConfiguration|httpMaximumConnectionsPerHost)", "label": "Apple HTTP session configuration"},
+          {"glob_patterns": ["**/*.go"], "regex": "(http\\.Transport|MaxIdleConns|MaxConnsPerHost)", "label": "Go HTTP transport pool"}
+        ],
+        "task_keywords": ["连接池", "keep-alive", "HTTP/2", "多路复用", "限流"],
+        "trace_signatures": ["network", "remote"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "native_tool_batch", "profile": "io", "initial_concurrency_cap": 4, "isolation": "one reusable client per authority with host-, quota-, and idempotency-aware bounds"},
+      "optimization_goals": [
+        {"id": "connection-reuse", "objective": "Reuse TLS connections and client pools instead of constructing a client per request.", "metric": "handshakes and connection setups avoided"},
+        {"id": "protocol-multiplexing", "objective": "Use provider-supported HTTP/2 or native batch endpoints when semantics match.", "metric": "remote round trips and concurrent streams"},
+        {"id": "quota-feedback-control", "objective": "Adjust concurrency from rate-limit, latency, error, and retry feedback.", "metric": "successful throughput without throttling"}
+      ],
+      "guardrails": ["Remote concurrency remains subject to provider authorization, quotas, and side-effect semantics.", "Retry only idempotent calls or calls carrying stable idempotency keys."]
+    },
+    {
+      "id": "process-startup-amortization",
+      "title_zh": "高频小命令与进程启动摊销",
+      "category": "runtime",
+      "layer": "runtime",
+      "mode": "conditional",
+      "detectors": {
+        "task_keywords": ["大量小命令", "进程启动", "工具调用太多", "命令合并", "startup overhead"],
+        "trace_signatures": ["search"],
+        "trace_tool_min_counts": [{"pattern": "(^|\\.)exec_command$", "minimum": 100, "label": "high exec-command volume"}]
+      },
+      "match_requirements": {"minimum_evidence_sources": 2},
+      "default_execution": {"executor": "parallel_exec", "profile": "io", "initial_concurrency_cap": 3, "isolation": "coarse batched commands or persistent workers; no per-file subprocess fan-out"},
+      "optimization_goals": [
+        {"id": "command-coalescing", "objective": "Combine related rg, jq, compiler, parser, or transform operations into coarse invocations.", "metric": "process launches and tool round trips"},
+        {"id": "persistent-worker", "objective": "Reuse a daemon, language server, REPL, build server, or worker pool when repeated startup dominates.", "metric": "startup time avoided"},
+        {"id": "minimum-work-unit", "objective": "Keep parallel units above measured startup thresholds and batch smaller items.", "metric": "useful work / invocation overhead"}
+      ],
+      "guardrails": ["Do not hide unrelated failures inside an opaque mega-command.", "Preserve per-item result attribution and retry boundaries when batching."]
+    },
+    {
+      "id": "accelerator-contention-guardrail",
+      "title_zh": "GPU、ANE 与媒体引擎共享资源竞争",
+      "category": "guardrail",
+      "layer": "resource",
+      "mode": "conditional",
+      "detectors": {
+        "glob_patterns": ["**/*.metal", "**/*.mlmodel", "**/*.mlpackage", "**/*.py", "**/*.swift", "**/*.sh"],
+        "content_patterns": [
+          {"glob_patterns": ["**/*.py", "**/*.swift"], "regex": "(CoreML|MLX|torch.*mps|MPSGraph|MTLDevice|VideoToolbox|AVAssetExportSession)", "label": "shared Apple accelerator"},
+          {"glob_patterns": ["**/*.sh", "**/*.py"], "regex": "(videotoolbox|coreml|mlx|device.*mps)", "label": "accelerator command backend"}
+        ],
+        "task_keywords": ["GPU竞争", "ANE并发", "媒体引擎", "统一内存压力", "accelerator contention"],
+        "trace_signatures": ["ml", "video"]
+      },
+      "match_requirements": {"minimum_content_matches": 1},
+      "default_execution": {"executor": "mac_resource_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one shared accelerator budget with measured caps, bounded unified memory, and no nested GPU process fan-out"},
+      "optimization_goals": [
+        {"id": "accelerator-cap-sweep", "objective": "Measure total throughput at accelerator concurrency one and two before increasing.", "metric": "items per second and p95 latency by cap"},
+        {"id": "accelerator-memory-budget", "objective": "Account for model, graph, texture, frame, and temporary-buffer unified memory per worker.", "metric": "peak memory and paging"},
+        {"id": "accelerator-batch-before-fanout", "objective": "Increase batch size or fuse work inside one accelerator process before adding competing processes.", "metric": "accelerator utilization and dispatches per item"}
+      ],
+      "guardrails": ["More accelerator processes often reduce throughput and foreground responsiveness.", "Backend presence must be verified by the invoked implementation, not inferred from the Mac model."]
+    },
+    {
+      "id": "git-release-workflow",
+      "title_zh": "Git、版本发布与共享清单",
+      "category": "guardrail",
+      "mode": "serial_guardrail",
+      "detectors": {
+        "marker_files": [".git"],
+        "task_keywords": ["commit", "merge", "tag", "发布", "版本号", "Git"] ,
+        "trace_signatures": ["git"]
+      },
+      "default_execution": {"executor": "parallel_dag", "profile": "mixed", "initial_concurrency_cap": 1, "isolation": "parallelize read-only preflight; serialize index, version, tag, signing, and publication mutations"},
+      "optimization_goals": [
+        {"id": "parallel-release-preflight", "objective": "Run independent tests, builds, diffs, changelog checks, and artifact validation concurrently before release mutation.", "metric": "release preflight makespan"},
+        {"id": "single-version-writer", "objective": "Use one coordinator for version files, lockfiles, manifests, Git index, commits, tags, and signatures.", "metric": "zero conflicting release state"},
+        {"id": "post-release-verify", "objective": "Verify final local refs and artifacts before any authorized publication.", "metric": "release evidence completeness"}
+      ],
+      "guardrails": ["Never concurrently mutate one Git index or release manifest.", "Parallelism does not authorize push, publication, signing, or remote release actions."]
+    },
+    {
+      "id": "shared-state-mutation",
+      "title_zh": "共享文件、设备与外部账户写入",
+      "category": "guardrail",
+      "mode": "serial_guardrail",
+      "detectors": {
+        "task_keywords": ["批量修改同一文件", "写入同一数据库", "设备刷写", "外部账户操作", "发布"] ,
+        "trace_signatures": ["mutation"]
+      },
+      "default_execution": {"executor": "serial", "profile": "mixed", "initial_concurrency_cap": 1, "isolation": "prepare independent immutable inputs in parallel, then perform one authorized mutation path"},
+      "optimization_goals": [
+        {"id": "parallel-prepare", "objective": "Prepare and validate independent immutable inputs concurrently before touching shared state.", "metric": "preparation makespan"},
+        {"id": "single-writer", "objective": "Use one writer or transaction coordinator for the shared resource.", "metric": "zero lost updates and conflicts"},
+        {"id": "recovery-evidence", "objective": "Capture backup, rollback, receipt, and post-write verification evidence.", "metric": "recoverability and verification completeness"}
+      ],
+      "guardrails": ["Default concurrency is one for shared mutable resources.", "Do not infer authorization for external or destructive side effects from a request to optimize timing."]
+    }
+  ]
+}

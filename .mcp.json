@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mac-parallel-accelerator": {
+      "title": "Mac Parallel Accelerator",
+      "description": "In-task, scenario-aware, resource-adaptive local acceleration and parallel command execution for macOS.",
+      "command": "python3",
+      "args": [
+        "./scripts/mcp_server.py"
+      ],
+      "cwd": "."
+    }
+  }
+}

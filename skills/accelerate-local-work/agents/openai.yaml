@@ -1,0 +1,6 @@
+interface:
+  display_name: "Atomic Mac Accelerator"
+  short_description: "Compile and run safe atomic Mac work plans"
+  default_prompt: "Use $accelerate-local-work to compile this local workload into a semantics-preserving atomic plan, then execute that exact hashed plan with live progress."
+policy:
+  allow_implicit_invocation: true

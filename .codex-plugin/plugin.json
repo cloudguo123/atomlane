@@ -1,0 +1,50 @@
+{
+  "name": "mac-parallel-accelerator",
+  "version": "0.9.0",
+  "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
+  "author": {
+    "name": "cloudguo123"
+  },
+  "license": "MIT",
+  "keywords": [
+    "macos",
+    "parallel",
+    "scheduler",
+    "atomic-planning",
+    "effect-analysis",
+    "scenario-planning",
+    "local-execution",
+    "performance"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Mac Parallel Accelerator",
+    "shortDescription": "Atomic, semantics-safe acceleration for every Mac",
+    "longDescription": "Compiles shell, package, Make, Compose, test, build, and declared task entrypoints into immutable hashed atomic plans; preserves typed control flow and effects; fails closed on unknown hazards; delegates concurrency to native owners when safer; detects each Mac's Apple silicon resources; and executes the exact verified plan with live progress and measured or clearly labeled estimated savings.",
+    "developerName": "cloudguo123",
+    "category": "Productivity",
+    "capabilities": [
+      "Local execution",
+      "Parallel scheduling",
+      "Atomic workload compilation",
+      "Typed effect analysis",
+      "Plan hash verification",
+      "In-task work discovery",
+      "Native concurrency delegation",
+      "Scenario profiling",
+      "Trace-informed routing",
+      "Resource awareness",
+      "Apple silicon routing"
+    ],
+    "brandColor": "#2563EB",
+    "defaultPrompt": [
+      "Use $accelerate-local-work to compile this workload and execute the exact verified atomic plan.",
+      "Preserve the task's control flow while discovering safe atomic concurrency.",
+      "Analyze this Make, Compose, package, test, or build entrypoint without guessing unknown effects.",
+      "Profile this project and recommend scenario-specific acceleration goals.",
+      "Choose the best Apple silicon accelerator for this workload.",
+      "Run this task with live progress, per-run time saved, and cumulative savings."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

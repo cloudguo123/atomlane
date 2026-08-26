@@ -60,6 +60,30 @@
       "top_referrers": [],
       "top_paths": [],
       "unavailable": []
+    },
+    {
+      "captured_at": "2026-08-26T13:15:55+00:00",
+      "stars": 1,
+      "forks": 0,
+      "watchers": 0,
+      "open_issues_and_prs": 4,
+      "releases": 4,
+      "release_asset_downloads": 0,
+      "traffic_14d": {
+        "views": 0,
+        "unique_visitors": 0,
+        "clones": 0,
+        "unique_cloners": 0
+      },
+      "top_referrers": [],
+      "top_paths": [],
+      "unavailable": [
+        "traffic_views",
+        "traffic_clones",
+        "traffic_referrers",
+        "traffic_paths"
+      ],
+      "traffic_stale_from": "2026-08-26T12:42:22+00:00"
     }
   ],
   "metric_notes": {
@@ -78,12 +102,12 @@
     "awesome_list_entries": 2
   },
   "latest": {
-    "captured_at": "2026-08-26T12:42:22+00:00",
+    "captured_at": "2026-08-26T13:15:55+00:00",
     "stars": 1,
     "forks": 0,
     "watchers": 0,
     "open_issues_and_prs": 4,
-    "releases": 3,
+    "releases": 4,
     "release_asset_downloads": 0,
     "traffic_14d": {
       "views": 0,
@@ -93,6 +117,12 @@
     },
     "top_referrers": [],
     "top_paths": [],
-    "unavailable": []
+    "unavailable": [
+      "traffic_views",
+      "traffic_clones",
+      "traffic_referrers",
+      "traffic_paths"
+    ],
+    "traffic_stale_from": "2026-08-26T12:42:22+00:00"
   }
 }

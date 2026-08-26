@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 0.9.1 - 2026-08-26
 
 - Added a reproducible visual test dashboard with per-test timing, subsystem
   coverage, release gates, environment metadata, and build provenance.

@@ -1,6 +1,6 @@
 {
   "name": "mac-parallel-accelerator",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
   "author": {
     "name": "cloudguo123"

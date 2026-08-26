@@ -312,3 +312,7 @@ Version 0.9.0 adds the immutable Atom IR, typed effect/control planning,
 plan-hash execution handshake, native-owner delegation, unknown-effect
 fail-closed behavior, and atomic live-run path. Open a new Codex task after
 installation so the updated skill metadata and instructions are loaded.
+
+Version 0.9.1 adds the reproducible GitHub Pages verification dashboard and
+the independent five-minute benchmark with observed per-run and cumulative
+time-savings evidence.

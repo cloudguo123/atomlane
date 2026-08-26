@@ -20,6 +20,7 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn('rel="canonical"', rendered)
         self.assertIn('"@type":"SoftwareApplication"', rendered)
         self.assertIn("issues/new?template=first-run.yml", rendered)
+        self.assertNotIn(".innerHTML", rendered)
 
 
 if __name__ == "__main__":

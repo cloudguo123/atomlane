@@ -435,16 +435,78 @@ def render_html(report: dict[str, Any]) -> str:
 </main>
 <script id="report-data" type="application/json">{data}</script>
 <script>
-const d=JSON.parse(document.getElementById('report-data').textContent); const q=s=>document.querySelector(s); const ms=n=>n>=1000?(n/1000).toFixed(2)+'s':Math.round(n)+'ms'; const span=s=>s>=3600?(s/3600).toFixed(2)+'h':s>=60?(s/60).toFixed(2)+'m':s.toFixed(1)+'s';
-q('#version').textContent=d.version; q('#rate').textContent=d.summary.pass_rate+'%'; q('#seal').style.setProperty('--rate',d.summary.pass_rate); q('#overall').textContent=d.overall==='passed'?'ALL REQUIRED GATES PASSED':'VERIFICATION FAILED'; q('#overall').style.color=d.overall==='passed'?'var(--green)':'var(--red)';
-const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]]; q('#metrics').innerHTML=metrics.map(x=>`<div class="metric"><strong>${{x[1]}}</strong><span>${{x[0]}}</span></div>`).join('');
-const b=d.benchmark; if(!b.available){{q('#benchmark').innerHTML='<div class="benchmark-head"><div><h3>First long benchmark pending</h3><p>The five-minute evidence run is independent from fast CI and will appear here after its first successful execution.</p></div><span class="long-pill">Scheduled benchmark</span></div>';}}else{{const x=b.latest,c=b.cumulative,serial=x.serial_equivalent.seconds,wall=x.parallel.wall_time_seconds,maxSaved=Math.max(...b.history.map(h=>h.saved_seconds),1),longEnough=x.minimum_task_seconds>=300;const bm=[['Per-task minimum',span(x.minimum_task_seconds)],['Parallel wall time',span(wall)],['Serial equivalent',span(serial)],['Saved this run',span(x.savings.seconds)],['Cumulative saved',span(c.saved_seconds)],['Observed speedup',x.savings.speedup_multiplier.toFixed(2)+'×']];const taskLanes=x.tasks.map(t=>`<div class="lane"><span>${{t.label}}</span><div class="lane-track"><i class="lane-fill" style="width:${{Math.min(100,t.duration_seconds/x.target_task_seconds*100)}}%">${{t.status.toUpperCase()}}</i></div><strong>${{span(t.duration_seconds)}}</strong></div>`).join('');const hist=b.history.map(h=>`<i class="history-bar" style="height:${{Math.max(12,h.saved_seconds/maxSaved*76)}}px" data-label="${{span(h.saved_seconds)}} saved"></i>`).join('');q('#benchmark').innerHTML=`<div class="benchmark-head"><div><div class="eyebrow">${{x.status}} · ${{x.task_count}} independent workloads</div><h3>${{longEnough?'Every task ran beyond five minutes':'Every task met the configured duration gate'}}</h3><p>Observed task runtimes are summed for the serial equivalent; no synthetic multiplier and no 20-minute serial rerun. Savings equal that observed work minus actual parallel wall time.</p></div><span class="long-pill">Minimum gate ${{span(x.minimum_task_seconds)}}</span></div><div class="grid6">${{bm.map(v=>`<div class="bench-metric"><strong>${{v[1]}}</strong><span>${{v[0]}}</span></div>`).join('')}}</div><div class="comparison"><div><h4>Serial-equivalent vs parallel</h4><div class="compare-row"><span>Serial equivalent</span><div class="compare-track"><i class="compare-fill" style="width:100%"></i></div><strong>${{span(serial)}}</strong></div><div class="compare-row"><span>Parallel</span><div class="compare-track"><i class="compare-fill parallel" style="width:${{wall/serial*100}}%"></i></div><strong>${{span(wall)}}</strong></div><p class="note">${{x.savings.percent.toFixed(2)}}% less wall time · ${{(x.savings.parallel_efficiency*100).toFixed(1)}}% parallel efficiency · peak ${{x.parallel.peak_concurrency}} workers</p></div><div><h4>Cumulative savings history</h4><div class="history">${{hist}}</div><p class="note">${{c.run_count}} verified run${{c.run_count===1?'':'s'}} · ${{span(c.saved_seconds)}} saved in total</p></div></div><h4>Concurrent task timeline</h4><div class="lanes">${{taskLanes}}</div><p class="note">Method: ${{x.method}}. Latest run ${{x.run_id}} on ${{x.resource.machine}} (${{x.resource.logical_cpus}} logical CPUs). Source commit ${{x.commit.slice(0,10)}}.</p>`;}}
-const max=Math.max(...d.checks.map(x=>x.duration_ms),1); q('#checks').innerHTML=d.checks.map(x=>`<article class="check"><div class="checktop"><strong>${{x.name}}</strong><span class="pill ${{x.status}}">${{x.status}}</span></div><div class="bar"><i style="width:${{Math.max(2,x.duration_ms/max*100)}}%"></i></div><small style="color:var(--muted)">${{ms(x.duration_ms)}}</small></article>`).join('');
-q('#domains').innerHTML=d.domains.map(x=>`<article class="panel domain" style="--accent:${{x.accent}}"><h3>${{x.label}}</h3><p>${{x.description}}</p><div class="domain-foot"><strong>${{x.passed}} / ${{x.total}} passed</strong><span style="color:var(--muted)">${{ms(x.duration_ms)}}</span></div></article>`).join('');
-function draw(list){{ q('#test-count').textContent=list.length+' of '+d.tests.length+' shown'; q('#tests').innerHTML=list.map(x=>`<tr><td><div class="test-title">${{x.title}}</div><div class="test-id">${{x.class}}.${{x.name}}</div></td><td>${{x.domain}}</td><td><span class="pill ${{x.status}}">${{x.status}}</span></td><td class="time">${{ms(x.duration_ms)}}</td></tr>`).join('')||'<tr><td colspan="4">No matching tests.</td></tr>';}} draw(d.tests);
-q('#search').addEventListener('input',e=>{{const s=e.target.value.toLowerCase(); draw(d.tests.filter(x=>Object.values(x).join(' ').toLowerCase().includes(s)));}});
-const prov=[['Verified commit',d.source.commit],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]]; q('#provenance').innerHTML=prov.map(x=>`<div class="prov"><span>${{x[0]}}</span><code>${{x[1]}}</code></div>`).join(''); q('#scope').textContent=d.scope_note;
-const g=d.growth;if(!g.available){{q('#growth').innerHTML='<div class="growth-card"><strong>Pending</strong><span>First aggregate snapshot</span></div>';q('#growth-note').textContent='The weekly metrics workflow will publish stars, forks, release downloads, public first-run reports, and GitHub’s rolling 14-day traffic counters.';}}else{{const x=g.latest,t=x.traffic_14d||{{}};const gm=[['Stars',x.stars],['Forks',x.forks],['14d unique visitors',t.unique_visitors??'—'],['14d unique cloners',t.unique_cloners??'—'],['Release downloads',x.release_asset_downloads],['First-run reports',x.first_run_reports??'—'],['Benchmark reports',x.benchmark_reports??'—'],['30d first-run target',g.targets_30d.first_run_reports??20]];q('#growth').innerHTML=gm.map(v=>`<div class="growth-card"><strong>${{v[1]}}</strong><span>${{v[0]}}</span></div>`).join('');const stale=x.traffic_stale_from?' Traffic last authenticated '+x.traffic_stale_from+'.':'';q('#growth-note').textContent='Captured '+x.captured_at+'.'+stale+' Traffic is a rolling 14-day GitHub window and may lag. Clones, downloads, and self-selected public reports indicate intent—not verified installations.';}}
+const d=JSON.parse(document.getElementById('report-data').textContent);
+const q=s=>document.querySelector(s);
+const E=(tag,className='',value=null)=>{{const node=document.createElement(tag);if(className)node.className=className;if(value!==null&&value!==undefined)node.textContent=String(value);return node;}};
+const add=(parent,...children)=>{{parent.append(...children.filter(Boolean));return parent;}};
+const clear=(selector,...children)=>{{const node=q(selector);node.replaceChildren(...children);return node;}};
+const finite=(value,fallback=0)=>{{const number=Number(value);return Number.isFinite(number)?number:fallback;}};
+const pct=value=>Math.max(0,Math.min(100,finite(value))).toFixed(3)+'%';
+const ms=n=>finite(n)>=1000?(finite(n)/1000).toFixed(2)+'s':Math.round(finite(n))+'ms';
+const span=s=>finite(s)>=3600?(finite(s)/3600).toFixed(2)+'h':finite(s)>=60?(finite(s)/60).toFixed(2)+'m':finite(s).toFixed(1)+'s';
+const pillClass=status=>status==='failed'||status==='skipped'?'pill '+status:'pill';
+const valueCard=(className,label,value)=>add(E('div',className),E('strong','',value),E('span','',label));
+const compareRow=(label,width,value,parallel=false)=>{{const fill=E('i',parallel?'compare-fill parallel':'compare-fill');fill.style.width=pct(width);return add(E('div','compare-row'),E('span','',label),add(E('div','compare-track'),fill),E('strong','',value));}};
+
+q('#version').textContent=String(d.version);
+q('#rate').textContent=finite(d.summary.pass_rate).toFixed(1)+'%';
+q('#seal').style.setProperty('--rate',String(Math.max(0,Math.min(100,finite(d.summary.pass_rate)))));
+q('#overall').textContent=d.overall==='passed'?'ALL REQUIRED GATES PASSED':'VERIFICATION FAILED';
+q('#overall').style.color=d.overall==='passed'?'var(--green)':'var(--red)';
+
+const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]];
+clear('#metrics',...metrics.map(item=>valueCard('metric',item[0],item[1])));
+
+const b=d.benchmark;
+if(!b.available){{
+  const copy=add(E('div'),E('h3','','First long benchmark pending'),E('p','','The five-minute evidence run is independent from fast CI and will appear here after its first successful execution.'));
+  clear('#benchmark',add(E('div','benchmark-head'),copy,E('span','long-pill','Scheduled benchmark')));
+}}else{{
+  const x=b.latest,c=b.cumulative,serial=finite(x.serial_equivalent.seconds),wall=finite(x.parallel.wall_time_seconds),historyRows=Array.isArray(b.history)?b.history:[],maxSaved=Math.max(...historyRows.map(row=>finite(row.saved_seconds)),1),longEnough=finite(x.minimum_task_seconds)>=300;
+  const headerCopy=add(E('div'),E('div','eyebrow',String(x.status)+' · '+String(x.task_count)+' independent workloads'),E('h3','',longEnough?'Every task ran beyond five minutes':'Every task met the configured duration gate'),E('p','','Observed task runtimes are summed for the serial equivalent; no synthetic multiplier and no 20-minute serial rerun. Savings equal that observed work minus actual parallel wall time.'));
+  const header=add(E('div','benchmark-head'),headerCopy,E('span','long-pill','Minimum gate '+span(x.minimum_task_seconds)));
+  const benchmarkMetrics=[['Per-task minimum',span(x.minimum_task_seconds)],['Parallel wall time',span(wall)],['Serial equivalent',span(serial)],['Saved this run',span(x.savings.seconds)],['Cumulative saved',span(c.saved_seconds)],['Observed speedup',finite(x.savings.speedup_multiplier).toFixed(2)+'×']];
+  const metricGrid=add(E('div','grid6'),...benchmarkMetrics.map(item=>valueCard('bench-metric',item[0],item[1])));
+  const comparisonLeft=add(E('div'),E('h4','','Serial-equivalent vs parallel'),compareRow('Serial equivalent',100,span(serial)),compareRow('Parallel',serial>0?wall/serial*100:0,span(wall),true),E('p','note',finite(x.savings.percent).toFixed(2)+'% less wall time · '+(finite(x.savings.parallel_efficiency)*100).toFixed(1)+'% parallel efficiency · peak '+String(x.parallel.peak_concurrency)+' workers'));
+  const history=E('div','history');
+  historyRows.forEach(row=>{{const bar=E('i','history-bar');bar.style.height=Math.max(12,finite(row.saved_seconds)/maxSaved*76).toFixed(3)+'px';bar.dataset.label=span(row.saved_seconds)+' saved';history.append(bar);}});
+  const comparisonRight=add(E('div'),E('h4','','Cumulative savings history'),history,E('p','note',String(c.run_count)+' verified run'+(c.run_count===1?'':'s')+' · '+span(c.saved_seconds)+' saved in total'));
+  const comparison=add(E('div','comparison'),comparisonLeft,comparisonRight);
+  const lanes=E('div','lanes'),targetSeconds=Math.max(finite(x.target_task_seconds),1);
+  (Array.isArray(x.tasks)?x.tasks:[]).forEach(task=>{{const fill=E('i','lane-fill',String(task.status).toUpperCase());fill.style.width=pct(finite(task.duration_seconds)/targetSeconds*100);lanes.append(add(E('div','lane'),E('span','',task.label),add(E('div','lane-track'),fill),E('strong','',span(task.duration_seconds))));}});
+  const resource=x.resource||{{}};
+  const methodNote='Method: '+String(x.method)+'. Latest run '+String(x.run_id)+' on '+String(resource.machine)+' ('+String(resource.logical_cpus)+' logical CPUs). Source commit '+String(x.commit).slice(0,10)+'.';
+  clear('#benchmark',header,metricGrid,comparison,E('h4','','Concurrent task timeline'),lanes,E('p','note',methodNote));
+}}
+
+const maxCheck=Math.max(...d.checks.map(check=>finite(check.duration_ms)),1);
+clear('#checks',...d.checks.map(check=>{{const top=add(E('div','checktop'),E('strong','',check.name),E('span',pillClass(check.status),check.status));const fill=E('i');fill.style.width=pct(Math.max(2,finite(check.duration_ms)/maxCheck*100));return add(E('article','check'),top,add(E('div','bar'),fill),E('small','',ms(check.duration_ms)));}}));
+
+clear('#domains',...d.domains.map(domain=>{{const article=E('article','panel domain');const accent=/^#[0-9A-Fa-f]{{6}}$/.test(String(domain.accent))?String(domain.accent):'#65e6b4';article.style.setProperty('--accent',accent);const foot=add(E('div','domain-foot'),E('strong','',String(domain.passed)+' / '+String(domain.total)+' passed'),E('span','',ms(domain.duration_ms)));return add(article,E('h3','',domain.label),E('p','',domain.description),foot);}}));
+
+function draw(list){{
+  q('#test-count').textContent=String(list.length)+' of '+String(d.tests.length)+' shown';
+  const rows=list.map(test=>{{const identity=add(E('td'),E('div','test-title',test.title),E('div','test-id',String(test.class)+'.'+String(test.name)));return add(E('tr'),identity,E('td','',test.domain),add(E('td'),E('span',pillClass(test.status),test.status)),E('td','time',ms(test.duration_ms)));}});
+  if(!rows.length){{const empty=E('td','','No matching tests.');empty.colSpan=4;rows.push(add(E('tr'),empty));}}
+  clear('#tests',...rows);
+}}
+draw(d.tests);
+q('#search').addEventListener('input',event=>{{const term=String(event.target.value).toLowerCase();draw(d.tests.filter(test=>Object.values(test).join(' ').toLowerCase().includes(term)));}});
+
+const provenance=[['Verified commit',d.source.commit],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]];
+clear('#provenance',...provenance.map(item=>add(E('div','prov'),E('span','',item[0]),E('code','',item[1]))));
+q('#scope').textContent=String(d.scope_note);
+
+const g=d.growth;
+if(!g.available){{
+  clear('#growth',valueCard('growth-card','First aggregate snapshot','Pending'));
+  q('#growth-note').textContent='The weekly metrics workflow will publish stars, forks, release downloads, public first-run reports, and GitHub’s rolling 14-day traffic counters.';
+}}else{{
+  const latest=g.latest,traffic=latest.traffic_14d||{{}},growthMetrics=[['Stars',latest.stars],['Forks',latest.forks],['14d unique visitors',traffic.unique_visitors??'—'],['14d unique cloners',traffic.unique_cloners??'—'],['Release downloads',latest.release_asset_downloads],['First-run reports',latest.first_run_reports??'—'],['Benchmark reports',latest.benchmark_reports??'—'],['30d first-run target',g.targets_30d.first_run_reports??20]];
+  clear('#growth',...growthMetrics.map(item=>valueCard('growth-card',item[0],item[1])));
+  const stale=latest.traffic_stale_from?' Traffic last authenticated '+String(latest.traffic_stale_from)+'.':'';
+  q('#growth-note').textContent='Captured '+String(latest.captured_at)+'.'+stale+' Traffic is a rolling 14-day GitHub window and may lag. Clones, downloads, and self-selected public reports indicate intent—not verified installations.';
+}}
 </script>
 </body>
 </html>

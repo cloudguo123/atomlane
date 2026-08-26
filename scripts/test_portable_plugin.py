@@ -51,6 +51,10 @@ class PortableAgentPluginTests(unittest.TestCase):
             "license",
         ):
             self.assertEqual(self.manifest[field], codex[field])
+        for asset_field in ("composerIcon", "logo"):
+            asset = codex["interface"][asset_field]
+            self.assertTrue(asset.startswith("./"))
+            self.assertTrue((ROOT / asset.removeprefix("./")).is_file())
 
     def test_stdio_server_is_plugin_root_relative_and_closed(self) -> None:
         self.assertEqual(self.mcp["$schema"], MCP_SCHEMA)

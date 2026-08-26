@@ -24,7 +24,7 @@ def run(argv: list[str]) -> None:
         raise RuntimeError(completed.stderr.strip() or f"command failed: {argv[0]}")
 
 
-def render_social(chrome: pathlib.Path, source: pathlib.Path, output: pathlib.Path) -> None:
+def render_svg(chrome: pathlib.Path, source: pathlib.Path, output: pathlib.Path, width: int, height: int) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     run(
         [
@@ -33,7 +33,7 @@ def render_social(chrome: pathlib.Path, source: pathlib.Path, output: pathlib.Pa
             "--disable-gpu",
             "--hide-scrollbars",
             "--force-device-scale-factor=1",
-            "--window-size=1280,640",
+            f"--window-size={width},{height}",
             f"--screenshot={output}",
             source.resolve().as_uri(),
         ]
@@ -87,13 +87,15 @@ def main() -> int:
         if shutil.which(executable) is None:
             raise FileNotFoundError(f"required renderer not found: {executable}")
     social_png = args.assets_dir / "social-preview.png"
+    listing_logo_png = args.assets_dir / "listing-logo.png"
     demo_gif = args.assets_dir / "demo.gif"
-    render_social(args.chrome, args.assets_dir / "social-preview.svg", social_png)
+    render_svg(args.chrome, args.assets_dir / "social-preview.svg", social_png, 1280, 640)
+    render_svg(args.chrome, args.assets_dir / "listing-logo.svg", listing_logo_png, 1024, 1024)
     render_demo(args.assets_dir / "demo-frames", demo_gif, args.frame_rate)
     args.share_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(social_png, args.share_dir / social_png.name)
     shutil.copy2(demo_gif, args.share_dir / demo_gif.name)
-    print(f"rendered {social_png} and {demo_gif}")
+    print(f"rendered {social_png}, {listing_logo_png}, and {demo_gif}")
     return 0
 
 

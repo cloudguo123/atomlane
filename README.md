@@ -140,4 +140,4 @@ Try it on one real task, then share the sanitized result card or submit a benchm
 
 [Open a benchmark report](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [View the roadmap](ROADMAP.md)
 
-MIT licensed.
+[MIT licensed](LICENSE) · [Privacy](PRIVACY.md) · [Terms](TERMS.md)

@@ -32,6 +32,12 @@ class GrowthAssetTests(unittest.TestCase):
         self.assertIn("15m 30s", rendered)
         self.assertIn("4.00×", rendered)
 
+    def test_listing_logo_is_square_and_product_specific(self) -> None:
+        rendered = generate_growth_assets.listing_logo_svg()
+        self.assertIn('width="1024" height="1024"', rendered)
+        self.assertIn("MPA", rendered)
+        self.assertIn("SAFE PARALLELISM", rendered)
+
     def test_share_outputs_are_machine_readable_and_honestly_labeled(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = pathlib.Path(directory)

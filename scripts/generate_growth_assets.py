@@ -59,6 +59,31 @@ def social_svg(data: dict[str, Any]) -> str:
 """
 
 
+def listing_logo_svg() -> str:
+    """Return the square marketplace logo used by plugin directories."""
+    return """<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07100e"/><stop offset="1" stop-color="#10261f"/></linearGradient>
+    <linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="208" y1="286" x2="816" y2="626"><stop stop-color="#65e6b4"/><stop offset="1" stop-color="#80b7ff"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#65e6b4" stop-opacity=".30"/><stop offset="1" stop-color="#65e6b4" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="192" fill="url(#bg)"/>
+  <circle cx="790" cy="180" r="360" fill="url(#glow)"/>
+  <g fill="none" stroke="url(#accent)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M208 286h174c54 0 80 46 130 46h304"/>
+    <path d="M208 456h174c54 0 80-46 130-46h304"/>
+    <path d="M208 626h608"/>
+  </g>
+  <g fill="#07100e" stroke="#65e6b4" stroke-width="20">
+    <circle cx="208" cy="286" r="32"/><circle cx="208" cy="456" r="32"/><circle cx="208" cy="626" r="32"/>
+    <circle cx="816" cy="332" r="32"/><circle cx="816" cy="410" r="32"/><circle cx="816" cy="626" r="32"/>
+  </g>
+  <text x="512" y="790" text-anchor="middle" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="150" font-weight="850" letter-spacing="16">MPA</text>
+  <text x="512" y="875" text-anchor="middle" fill="#8ea79e" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="34" font-weight="700" letter-spacing="9">SAFE PARALLELISM</text>
+</svg>
+"""
+
+
 def demo_frame(data: dict[str, Any], index: int, total: int) -> str:
     latest = data["latest"]
     progress = index / max(total - 1, 1)
@@ -140,6 +165,7 @@ def main() -> int:
     data = load_benchmark()
     args.assets_dir.mkdir(parents=True, exist_ok=True)
     (args.assets_dir / "social-preview.svg").write_text(social_svg(data), encoding="utf-8")
+    (args.assets_dir / "listing-logo.svg").write_text(listing_logo_svg(), encoding="utf-8")
     frames_dir = args.assets_dir / "demo-frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
     for index in range(args.frames):
@@ -147,7 +173,7 @@ def main() -> int:
             demo_frame(data, index, args.frames), encoding="utf-8"
         )
     write_share_outputs(data, args.share_dir)
-    print(json.dumps({"social_preview": str(args.assets_dir / "social-preview.svg"), "frames": args.frames, "share_dir": str(args.share_dir)}))
+    print(json.dumps({"social_preview": str(args.assets_dir / "social-preview.svg"), "listing_logo": str(args.assets_dir / "listing-logo.svg"), "frames": args.frames, "share_dir": str(args.share_dir)}))
     return 0
 
 

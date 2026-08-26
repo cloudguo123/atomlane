@@ -40,3 +40,9 @@ The most important qualitative signals are:
 ## Launch assets
 
 Reusable drafts live under `docs/launch/`. Adapt each post to the community rather than cross-posting identical copy everywhere.
+
+The official OpenAI Plugins Directory packet is maintained in
+`docs/launch/OPENAI_PLUGIN_DIRECTORY.md`. Portal submission remains gated on a
+verified publisher identity and confirmation that the local stdio runtime is
+eligible as a skills-only local workflow; the project must not be presented as
+a public remote MCP server.

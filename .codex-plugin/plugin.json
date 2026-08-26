@@ -42,8 +42,8 @@
     "brandColor": "#2563EB",
     "websiteURL": "https://cloudguo123.github.io/mac-parallel-accelerator/",
     "privacyPolicyURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/PRIVACY.md",
-    "termsOfServiceURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/LICENSE",
-    "logo": "./assets/growth/social-preview.png",
+    "termsOfServiceURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/TERMS.md",
+    "logo": "./assets/growth/listing-logo.png",
     "screenshots": [
       "./assets/growth/social-preview.png"
     ],

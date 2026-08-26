@@ -94,4 +94,4 @@ atomic_task_plan
 
 [提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [贡献代码](CONTRIBUTING.md)
 
-MIT 许可。
+[MIT 许可](LICENSE) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)

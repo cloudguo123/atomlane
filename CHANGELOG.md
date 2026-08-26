@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Added a reproducible visual test dashboard with per-test timing, subsystem
+  coverage, release gates, environment metadata, and build provenance.
+- Added automatic GitHub Pages generation and deployment from the verified
+  `main` branch.
+
 ## 0.9.0 - 2026-08-23
 
 - Added the typed Atom IR and fail-closed frontend compiler for shell, package

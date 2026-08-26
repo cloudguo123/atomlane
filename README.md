@@ -1,6 +1,7 @@
 # Mac Parallel Accelerator
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
+[![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Mac Parallel Accelerator is a Codex plugin for semantics-preserving local
@@ -135,11 +136,22 @@ npm ci
 npm run build:indicator
 ```
 
+Generate the same visual verification report published by GitHub Pages:
+
+```bash
+npm ci
+python3 scripts/generate_test_report.py
+```
+
+The self-contained dashboard is written to `docs/index.html`; its complete
+machine-readable evidence is written to `docs/test-results.json`.
+
 The lockfile and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) record the
 browser bundle inputs. `node_modules` is never part of the plugin package.
 
 ## Documentation
 
+- [Live visual test report](https://cloudguo123.github.io/mac-parallel-accelerator/)
 - [Architecture and safety invariants](DESIGN.md)
 - [Skill workflow](skills/accelerate-local-work/SKILL.md)
 - [Atom IR reference](skills/accelerate-local-work/references/atom-ir.md)

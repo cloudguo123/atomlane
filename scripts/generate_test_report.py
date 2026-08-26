@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+"""Run the public verification suite and render a self-contained test dashboard."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import html
+import io
+import json
+import os
+import pathlib
+import platform
+import shutil
+import subprocess
+import sys
+import time
+import unittest
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+
+DOMAIN_META = {
+    "test_atom_engine": {
+        "label": "Atomic compiler & scheduler",
+        "description": "Atom lowering, conflict safety, resource admission, hashes, and snapshots",
+        "accent": "#65e6b4",
+    },
+    "test_atom_frontends": {
+        "label": "Static workload frontends",
+        "description": "Shell, package scripts, Make, Compose, and inferred dataflow",
+        "accent": "#80b7ff",
+    },
+    "test_mcp_runtime": {
+        "label": "MCP runtime & live execution",
+        "description": "Failure propagation, output bounds, timeout semantics, and live progress",
+        "accent": "#d7a6ff",
+    },
+}
+
+
+class TimedResult(unittest.TextTestResult):
+    """Collect compact, public-safe per-test outcomes and durations."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.started: dict[str, float] = {}
+        self.records: list[dict[str, Any]] = []
+
+    def startTest(self, test: unittest.case.TestCase) -> None:
+        self.started[test.id()] = time.perf_counter()
+        super().startTest(test)
+
+    def _record(self, test: unittest.case.TestCase, status: str) -> None:
+        test_id = test.id()
+        elapsed = time.perf_counter() - self.started.pop(test_id, time.perf_counter())
+        parts = test_id.split(".")
+        module = parts[-3] if len(parts) >= 3 else "unknown"
+        class_name = parts[-2] if len(parts) >= 2 else "Unknown"
+        name = parts[-1]
+        self.records.append(
+            {
+                "id": test_id,
+                "module": module,
+                "domain": DOMAIN_META.get(module, {}).get("label", module),
+                "class": class_name,
+                "name": name,
+                "title": name.removeprefix("test_").replace("_", " "),
+                "status": status,
+                "duration_ms": round(elapsed * 1000, 2),
+            }
+        )
+
+    def addSuccess(self, test: unittest.case.TestCase) -> None:
+        super().addSuccess(test)
+        self._record(test, "passed")
+
+    def addFailure(self, test: unittest.case.TestCase, err: Any) -> None:
+        super().addFailure(test, err)
+        self._record(test, "failed")
+
+    def addError(self, test: unittest.case.TestCase, err: Any) -> None:
+        super().addError(test, err)
+        self._record(test, "error")
+
+    def addSkip(self, test: unittest.case.TestCase, reason: str) -> None:
+        super().addSkip(test, reason)
+        self._record(test, "skipped")
+
+    def addExpectedFailure(self, test: unittest.case.TestCase, err: Any) -> None:
+        super().addExpectedFailure(test, err)
+        self._record(test, "expected_failure")
+
+    def addUnexpectedSuccess(self, test: unittest.case.TestCase) -> None:
+        super().addUnexpectedSuccess(test)
+        self._record(test, "unexpected_success")
+
+
+def run_command(name: str, argv: list[str]) -> dict[str, Any]:
+    started = time.perf_counter()
+    completed = subprocess.run(
+        argv,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    return {
+        "name": name,
+        "status": "passed" if completed.returncode == 0 else "failed",
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "returncode": completed.returncode,
+    }
+
+
+def run_regression_tests() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    sys.path.insert(0, str(SCRIPTS))
+    started = time.perf_counter()
+    suite = unittest.defaultTestLoader.discover(str(SCRIPTS), pattern="test*.py")
+    stream = io.StringIO()
+    runner = unittest.TextTestRunner(stream=stream, verbosity=2, resultclass=TimedResult)
+    result = runner.run(suite)
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    status = "passed" if result.wasSuccessful() else "failed"
+    check = {
+        "name": "Regression suite",
+        "status": status,
+        "duration_ms": duration_ms,
+        "returncode": 0 if result.wasSuccessful() else 1,
+    }
+    return check, sorted(result.records, key=lambda item: (item["module"], item["class"], item["name"]))
+
+
+def validate_metadata() -> dict[str, Any]:
+    started = time.perf_counter()
+    paths = [
+        ROOT / ".codex-plugin" / "plugin.json",
+        ROOT / ".agents" / "plugins" / "marketplace.json",
+        ROOT / "catalog" / "scenarios.json",
+        ROOT / "package.json",
+        ROOT / "package-lock.json",
+    ]
+    try:
+        for path in paths:
+            json.loads(path.read_text(encoding="utf-8"))
+        status = "passed"
+        returncode = 0
+    except (OSError, json.JSONDecodeError):
+        status = "failed"
+        returncode = 1
+    return {
+        "name": "Manifest & catalog integrity",
+        "status": status,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "returncode": returncode,
+    }
+
+
+def bundle_check() -> dict[str, Any]:
+    if not (ROOT / "node_modules").is_dir() or shutil.which("npm") is None:
+        return {
+            "name": "Reproducible UI bundle",
+            "status": "skipped",
+            "duration_ms": 0.0,
+            "returncode": 0,
+        }
+    build = run_command("Reproducible UI bundle", ["npm", "run", "build:indicator"])
+    if build["status"] == "passed":
+        diff = subprocess.run(
+            ["git", "diff", "--quiet", "--", "assets/parallel-indicator-host.bundle.js"],
+            cwd=ROOT,
+            check=False,
+        )
+        if diff.returncode != 0:
+            build["status"] = "failed"
+            build["returncode"] = diff.returncode
+    return build
+
+
+def command_version(argv: list[str]) -> str:
+    try:
+        completed = subprocess.run(argv, capture_output=True, text=True, check=False, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return "unavailable"
+    line = (completed.stdout or completed.stderr).strip().splitlines()
+    return line[0] if line else "unavailable"
+
+
+def git_value(*args: str) -> str:
+    try:
+        return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unavailable"
+
+
+def sha256(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_report() -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    python_sources = sorted(str(path.relative_to(ROOT)) for path in SCRIPTS.glob("*.py"))
+    checks.append(
+        run_command(
+            "Python bytecode compilation",
+            [sys.executable, "-m", "py_compile", *python_sources],
+        )
+    )
+    regression_check, tests = run_regression_tests()
+    checks.append(regression_check)
+    checks.append(run_command("End-to-end MCP self-test", [sys.executable, "scripts/self_test.py"]))
+
+    if shutil.which("ruff"):
+        ruff_argv = ["ruff", "check", "--no-cache", "scripts"]
+    elif shutil.which("uvx"):
+        ruff_argv = ["uvx", "ruff@0.16.4", "check", "--no-cache", "scripts"]
+    else:
+        ruff_argv = [sys.executable, "-m", "ruff", "check", "--no-cache", "scripts"]
+    checks.append(run_command("Ruff static analysis", ruff_argv))
+    checks.append(validate_metadata())
+    checks.append(bundle_check())
+
+    status_counts = Counter(test["status"] for test in tests)
+    passed = status_counts["passed"]
+    overall = "passed" if all(check["status"] in {"passed", "skipped"} for check in checks) else "failed"
+    domain_rows = []
+    for module, meta in DOMAIN_META.items():
+        domain_tests = [test for test in tests if test["module"] == module]
+        domain_rows.append(
+            {
+                **meta,
+                "module": module,
+                "total": len(domain_tests),
+                "passed": sum(test["status"] == "passed" for test in domain_tests),
+                "duration_ms": round(sum(test["duration_ms"] for test in domain_tests), 2),
+            }
+        )
+
+    bundle = ROOT / "assets" / "parallel-indicator-host.bundle.js"
+    return {
+        "schema_version": "1.0",
+        "project": "Mac Parallel Accelerator",
+        "version": json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())["version"],
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "overall": overall,
+        "summary": {
+            "total": len(tests),
+            "passed": passed,
+            "failed": len(tests) - passed,
+            "pass_rate": round((passed / len(tests) * 100) if tests else 0, 2),
+            "checks_passed": sum(check["status"] == "passed" for check in checks),
+            "checks_total": len(checks),
+            "elapsed_ms": round(sum(check["duration_ms"] for check in checks), 2),
+        },
+        "source": {
+            "commit": git_value("rev-parse", "HEAD"),
+            "commit_short": git_value("rev-parse", "--short=10", "HEAD"),
+            "branch": os.environ.get("GITHUB_REF_NAME") or git_value("branch", "--show-current"),
+            "repository": "cloudguo123/mac-parallel-accelerator",
+        },
+        "environment": {
+            "os": f"{platform.system()} {platform.release()}",
+            "architecture": platform.machine(),
+            "python": platform.python_version(),
+            "node": command_version(["node", "--version"]),
+            "runner": os.environ.get("RUNNER_NAME", "local verification runner"),
+        },
+        "provenance": {
+            "bundle_sha256": sha256(bundle),
+            "bundle_bytes": bundle.stat().st_size,
+        },
+        "checks": checks,
+        "domains": domain_rows,
+        "tests": tests,
+        "scope_note": (
+            "This dashboard reports behavioral regression and release-gate results. "
+            "It is not a statement of line or branch coverage."
+        ),
+    }
+
+
+def render_html(report: dict[str, Any]) -> str:
+    data = json.dumps(report, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    overall = report["overall"].upper()
+    generated = html.escape(report["generated_at"])
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Visual verification report for Mac Parallel Accelerator">
+  <title>Mac Parallel Accelerator · Test Report</title>
+  <style>
+    :root {{ color-scheme: dark; --bg:#07100e; --panel:#0c1815; --panel2:#10201c; --line:#20352f; --text:#ecf8f3; --muted:#8ba69c; --green:#65e6b4; --blue:#80b7ff; --purple:#d7a6ff; --red:#ff8f8f; }}
+    * {{ box-sizing:border-box }}
+    body {{ margin:0; background:radial-gradient(circle at 80% -10%,#163d32 0,transparent 34%),radial-gradient(circle at 5% 20%,#102b32 0,transparent 28%),var(--bg); color:var(--text); font:15px/1.55 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; min-height:100vh }}
+    a {{ color:var(--green); text-decoration:none }} a:hover {{ text-decoration:underline }}
+    .wrap {{ width:min(1180px,calc(100% - 32px)); margin:auto; padding:46px 0 72px }}
+    .nav {{ display:flex; justify-content:space-between; align-items:center; color:var(--muted); margin-bottom:50px }}
+    .brand {{ color:var(--text); font-weight:700; letter-spacing:.02em }} .navlinks {{ display:flex; gap:20px }}
+    .eyebrow {{ text-transform:uppercase; letter-spacing:.18em; font-size:12px; color:var(--green); font-weight:800 }}
+    h1 {{ margin:14px 0 12px; max-width:820px; font-size:clamp(42px,7vw,82px); line-height:.98; letter-spacing:-.055em }}
+    .lede {{ color:var(--muted); font-size:18px; max-width:720px; margin:0 }}
+    .hero {{ display:grid; grid-template-columns:1fr 260px; gap:32px; align-items:center; margin-bottom:46px }}
+    .seal {{ width:220px; aspect-ratio:1; margin-left:auto; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--green) calc(var(--rate)*1%),#1a2b26 0); box-shadow:0 0 80px #45d89d1b; position:relative }}
+    .seal:before {{ content:""; position:absolute; inset:11px; border-radius:50%; background:var(--bg); border:1px solid var(--line) }}
+    .seal-inner {{ z-index:1; text-align:center }} .rate {{ font-size:46px; font-weight:850; letter-spacing:-.05em }} .seal-label {{ color:var(--muted); font-size:12px; letter-spacing:.13em; text-transform:uppercase }}
+    .grid4 {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:30px 0 42px }}
+    .metric,.panel {{ background:linear-gradient(145deg,#10211dce,#0b1714e8); border:1px solid var(--line); border-radius:16px }}
+    .metric {{ padding:20px }} .metric strong {{ display:block; font-size:28px; letter-spacing:-.03em }} .metric span {{ color:var(--muted); font-size:13px }}
+    .section-title {{ display:flex; justify-content:space-between; align-items:end; margin:46px 0 16px }} .section-title h2 {{ margin:0; font-size:26px; letter-spacing:-.03em }} .section-title p {{ margin:0; color:var(--muted) }}
+    .panel {{ padding:22px }}
+    .checks {{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px }}
+    .check {{ padding:17px; border:1px solid var(--line); border-radius:12px; background:#0b1714 }} .checktop {{ display:flex; justify-content:space-between; gap:10px }}
+    .pill {{ border-radius:999px; padding:3px 9px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; background:#65e6b418; color:var(--green); border:1px solid #65e6b43b }}
+    .pill.failed {{ color:var(--red); border-color:#ff8f8f45; background:#ff8f8f12 }} .pill.skipped {{ color:#f4cf78; border-color:#f4cf7840; background:#f4cf7812 }}
+    .bar {{ height:5px; background:#1a2a25; border-radius:10px; overflow:hidden; margin-top:14px }} .bar i {{ height:100%; display:block; background:linear-gradient(90deg,var(--green),var(--blue)); border-radius:10px }}
+    .domains {{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px }} .domain {{ position:relative; overflow:hidden }} .domain:before {{ content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent) }}
+    .domain h3 {{ margin:0 0 7px; font-size:17px }} .domain p {{ margin:0; min-height:48px; color:var(--muted) }} .domain-foot {{ display:flex; justify-content:space-between; margin-top:18px; font-variant-numeric:tabular-nums }}
+    .toolbar {{ display:flex; gap:10px; margin-bottom:13px }} input {{ flex:1; min-width:0; color:var(--text); background:#08120f; border:1px solid var(--line); border-radius:10px; padding:11px 13px; outline:none }} input:focus {{ border-color:#65e6b478 }}
+    table {{ width:100%; border-collapse:collapse }} th {{ text-align:left; color:var(--muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid var(--line) }} td {{ padding:13px 12px; border-bottom:1px solid #172a25; vertical-align:top }} tr:last-child td {{ border-bottom:0 }} .test-title {{ font-weight:650 }} .test-id {{ font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted) }} .time {{ font-variant-numeric:tabular-nums; white-space:nowrap }}
+    .provenance {{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); padding:1px; border-radius:14px; overflow:hidden }} .prov {{ background:var(--panel); padding:18px }} .prov span {{ display:block; color:var(--muted); font-size:12px }} .prov code {{ display:block; margin-top:5px; overflow-wrap:anywhere; font-size:12px; color:#d9ece5 }}
+    .note {{ margin-top:15px; color:var(--muted); font-size:13px }} footer {{ margin-top:46px; padding-top:22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; color:var(--muted); font-size:13px }}
+    @media(max-width:800px) {{ .hero {{ grid-template-columns:1fr }} .seal {{ margin:18px auto 0 }} .grid4 {{ grid-template-columns:repeat(2,1fr) }} .checks,.domains {{ grid-template-columns:1fr }} .provenance {{ grid-template-columns:1fr }} .navlinks {{ display:none }} }}
+    @media(max-width:520px) {{ .grid4 {{ grid-template-columns:1fr 1fr }} .wrap {{ width:min(100% - 22px,1180px); padding-top:24px }} .panel {{ padding:14px }} th:nth-child(2),td:nth-child(2) {{ display:none }} }}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <nav class="nav"><div class="brand">MPA / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml">CI</a><a href="test-results.json">Raw JSON</a></div></nav>
+  <section class="hero">
+    <div><div class="eyebrow">Release verification · v<span id="version"></span></div><h1>Concurrency you can trust.</h1><p class="lede">A reproducible view of scheduler safety, static frontend behavior, MCP execution, live progress, and release gates.</p></div>
+    <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
+  </section>
+  <div class="grid4" id="metrics"></div>
+  <div class="section-title"><div><div class="eyebrow">Quality gates</div><h2>Release checks</h2></div><p id="overall">{overall}</p></div>
+  <section class="checks" id="checks"></section>
+  <div class="section-title"><div><div class="eyebrow">Behavioral coverage</div><h2>Verified subsystems</h2></div><p>Every regression grouped by responsibility</p></div>
+  <section class="domains" id="domains"></section>
+  <div class="section-title"><div><div class="eyebrow">Test inventory</div><h2>All regression cases</h2></div><p id="test-count"></p></div>
+  <section class="panel"><div class="toolbar"><input id="search" type="search" placeholder="Filter by test, subsystem, or behavior…" aria-label="Filter tests"></div><div style="overflow:auto"><table><thead><tr><th>Behavior</th><th>Subsystem</th><th>Status</th><th>Duration</th></tr></thead><tbody id="tests"></tbody></table></div></section>
+  <div class="section-title"><div><div class="eyebrow">Reproducibility</div><h2>Build provenance</h2></div><p>Machine-readable evidence included</p></div>
+  <section class="provenance" id="provenance"></section>
+  <p class="note" id="scope"></p>
+  <footer><span>Generated {generated}</span><span>Report schema 1.0</span></footer>
+</main>
+<script id="report-data" type="application/json">{data}</script>
+<script>
+const d=JSON.parse(document.getElementById('report-data').textContent); const q=s=>document.querySelector(s); const ms=n=>n>=1000?(n/1000).toFixed(2)+'s':Math.round(n)+'ms';
+q('#version').textContent=d.version; q('#rate').textContent=d.summary.pass_rate+'%'; q('#seal').style.setProperty('--rate',d.summary.pass_rate); q('#overall').textContent=d.overall==='passed'?'ALL REQUIRED GATES PASSED':'VERIFICATION FAILED'; q('#overall').style.color=d.overall==='passed'?'var(--green)':'var(--red)';
+const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]]; q('#metrics').innerHTML=metrics.map(x=>`<div class="metric"><strong>${{x[1]}}</strong><span>${{x[0]}}</span></div>`).join('');
+const max=Math.max(...d.checks.map(x=>x.duration_ms),1); q('#checks').innerHTML=d.checks.map(x=>`<article class="check"><div class="checktop"><strong>${{x.name}}</strong><span class="pill ${{x.status}}">${{x.status}}</span></div><div class="bar"><i style="width:${{Math.max(2,x.duration_ms/max*100)}}%"></i></div><small style="color:var(--muted)">${{ms(x.duration_ms)}}</small></article>`).join('');
+q('#domains').innerHTML=d.domains.map(x=>`<article class="panel domain" style="--accent:${{x.accent}}"><h3>${{x.label}}</h3><p>${{x.description}}</p><div class="domain-foot"><strong>${{x.passed}} / ${{x.total}} passed</strong><span style="color:var(--muted)">${{ms(x.duration_ms)}}</span></div></article>`).join('');
+function draw(list){{ q('#test-count').textContent=list.length+' of '+d.tests.length+' shown'; q('#tests').innerHTML=list.map(x=>`<tr><td><div class="test-title">${{x.title}}</div><div class="test-id">${{x.class}}.${{x.name}}</div></td><td>${{x.domain}}</td><td><span class="pill ${{x.status}}">${{x.status}}</span></td><td class="time">${{ms(x.duration_ms)}}</td></tr>`).join('')||'<tr><td colspan="4">No matching tests.</td></tr>';}} draw(d.tests);
+q('#search').addEventListener('input',e=>{{const s=e.target.value.toLowerCase(); draw(d.tests.filter(x=>Object.values(x).join(' ').toLowerCase().includes(s)));}});
+const prov=[['Verified commit',d.source.commit],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]]; q('#provenance').innerHTML=prov.map(x=>`<div class="prov"><span>${{x[0]}}</span><code>${{x[1]}}</code></div>`).join(''); q('#scope').textContent=d.scope_note;
+</script>
+</body>
+</html>
+"""
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=pathlib.Path, default=ROOT / "docs" / "index.html")
+    parser.add_argument(
+        "--json-output",
+        type=pathlib.Path,
+        default=ROOT / "docs" / "test-results.json",
+    )
+    args = parser.parse_args()
+    report = build_report()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.json_output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(render_html(report), encoding="utf-8")
+    args.json_output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "overall": report["overall"],
+                "tests": report["summary"]["total"],
+                "passed": report["summary"]["passed"],
+                "output": str(args.output),
+            }
+        )
+    )
+    return 0 if report["overall"] == "passed" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

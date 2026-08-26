@@ -344,7 +344,22 @@ def render_html(report: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Visual verification report for Mac Parallel Accelerator">
+  <meta name="description" content="Verified tests, a five-minute benchmark, live progress, and public adoption signals for Mac Parallel Accelerator.">
+  <meta name="theme-color" content="#07100e">
+  <link rel="canonical" href="https://cloudguo123.github.io/mac-parallel-accelerator/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Mac Parallel Accelerator · Verified test report">
+  <meta property="og:description" content="Safe atomic concurrency for Codex on macOS: 43 verified tests and a reproducible five-minute benchmark.">
+  <meta property="og:url" content="https://cloudguo123.github.io/mac-parallel-accelerator/">
+  <meta property="og:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Mac Parallel Accelerator benchmark: 20 minutes 41 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 31 seconds saved">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Mac Parallel Accelerator · Verified test report">
+  <meta name="twitter:description" content="Safe atomic concurrency for Codex on macOS, with live progress and honest savings evidence.">
+  <meta name="twitter:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
+  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/mac-parallel-accelerator","url":"https://cloudguo123.github.io/mac-parallel-accelerator/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
   <title>Mac Parallel Accelerator · Test Report</title>
   <style>
     :root {{ color-scheme: dark; --bg:#07100e; --panel:#0c1815; --panel2:#10201c; --line:#20352f; --text:#ecf8f3; --muted:#8ba69c; --green:#65e6b4; --blue:#80b7ff; --purple:#d7a6ff; --red:#ff8f8f; }}

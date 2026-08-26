@@ -46,7 +46,7 @@ Built iteratively with Codex: started from live parallel command execution, then
 
 ### Project description
 
-Mac Parallel Accelerator helps Codex accelerate local macOS builds, tests, Docker/Compose graphs, paper workflows, and batch jobs without guessing that commands are independent. It compiles supported entrypoints into a typed Atom IR covering control flow, artifacts, effects, lifecycles, and CPU/memory capacity; unknown semantics fail closed. A hashed immutable plan is executed with adaptive scheduling, while long runs show live running/ready/completed/failed counts plus per-run and cumulative estimated time saved. Public evidence includes 43/43 tests and a controlled 5m10s run versus 20m41s serial equivalent, saving 15m31s at 4.00× observed speedup. MIT licensed and local-first.
+Mac Parallel Accelerator helps Codex accelerate local macOS builds, tests, Docker/Compose graphs, paper workflows, and batch jobs without guessing that commands are independent. It compiles supported entrypoints into a typed Atom IR covering control flow, artifacts, effects, lifecycles, and CPU/memory capacity; unknown semantics fail closed. A hashed immutable plan is executed with adaptive scheduling, while long runs show live running/ready/completed/failed counts plus per-run and cumulative estimated time saved. Public evidence includes 44/44 tests and a controlled 5m10s run versus 20m41s serial equivalent, saving 15m31s at 4.00× observed speedup. MIT licensed and local-first.
 
 ## What problem does it solve?
 

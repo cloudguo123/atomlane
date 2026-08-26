@@ -10,7 +10,7 @@ All notable changes to this project are documented here.
   counters to the weekly public metrics and GitHub Pages report.
 - Added official directory submission materials, square listing artwork,
   terms, and new standards-based discovery paths.
-- Expanded the verified regression suite to 43 tests and kept all release,
+- Expanded the verified regression suite to 44 tests and kept all release,
   security-scanner, and Pages gates green.
 
 ## 0.9.3 - 2026-08-26

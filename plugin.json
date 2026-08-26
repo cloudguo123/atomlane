@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "mac-parallel-accelerator",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
   "author": {
     "name": "cloudguo123",

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## 0.9.4 - 2026-08-26
+
+- Added portable Agent Plugins 1.0.0 manifests while retaining the native
+  Codex plugin and local stdio MCP configuration.
+- Added a privacy-reviewed first-run feedback form and aggregate conversion
+  counters to the weekly public metrics and GitHub Pages report.
+- Added official directory submission materials, square listing artwork,
+  terms, and new standards-based discovery paths.
+- Expanded the verified regression suite to 43 tests and kept all release,
+  security-scanner, and Pages gates green.
+
 ## 0.9.3 - 2026-08-26
 
 - Removed the bundled Zod dynamic-evaluation capability probe and added a

@@ -17,7 +17,7 @@ function publish(name, detail) {
 }
 
 const app = new App(
-  { name: "Mac Parallel Accelerator Indicator", version: "0.9.3" },
+  { name: "Mac Parallel Accelerator Indicator", version: "0.9.4" },
   { availableDisplayModes: ["inline"] },
   { autoResize: true },
 );

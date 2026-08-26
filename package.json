@@ -1,6 +1,6 @@
 {
   "name": "mac-parallel-accelerator-ui-build",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "type": "module",
   "description": "Reproducible build inputs for the Mac Parallel Accelerator MCP App indicator.",

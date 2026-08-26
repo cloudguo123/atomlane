@@ -4,7 +4,7 @@ title: Mac Parallel Accelerator
 type: software
 authors:
   - family-names: cloudguo123
-version: 0.9.3
+version: 0.9.4
 date-released: 2026-08-26
 license: MIT
 repository-code: https://github.com/cloudguo123/mac-parallel-accelerator

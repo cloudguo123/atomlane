@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "1.7.5",
-    "zod": "4.3.5"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

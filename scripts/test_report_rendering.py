@@ -15,6 +15,7 @@ class ReportRenderingTests(unittest.TestCase):
             }
         )
         self.assertIn('property="og:image"', rendered)
+        self.assertIn("44 verified tests", rendered)
         self.assertIn('name="twitter:card" content="summary_large_image"', rendered)
         self.assertIn('rel="canonical"', rendered)
         self.assertIn('"@type":"SoftwareApplication"', rendered)

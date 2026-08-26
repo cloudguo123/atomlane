@@ -349,7 +349,7 @@ def render_html(report: dict[str, Any]) -> str:
   <link rel="canonical" href="https://cloudguo123.github.io/mac-parallel-accelerator/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Mac Parallel Accelerator · Verified test report">
-  <meta property="og:description" content="Safe atomic concurrency for Codex on macOS: 43 verified tests and a reproducible five-minute benchmark.">
+  <meta property="og:description" content="Safe atomic concurrency for Codex on macOS: 44 verified tests and a reproducible five-minute benchmark.">
   <meta property="og:url" content="https://cloudguo123.github.io/mac-parallel-accelerator/">
   <meta property="og:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
   <meta property="og:image:width" content="1280">

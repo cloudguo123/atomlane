@@ -1,12 +1,12 @@
 # Terms of use
 
-These terms apply to Mac Parallel Accelerator. The project is open-source
+These terms apply to AtomLane. The project is open-source
 software distributed under the [MIT License](LICENSE). If these terms conflict
 with that license for the software itself, the MIT License controls.
 
 ## Local software, not a hosted service
 
-Mac Parallel Accelerator runs on the user's Mac. The maintainers do not
+AtomLane runs on the user's Mac. The maintainers do not
 operate a hosted execution service, user account system, or paid plan for this
 project. The software does not automatically upload project files, commands,
 Codex conversations, traces, or benchmark results.

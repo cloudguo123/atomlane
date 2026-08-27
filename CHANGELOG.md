@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.10.0 - 2026-08-27
+
+- Rebranded the public product as AtomLane with the promise “Parallelize only
+  what is proven safe,” while preserving the existing plugin, MCP, repository,
+  event, environment-variable, and statistics identifiers for compatibility.
+- Redesigned the listing logo, social card, live demo, report metadata, and
+  bilingual launch copy around the new identity.
+- Updated Codex, Agent Plugins, marketplace, MCP App, skill UI, citation,
+  privacy, terms, benchmark, and scenario metadata to use the AtomLane brand.
+- Added a maintained brand and compatibility guide for future releases and
+  directory submissions.
+
 ## 0.9.4 - 2026-08-26
 
 - Added portable Agent Plugins 1.0.0 manifests while retaining the native

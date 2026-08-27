@@ -22,9 +22,9 @@ requirements and must not be used to imply remote hosting.
 
 ## Listing information
 
-- Name: Mac Parallel Accelerator
+- Name: AtomLane
 - Category: Productivity
-- Short description: Compile local Mac workflows into semantics-safe parallel plans with live progress and measured savings.
+- Short description: Parallelize only what is proven safe—with live progress and measured savings.
 - Website: https://cloudguo123.github.io/mac-parallel-accelerator/
 - Source: https://github.com/cloudguo123/mac-parallel-accelerator
 - Support: https://github.com/cloudguo123/mac-parallel-accelerator/discussions
@@ -37,7 +37,7 @@ requirements and must not be used to imply remote hosting.
 
 ## Long description
 
-Mac Parallel Accelerator helps Codex find and execute safe concurrency in local
+AtomLane helps Codex find and execute safe concurrency in local
 macOS builds, tests, Docker/Compose graphs, Make targets, paper workflows, and
 batch jobs. It compiles supported entrypoints into a typed Atom IR that keeps
 control flow, artifacts, effects, lifecycle events, source snapshots, and
@@ -53,7 +53,7 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 
 ## Starter prompts
 
-1. Use Mac Parallel Accelerator to inspect this project's build and test entrypoints, compile a safe atomic plan, and execute only verified concurrency with live progress.
+1. Use AtomLane to inspect this project's build and test entrypoints, compile a safe atomic plan, and execute only verified concurrency with live progress.
 2. Analyze this Docker Compose application, preserve health and completion dependencies, and recommend CPU and memory budgets for each service before running it.
 3. Inspect this Make target for hidden file dependencies and parallelize it only if the dataflow and shared outputs are safe.
 4. Profile this research or paper workflow, identify timing-sensitive fences, and separate correctness replays from benchmark-eligible runs.

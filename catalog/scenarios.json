@@ -1,6 +1,6 @@
 {
   "schema_version": "1.3.0",
-  "catalog_name": "Mac Parallel Accelerator preset scenarios",
+  "catalog_name": "AtomLane preset scenarios",
   "global_guardrails": [
     "Parallelize only work units with explicit independence or an explicit dependency graph.",
     "Keep concurrent writes to one file, Git index, database, device, external account, or release manifest serial unless the underlying tool provides safe isolation and locking.",

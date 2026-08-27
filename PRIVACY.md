@@ -1,6 +1,6 @@
 # Privacy
 
-Mac Parallel Accelerator runs locally and does not collect, transmit, sell, or
+AtomLane runs locally and does not collect, transmit, sell, or
 share personal data. Its MCP server uses standard input/output only and does not
 open a network listener.
 

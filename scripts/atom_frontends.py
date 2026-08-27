@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed static frontends for Mac Parallel Accelerator Atom IR.
+"""Fail-closed static frontends for the AtomLane Atom IR.
 
 Supported inputs are intentionally narrow.  Syntax outside the documented
 POSIX-lite/package/Make/Compose subset is preserved as an opaque island with a

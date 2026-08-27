@@ -2,7 +2,7 @@
 
 ## X / LinkedIn
 
-I built Mac Parallel Accelerator: an open-source Codex plugin that makes local builds, tests, Docker, and research pipelines faster without guessing away task semantics.
+I built AtomLane: parallelize only what is proven safe. It makes local builds, tests, Docker, and research pipelines faster without guessing away task semantics.
 
 Typed atomic plans · fail-closed effects · Apple-silicon-aware resources · live progress · per-run + cumulative savings.
 
@@ -20,7 +20,7 @@ Source: https://github.com/cloudguo123/mac-parallel-accelerator
 
 ## Video description
 
-Mac Parallel Accelerator is a free, MIT-licensed Codex plugin for safe local concurrency on macOS. This short demo shows the live execution view, including elapsed time, running/ready/completed/failed counts, and current estimated savings. The linked report contains reproducible regression evidence and a controlled five-minute benchmark.
+AtomLane is a free, MIT-licensed Codex plugin for safe local concurrency on macOS. This short demo shows the live execution view, including elapsed time, running/ready/completed/failed counts, and current estimated savings. The linked report contains reproducible regression evidence and a controlled five-minute benchmark.
 
 Install and source: https://github.com/cloudguo123/mac-parallel-accelerator
 

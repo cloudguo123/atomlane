@@ -1,6 +1,7 @@
 interface:
-  display_name: "Atomic Mac Accelerator"
-  short_description: "Compile and run safe atomic Mac work plans"
-  default_prompt: "Use $accelerate-local-work to compile this local workload into a semantics-preserving atomic plan, then execute that exact hashed plan with live progress."
+  display_name: "AtomLane"
+  short_description: "Run only the parallel work proven safe"
+  brand_color: "#65E6B4"
+  default_prompt: "Use $accelerate-local-work to compile this workload and execute only the concurrency proven safe, with live progress and time savings."
 policy:
   allow_implicit_invocation: true

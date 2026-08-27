@@ -1,7 +1,7 @@
 {
   "name": "mac-parallel-accelerator",
   "interface": {
-    "displayName": "Mac Parallel Accelerator"
+    "displayName": "AtomLane"
   },
   "plugins": [
     {

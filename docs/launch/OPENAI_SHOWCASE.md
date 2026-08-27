@@ -2,7 +2,7 @@
 
 Official form: https://openai.com/form/showcase-submission/
 
-Submission status: all non-personal fields were prepared on 2026-08-26. Final submission requires the maintainer's first name, last name, email, and explicit acceptance of the OpenAI Showcase Gallery Program Agreement.
+Submission status: content is prepared. Maintainer identity and agreement authorization are intentionally held outside the public repository and supplied only to the official OpenAI form.
 
 ## About you
 
@@ -13,11 +13,11 @@ Submission status: all non-personal fields were prepared on 2026-08-26. Final su
 
 ## Project
 
-Mac Parallel Accelerator
+AtomLane
 
 ## One-line description
 
-A Codex plugin that compiles local macOS work into semantics-safe atomic plans, executes only proven concurrency, keeps long runs visibly live, and reports per-run and cumulative time saved.
+Parallelize only what is proven safe. AtomLane compiles local macOS work into verified atomic plans, keeps long runs visibly live, and reports per-run plus cumulative time saved.
 
 ## Form payload
 
@@ -39,14 +39,14 @@ Built iteratively with Codex: started from live parallel command execution, then
 - Repository: https://github.com/cloudguo123/mac-parallel-accelerator
 - Hosted evidence: https://cloudguo123.github.io/mac-parallel-accelerator/
 - Setup: macOS with Python 3.10+. Run `codex plugin marketplace add cloudguo123/mac-parallel-accelerator`, then `codex plugin add mac-parallel-accelerator@mac-parallel-accelerator`. Open a new Codex task and ask it to inspect a build, test, Docker, or research workflow for safe parallelism. Full verification steps are in the README.
-- Display title: Safe Parallel Workflows on Mac
-- Tagline: Compile local workflows into semantics-safe parallel plans, keep long runs visibly live, and measure the time saved.
+- Display title: AtomLane — Safe Parallel Workflows
+- Tagline: Parallelize only what is proven safe.
 - Display author: cloudguo123
-- Cover image: https://raw.githubusercontent.com/cloudguo123/mac-parallel-accelerator/v0.9.4/assets/growth/social-preview.png
+- Cover image: https://raw.githubusercontent.com/cloudguo123/mac-parallel-accelerator/main/assets/growth/social-preview.png
 
 ### Project description
 
-Mac Parallel Accelerator helps Codex accelerate local macOS builds, tests, Docker/Compose graphs, paper workflows, and batch jobs without guessing that commands are independent. It compiles supported entrypoints into a typed Atom IR covering control flow, artifacts, effects, lifecycles, and CPU/memory capacity; unknown semantics fail closed. A hashed immutable plan is executed with adaptive scheduling, while long runs show live running/ready/completed/failed counts plus per-run and cumulative estimated time saved. Public evidence includes 44/44 tests and a controlled 5m10s run versus 20m41s serial equivalent, saving 15m31s at 4.00× observed speedup. MIT licensed and local-first.
+AtomLane helps Codex accelerate local macOS builds, tests, Docker/Compose graphs, paper workflows, and batch jobs without guessing that commands are independent. It compiles supported entrypoints into a typed Atom IR covering control flow, artifacts, effects, lifecycles, and CPU/memory capacity; unknown semantics fail closed. A hashed immutable plan is executed with adaptive scheduling, while long runs show live running/ready/completed/failed counts plus per-run and cumulative estimated time saved. Public evidence includes 44/44 tests and a controlled 5m10s run versus 20m41s serial equivalent, saving 15m31s at 4.00× observed speedup. MIT licensed and local-first.
 
 ## What problem does it solve?
 
@@ -68,4 +68,4 @@ MIT licensed. macOS, Python 3.10+, no third-party Python runtime dependency. Pro
 
 ## Submission boundary
 
-The form's attestation grants OpenAI a nonexclusive, worldwide, irrevocable, royalty-free license to use, test, store, copy, translate, display, modify, distribute, and promote the submitted Showcase Content. The maintainer must review and personally accept that agreement before submission.
+The form's attestation grants OpenAI a nonexclusive, worldwide, irrevocable, royalty-free license to use, test, store, copy, translate, display, modify, distribute, and promote the submitted Showcase Content. Keep the maintainer's identity and acceptance outside version control and transmit them only through the official form.

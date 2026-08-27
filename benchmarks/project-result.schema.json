@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cloudguo123.github.io/mac-parallel-accelerator/project-result.schema.json",
-  "title": "Mac Parallel Accelerator project benchmark result",
+  "title": "AtomLane project benchmark result",
   "type": "object",
   "additionalProperties": false,
   "required": [

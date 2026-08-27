@@ -33,7 +33,9 @@ def social_svg(data: dict[str, Any]) -> str:
     parallel = seconds(latest["parallel"]["wall_time_seconds"])
     saved = seconds(latest["savings"]["seconds"])
     speedup = f"{latest['savings']['speedup_multiplier']:.2f}×"
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">AtomLane — parallelize only what is proven safe</title>
+  <desc id="desc">Verified five-minute benchmark with serial-equivalent time, parallel wall time, time saved, and observed speedup.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07100e"/><stop offset="1" stop-color="#10261f"/></linearGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#65e6b4"/><stop offset="1" stop-color="#80b7ff"/></linearGradient>
@@ -41,18 +43,20 @@ def social_svg(data: dict[str, Any]) -> str:
   </defs>
   <rect width="1280" height="640" fill="url(#bg)"/>
   <circle cx="1090" cy="65" r="360" fill="url(#glow)"/>
-  <path d="M80 91h42l15 15h92" fill="none" stroke="#65e6b4" stroke-width="8" stroke-linecap="round"/>
-  <text x="80" y="154" fill="#65e6b4" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="24" font-weight="700" letter-spacing="4">CODEX PLUGIN · MACOS</text>
-  <text x="80" y="235" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="60" font-weight="800" letter-spacing="-2">Finish local work faster.</text>
-  <text x="80" y="304" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="60" font-weight="800" letter-spacing="-2">Keep task semantics intact.</text>
-  <text x="82" y="360" fill="#9bb4ab" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="25">Atomic planning · safe concurrency · live progress · measured savings</text>
-  <rect x="80" y="408" width="1120" height="142" rx="22" fill="#0b1714" stroke="#27433a"/>
+  <g fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"><path d="M80 82h30l16 16h28"/><path d="M80 102h30l16-4h28"/><path d="M80 122h30l16-24h28"/></g>
+  <g fill="#07100e" stroke="#65e6b4" stroke-width="5"><circle cx="80" cy="82" r="8"/><circle cx="80" cy="102" r="8"/><circle cx="80" cy="122" r="8"/><circle cx="154" cy="98" r="9"/></g>
+  <text x="184" y="116" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="46" font-weight="850" letter-spacing="-1">AtomLane</text>
+  <text x="80" y="205" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="820" letter-spacing="-2">Parallelize only what</text>
+  <text x="80" y="270" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="820" letter-spacing="-2">is proven safe.</text>
+  <text x="82" y="326" fill="#9bb4ab" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="24">Atomic plans · typed effects · live progress · honest savings</text>
+  <text x="1035" y="105" fill="#65e6b4" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18" font-weight="700" text-anchor="end" letter-spacing="2">CODEX · MACOS</text>
+  <rect x="80" y="370" width="1120" height="180" rx="22" fill="#0b1714" stroke="#27433a"/>
   <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
-    <text x="112" y="451" fill="#809a90" font-size="18">CONTROLLED 5+ MIN BENCHMARK</text>
-    <text x="112" y="510" fill="#ecf8f3" font-size="42" font-weight="800">{html.escape(serial)}</text><text x="112" y="536" fill="#809a90" font-size="16">serial equivalent</text>
-    <text x="398" y="510" fill="#65e6b4" font-size="42" font-weight="800">{html.escape(parallel)}</text><text x="398" y="536" fill="#809a90" font-size="16">parallel wall</text>
-    <text x="675" y="510" fill="#80b7ff" font-size="42" font-weight="800">{html.escape(saved)}</text><text x="675" y="536" fill="#809a90" font-size="16">time saved</text>
-    <text x="965" y="510" fill="#d7a6ff" font-size="42" font-weight="800">{speedup}</text><text x="965" y="536" fill="#809a90" font-size="16">observed speedup</text>
+    <text x="112" y="413" fill="#809a90" font-size="17">CONTROLLED 5+ MIN BENCHMARK · 4 VERIFIED LANES</text>
+    <text x="112" y="494" fill="#ecf8f3" font-size="42" font-weight="800">{html.escape(serial)}</text><text x="112" y="523" fill="#809a90" font-size="16">serial equivalent</text>
+    <text x="398" y="494" fill="#65e6b4" font-size="42" font-weight="800">{html.escape(parallel)}</text><text x="398" y="523" fill="#809a90" font-size="16">parallel wall</text>
+    <text x="675" y="494" fill="#80b7ff" font-size="42" font-weight="800">{html.escape(saved)}</text><text x="675" y="523" fill="#809a90" font-size="16">time saved</text>
+    <text x="965" y="494" fill="#d7a6ff" font-size="42" font-weight="800">{speedup}</text><text x="965" y="523" fill="#809a90" font-size="16">observed speedup</text>
   </g>
   <text x="80" y="596" fill="#718b81" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">github.com/cloudguo123/mac-parallel-accelerator</text>
 </svg>
@@ -61,7 +65,9 @@ def social_svg(data: dict[str, Any]) -> str:
 
 def listing_logo_svg() -> str:
     """Return the square marketplace logo used by plugin directories."""
-    return """<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+    return """<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">AtomLane</title>
+  <desc id="desc">Four atomic task lanes merge into verified parallel execution.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07100e"/><stop offset="1" stop-color="#10261f"/></linearGradient>
     <linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="208" y1="286" x2="816" y2="626"><stop stop-color="#65e6b4"/><stop offset="1" stop-color="#80b7ff"/></linearGradient>
@@ -69,17 +75,18 @@ def listing_logo_svg() -> str:
   </defs>
   <rect width="1024" height="1024" rx="192" fill="url(#bg)"/>
   <circle cx="790" cy="180" r="360" fill="url(#glow)"/>
-  <g fill="none" stroke="url(#accent)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M208 286h174c54 0 80 46 130 46h304"/>
-    <path d="M208 456h174c54 0 80-46 130-46h304"/>
-    <path d="M208 626h608"/>
+  <g fill="none" stroke="url(#accent)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M190 236h170c64 0 88 104 164 104h310"/>
+    <path d="M190 376h170c64 0 88 44 164 44h310"/>
+    <path d="M190 516h170c64 0 88-16 164-16h310"/>
+    <path d="M190 656h170c64 0 88-76 164-76h310"/>
   </g>
   <g fill="#07100e" stroke="#65e6b4" stroke-width="20">
-    <circle cx="208" cy="286" r="32"/><circle cx="208" cy="456" r="32"/><circle cx="208" cy="626" r="32"/>
-    <circle cx="816" cy="332" r="32"/><circle cx="816" cy="410" r="32"/><circle cx="816" cy="626" r="32"/>
+    <circle cx="190" cy="236" r="30"/><circle cx="190" cy="376" r="30"/><circle cx="190" cy="516" r="30"/><circle cx="190" cy="656" r="30"/>
+    <circle cx="834" cy="340" r="30"/><circle cx="834" cy="420" r="30"/><circle cx="834" cy="500" r="30"/><circle cx="834" cy="580" r="30"/>
   </g>
-  <text x="512" y="790" text-anchor="middle" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="150" font-weight="850" letter-spacing="16">MPA</text>
-  <text x="512" y="875" text-anchor="middle" fill="#8ea79e" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="34" font-weight="700" letter-spacing="9">SAFE PARALLELISM</text>
+  <text x="512" y="800" text-anchor="middle" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="118" font-weight="850" letter-spacing="7">ATOMLANE</text>
+  <text x="512" y="882" text-anchor="middle" fill="#8ea79e" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="28" font-weight="700" letter-spacing="5">PROVEN-SAFE PARALLELISM</text>
 </svg>
 """
 
@@ -110,7 +117,7 @@ def demo_frame(data: dict[str, Any], index: int, total: int) -> str:
   <rect width="1200" height="675" fill="url(#bg)"/>
   <rect x="55" y="55" width="1090" height="565" rx="22" fill="#0b1714" stroke="#27433a"/>
   <circle cx="91" cy="92" r="7" fill="#ff756d"/><circle cx="116" cy="92" r="7" fill="#f5c451"/><circle cx="141" cy="92" r="7" fill="#65e6b4"/>
-  <text x="180" y="101" fill="#769087" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="16">MAC PARALLEL ACCELERATOR · LIVE EXECUTION</text>
+  <text x="180" y="101" fill="#769087" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="16">ATOMLANE · LIVE EXECUTION</text>
   <text x="95" y="176" fill="{state_color}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="21" font-weight="700">● {state}</text>
   <text x="95" y="228" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="32" font-weight="750">elapsed {seconds(elapsed)}   running {running}   ready {ready}   completed {completed}   failed 0</text>
   {''.join(bars)}
@@ -126,7 +133,7 @@ def write_share_outputs(data: dict[str, Any], output_dir: pathlib.Path) -> None:
     cumulative = data["cumulative"]
     share = {
         "schema_version": "1.0",
-        "project": "Mac Parallel Accelerator",
+        "project": "AtomLane",
         "source": "controlled-duration low-load benchmark",
         "run_id": latest["run_id"],
         "generated_at": latest["generated_at"],
@@ -143,14 +150,14 @@ def write_share_outputs(data: dict[str, Any], output_dir: pathlib.Path) -> None:
     (output_dir / "latest.json").write_text(
         json.dumps(share, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    markdown = f"""# Mac Parallel Accelerator benchmark
+    markdown = f"""# AtomLane benchmark
 
 ⚡ **{seconds(share['parallel_wall_seconds'])} parallel wall time** vs **{seconds(share['serial_equivalent_seconds'])} serial equivalent** — **{seconds(share['time_saved_seconds'])} saved ({share['speedup_multiplier']:.2f}×)**.
 
 This is a controlled low-load run with four independent workloads. The serial equivalent is the sum of observed task runtimes; the tasks were not rerun serially. [Inspect the live report]({share['report_url']}) and [raw evidence]({share['report_url']}benchmark-results.json).
 
 ```markdown
-[![Mac Parallel Accelerator benchmark](https://img.shields.io/badge/MPA-{share['speedup_multiplier']:.2f}x%20observed-65e6b4)]({share['report_url']})
+[![AtomLane benchmark](https://img.shields.io/badge/AtomLane-{share['speedup_multiplier']:.2f}x%20observed-65e6b4)]({share['report_url']})
 ```
 """
     (output_dir / "latest.md").write_text(markdown, encoding="utf-8")

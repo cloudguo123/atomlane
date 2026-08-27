@@ -293,7 +293,7 @@ def build_report() -> dict[str, Any]:
     bundle = ROOT / "assets" / "parallel-indicator-host.bundle.js"
     return {
         "schema_version": "1.0",
-        "project": "Mac Parallel Accelerator",
+        "project": "AtomLane",
         "version": json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())["version"],
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "overall": overall,
@@ -344,23 +344,23 @@ def render_html(report: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Verified tests, a five-minute benchmark, live progress, and public adoption signals for Mac Parallel Accelerator.">
+  <meta name="description" content="Verified tests, a five-minute benchmark, live progress, and public adoption signals for AtomLane.">
   <meta name="theme-color" content="#07100e">
   <link rel="canonical" href="https://cloudguo123.github.io/mac-parallel-accelerator/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Mac Parallel Accelerator · Verified test report">
-  <meta property="og:description" content="Safe atomic concurrency for Codex on macOS: 44 verified tests and a reproducible five-minute benchmark.">
+  <meta property="og:title" content="AtomLane · Verified test report">
+  <meta property="og:description" content="Parallelize only what is proven safe: 44 verified tests and a reproducible five-minute benchmark.">
   <meta property="og:url" content="https://cloudguo123.github.io/mac-parallel-accelerator/">
   <meta property="og:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="Mac Parallel Accelerator benchmark: 20 minutes 41 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 31 seconds saved">
+  <meta property="og:image:alt" content="AtomLane benchmark: 20 minutes 41 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 31 seconds saved">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Mac Parallel Accelerator · Verified test report">
-  <meta name="twitter:description" content="Safe atomic concurrency for Codex on macOS, with live progress and honest savings evidence.">
+  <meta name="twitter:title" content="AtomLane · Verified test report">
+  <meta name="twitter:description" content="Parallelize only what is proven safe, with live progress and honest savings evidence.">
   <meta name="twitter:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
-  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/mac-parallel-accelerator","url":"https://cloudguo123.github.io/mac-parallel-accelerator/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
-  <title>Mac Parallel Accelerator · Test Report</title>
+  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AtomLane","alternateName":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/mac-parallel-accelerator","url":"https://cloudguo123.github.io/mac-parallel-accelerator/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
+  <title>AtomLane · Test Report</title>
   <style>
     :root {{ color-scheme: dark; --bg:#07100e; --panel:#0c1815; --panel2:#10201c; --line:#20352f; --text:#ecf8f3; --muted:#8ba69c; --green:#65e6b4; --blue:#80b7ff; --purple:#d7a6ff; --red:#ff8f8f; }}
     * {{ box-sizing:border-box }}
@@ -410,9 +410,9 @@ def render_html(report: dict[str, Any]) -> str:
 </head>
 <body>
 <main class="wrap">
-  <nav class="nav"><div class="brand">MPA / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
+  <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">Release verification · v<span id="version"></span></div><h1>Finish local work faster. Keep semantics intact.</h1><p class="lede">A Codex plugin for safe atomic concurrency on macOS—with visible progress, verifiable execution, and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
+    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane compiles local work into verified atomic plans, then runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>

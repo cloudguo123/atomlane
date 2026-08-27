@@ -14,7 +14,7 @@ import mcp_server
 
 
 def _arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Stream Mac Parallel Accelerator progress")
+    parser = argparse.ArgumentParser(description="Stream AtomLane progress")
     parser.add_argument("--mode", choices=("exec", "map", "dag", "atomic"), default="exec")
     parser.add_argument("--input", required=True, help="Path to a JSON object containing tool arguments")
     return parser.parse_args()

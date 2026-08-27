@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "mac-parallel-accelerator",
-  "version": "0.9.4",
-  "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
+  "version": "0.10.0",
+  "description": "AtomLane compiles local work into semantics-preserving atomic plans and executes proven-safe concurrency for Codex on macOS.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"

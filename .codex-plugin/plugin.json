@@ -1,7 +1,7 @@
 {
   "name": "mac-parallel-accelerator",
-  "version": "0.9.4",
-  "description": "Semantics-preserving atomic workload compilation and Apple-silicon-adaptive local execution for Codex on macOS.",
+  "version": "0.10.0",
+  "description": "AtomLane compiles local work into semantics-preserving atomic plans and executes proven-safe concurrency for Codex on macOS.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"
@@ -21,9 +21,9 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Mac Parallel Accelerator",
-    "shortDescription": "Atomic, semantics-safe acceleration for every Mac",
-    "longDescription": "Compiles shell, package, Make, Compose, test, build, and declared task entrypoints into immutable hashed atomic plans; preserves typed control flow and effects; fails closed on unknown hazards; delegates concurrency to native owners when safer; detects each Mac's Apple silicon resources; and executes the exact verified plan with live progress and measured or clearly labeled estimated savings.",
+    "displayName": "AtomLane",
+    "shortDescription": "Proven-safe parallel execution for coding agents",
+    "longDescription": "AtomLane compiles shell, package, Make, Compose, test, build, and declared task entrypoints into immutable hashed atomic plans. It preserves typed control flow and effects, fails closed on unknown hazards, delegates concurrency to native owners when safer, adapts to Apple silicon resources, and executes the exact verified plan with live progress and honestly labeled time savings.",
     "developerName": "cloudguo123",
     "category": "Productivity",
     "capabilities": [
@@ -39,7 +39,7 @@
       "Resource awareness",
       "Apple silicon routing"
     ],
-    "brandColor": "#2563EB",
+    "brandColor": "#65E6B4",
     "composerIcon": "./assets/growth/listing-logo.svg",
     "websiteURL": "https://cloudguo123.github.io/mac-parallel-accelerator/",
     "privacyPolicyURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/PRIVACY.md",
@@ -49,12 +49,9 @@
       "./assets/growth/social-preview.png"
     ],
     "defaultPrompt": [
-      "Use $accelerate-local-work to compile this workload and execute the exact verified atomic plan.",
-      "Preserve the task's control flow while discovering safe atomic concurrency.",
-      "Analyze this Make, Compose, package, test, or build entrypoint without guessing unknown effects.",
-      "Profile this project and recommend scenario-specific acceleration goals.",
-      "Choose the best Apple silicon accelerator for this workload.",
-      "Run this task with live progress, per-run time saved, and cumulative savings."
+      "Use $accelerate-local-work to run only the concurrency proven safe for this project.",
+      "Use $accelerate-local-work to accelerate this build, test, Docker, or research workflow.",
+      "Use $accelerate-local-work with live progress and per-run plus cumulative time savings."
     ]
   },
   "mcpServers": "./.mcp.json"

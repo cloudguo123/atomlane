@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 message: If this software helps your research or engineering workflow, please cite the repository and release.
-title: Mac Parallel Accelerator
+title: AtomLane
 type: software
 authors:
   - family-names: cloudguo123
-version: 0.9.4
+version: 0.10.0
 date-released: 2026-08-26
 license: MIT
 repository-code: https://github.com/cloudguo123/mac-parallel-accelerator

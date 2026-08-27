@@ -1,6 +1,6 @@
-# Mac Parallel Accelerator 0.9
+# AtomLane 0.10
 
-Mac Parallel Accelerator compiles structured local work into an immutable,
+AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
 the current Mac's resource envelope. It combines conservative effect analysis,
 typed dependencies, native concurrency delegation, Apple-silicon routing,
@@ -270,6 +270,7 @@ Completion reports:
 A supplied `serial_baseline_seconds` supports a measured comparison. Otherwise
 the estimate uses observed non-skipped atom durations and never reruns commands
 merely to benchmark them. Completed invocations atomically update
+the legacy-compatible path
 `~/Library/Application Support/Codex/Mac Parallel Accelerator/stats.json`;
 tests override this path.
 

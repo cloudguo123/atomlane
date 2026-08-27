@@ -1,6 +1,10 @@
-# Mac Parallel Accelerator
+# AtomLane
 
-**Make Codex finish builds, tests, Docker, and research pipelines faster on macOS—without breaking task semantics.**
+**Parallelize only what is proven safe.**
+
+Safe parallel execution for coding agents: AtomLane makes Codex finish builds,
+tests, Docker, and research pipelines faster on macOS without breaking task
+semantics.
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
@@ -11,7 +15,7 @@
 
 [中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/mac-parallel-accelerator/) · [Report first run](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
 
-![Mac Parallel Accelerator: controlled benchmark showing 20m41s serial equivalent, 5m10s parallel wall time, and 15m31s saved](assets/growth/social-preview.svg)
+![AtomLane: controlled benchmark showing 20m41s serial equivalent, 5m10s parallel wall time, and 15m31s saved](assets/growth/social-preview.svg)
 
 ## Install in two commands
 
@@ -19,6 +23,9 @@
 codex plugin marketplace add cloudguo123/mac-parallel-accelerator
 codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 ```
+
+`mac-parallel-accelerator` remains the technical plugin ID during the AtomLane
+brand migration, so existing installs and links keep working.
 
 Open a new Codex task, then ask:
 
@@ -38,7 +45,7 @@ continue to use `.codex-plugin/plugin.json` and `.mcp.json`.
 
 Most “parallel” wrappers split command text and hope for the best. That can reorder `&&`/`||`, race `.next`, JUnit, database, Docker volume, or Git state, multiply nested worker pools, and hide failures until the end.
 
-Mac Parallel Accelerator first compiles the requested work into a typed Atom IR. Only atoms proven independent are admitted concurrently. Unknown effects, ambiguous writers, stale source snapshots, unsupported lifecycle events, and changed plans fail closed.
+AtomLane first compiles the requested work into a typed Atom IR. Only atoms proven independent are admitted concurrently. Unknown effects, ambiguous writers, stale source snapshots, unsupported lifecycle events, and changed plans fail closed.
 
 ```text
 shell · package scripts · Make · Compose · tests · builds · declared work
@@ -137,6 +144,7 @@ Useful references:
 - [Architecture and safety invariants](DESIGN.md)
 - [Atom IR reference](skills/accelerate-local-work/references/atom-ir.md)
 - [Benchmark and external-result protocol](BENCHMARKING.md)
+- [Brand and compatibility guide](BRAND.md)
 - [Contributing](CONTRIBUTING.md)
 - [Release history](CHANGELOG.md)
 

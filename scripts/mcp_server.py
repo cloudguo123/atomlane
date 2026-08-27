@@ -39,7 +39,7 @@ from atom_engine import (
 from atom_frontends import compile_entrypoints
 
 SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.9.4"
+SERVER_VERSION = "0.10.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"
@@ -105,7 +105,7 @@ def _indicator_resource() -> dict[str, Any]:
     return {
         "uri": INDICATOR_RESOURCE_URI,
         "name": "mac_parallel_accelerator_indicator",
-        "title": "Mac Parallel Accelerator 指示器",
+        "title": "AtomLane 实时执行指示器",
         "description": "并行执行状态与加速倍数卡片。",
         "mimeType": INDICATOR_MIME_TYPE,
         "_meta": _indicator_resource_meta(),

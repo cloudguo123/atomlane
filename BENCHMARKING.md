@@ -1,6 +1,6 @@
 # Benchmarking and external results
 
-Mac Parallel Accelerator reports two different kinds of evidence. Keep them separate:
+AtomLane reports two different kinds of evidence. Keep them separate:
 
 - **Controlled scheduler benchmark:** isolated workloads with known independence, useful for measuring scheduler overhead, live reporting, and savings arithmetic.
 - **Project benchmark:** a real project command or workflow, useful for measuring practical benefit and discovering safety blockers.

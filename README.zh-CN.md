@@ -1,6 +1,9 @@
-# Mac Parallel Accelerator
+# AtomLane
 
-**让 Codex 在 macOS 上更快完成构建、测试、Docker 和科研流水线，同时不破坏任务语义。**
+**只并行已证明安全的任务。**
+
+AtomLane 是面向 AI 编程代理的安全并行执行引擎：让 Codex 在不破坏任务
+语义的前提下，更快完成 Mac 上的构建、测试、Docker 和科研流水线。
 
 [![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
@@ -9,7 +12,7 @@
 
 [English](README.md) · [在线报告](https://cloudguo123.github.io/mac-parallel-accelerator/) · [反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
 
-![Mac Parallel Accelerator：受控基准测试，串行等效 20 分 41 秒，并行实际 5 分 10 秒，节约 15 分 31 秒](assets/growth/social-preview.svg)
+![AtomLane：受控基准测试，串行等效 20 分 41 秒，并行实际 5 分 10 秒，节约 15 分 31 秒](assets/growth/social-preview.svg)
 
 ## 两条命令安装
 
@@ -17,6 +20,9 @@
 codex plugin marketplace add cloudguo123/mac-parallel-accelerator
 codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 ```
+
+品牌迁移期间继续保留 `mac-parallel-accelerator` 这个技术插件 ID，因此旧安装、
+命令和链接仍然可用。
 
 安装后新建一个 Codex 任务，然后直接说：
 
@@ -35,7 +41,7 @@ Codex 原生客户端仍使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。
 
 普通的“并行执行”经常只是拆分命令文本，容易改写 `&&` / `||` 的控制流，争用 `.next`、JUnit、数据库、Docker 卷或 Git 状态，叠加内部线程池，并且执行过程中只看到空白等待。
 
-本插件先把任务编译成带类型的 Atom IR，再判断哪些原子任务可以同时运行。未知副作用、多写入者、过期源快照、不支持的服务生命周期和被篡改的计划都会拒绝执行，而不是猜测。
+AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务可以同时运行。未知副作用、多写入者、过期源快照、不支持的服务生命周期和被篡改的计划都会拒绝执行，而不是猜测。
 
 ## 典型场景
 
@@ -97,6 +103,6 @@ atomic_task_plan
 
 请先在一个真实任务上试用，再提交脱敏后的实测结果。即使没有加速、而是被安全规则拦住，也很有价值——它能告诉我们下一条需要补齐的语义规则。
 
-[反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [贡献代码](CONTRIBUTING.md)
+[反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [品牌规范](BRAND.md) · [贡献代码](CONTRIBUTING.md)
 
 [MIT 许可](LICENSE) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)

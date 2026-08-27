@@ -2,11 +2,11 @@
 
 ## Title
 
-Show HN: A semantics-preserving parallel task compiler for Codex on macOS
+Show HN: AtomLane – Parallelize only what is proven safe
 
 ## Text
 
-Mac Parallel Accelerator is an MIT-licensed Codex plugin for safely shortening local build, test, Docker, research, and batch workflows.
+AtomLane is an MIT-licensed Codex plugin for safely shortening local build, test, Docker, research, and batch workflows.
 
 The main idea is to treat concurrency planning as compilation instead of splitting command strings. Supported entrypoints are lowered to a typed Atom IR containing control edges, artifact access, non-file effects, lifecycle events, capacity claims, and source snapshots. The executor accepts only the exact compiled plan and hash; unknown effects and unsupported lifecycle contracts fail closed.
 

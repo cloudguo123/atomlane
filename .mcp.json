@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "mac-parallel-accelerator": {
-      "title": "Mac Parallel Accelerator",
-      "description": "In-task, scenario-aware, resource-adaptive local acceleration and parallel command execution for macOS.",
+      "title": "AtomLane",
+      "description": "Proven-safe, scenario-aware, resource-adaptive local parallel execution for coding agents on macOS.",
       "command": "python3",
       "args": [
         "./scripts/mcp_server.py"

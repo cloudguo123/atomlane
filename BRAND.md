@@ -11,9 +11,9 @@
   effects, resources, and authorization boundaries.
 
 Use `AtomLane` with a capital `A` and `L`. Do not abbreviate the public brand
-to MPA. The repository slug, plugin ID, MCP server key, environment variables,
-event names, and legacy statistics directory may continue to use
-`mac-parallel-accelerator` during the compatibility window.
+to MPA. The public repository slug is `atomlane`. The plugin ID, MCP server
+key, environment variables, event names, and legacy statistics directory may
+continue to use `mac-parallel-accelerator` during the compatibility window.
 
 ## Message hierarchy
 
@@ -52,7 +52,7 @@ installation routes:
 Brand:          AtomLane
 Skill:          $accelerate-local-work
 Plugin ID:      mac-parallel-accelerator
-Repository:     cloudguo123/mac-parallel-accelerator
+Repository:     cloudguo123/atomlane
 MCP server key: mac-parallel-accelerator
 ```
 

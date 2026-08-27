@@ -39,7 +39,7 @@ from atom_engine import (
 from atom_frontends import compile_entrypoints
 
 SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.10.0"
+SERVER_VERSION = "0.10.1"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"

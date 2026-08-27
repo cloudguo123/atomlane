@@ -310,7 +310,7 @@ def build_report() -> dict[str, Any]:
             "commit": git_value("rev-parse", "HEAD"),
             "commit_short": git_value("rev-parse", "--short=10", "HEAD"),
             "branch": os.environ.get("GITHUB_REF_NAME") or git_value("branch", "--show-current"),
-            "repository": "cloudguo123/mac-parallel-accelerator",
+            "repository": "cloudguo123/atomlane",
         },
         "environment": {
             "os": f"{platform.system()} {platform.release()}",
@@ -346,20 +346,20 @@ def render_html(report: dict[str, Any]) -> str:
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Verified tests, a five-minute benchmark, live progress, and public adoption signals for AtomLane.">
   <meta name="theme-color" content="#07100e">
-  <link rel="canonical" href="https://cloudguo123.github.io/mac-parallel-accelerator/">
+  <link rel="canonical" href="https://cloudguo123.github.io/atomlane/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="AtomLane · Verified test report">
   <meta property="og:description" content="Parallelize only what is proven safe: 44 verified tests and a reproducible five-minute benchmark.">
-  <meta property="og:url" content="https://cloudguo123.github.io/mac-parallel-accelerator/">
-  <meta property="og:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
+  <meta property="og:url" content="https://cloudguo123.github.io/atomlane/">
+  <meta property="og:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
   <meta property="og:image:alt" content="AtomLane benchmark: 20 minutes 41 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 31 seconds saved">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="AtomLane · Verified test report">
   <meta name="twitter:description" content="Parallelize only what is proven safe, with live progress and honest savings evidence.">
-  <meta name="twitter:image" content="https://cloudguo123.github.io/mac-parallel-accelerator/share/social-preview.png">
-  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AtomLane","alternateName":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/mac-parallel-accelerator","url":"https://cloudguo123.github.io/mac-parallel-accelerator/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
+  <meta name="twitter:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
+  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AtomLane","alternateName":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/atomlane","url":"https://cloudguo123.github.io/atomlane/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
   <title>AtomLane · Test Report</title>
   <style>
     :root {{ color-scheme: dark; --bg:#07100e; --panel:#0c1815; --panel2:#10201c; --line:#20352f; --text:#ecf8f3; --muted:#8ba69c; --green:#65e6b4; --blue:#80b7ff; --purple:#d7a6ff; --red:#ff8f8f; }}
@@ -410,9 +410,9 @@ def render_html(report: dict[str, Any]) -> str:
 </head>
 <body>
 <main class="wrap">
-  <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/mac-parallel-accelerator">Source</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/mac-parallel-accelerator/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
+  <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/atomlane">Source</a><a href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/atomlane/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane compiles local work into verified atomic plans, then runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
+    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane compiles local work into verified atomic plans, then runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>

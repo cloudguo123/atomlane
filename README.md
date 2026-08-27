@@ -6,21 +6,21 @@ Safe parallel execution for coding agents: AtomLane makes Codex finish builds,
 tests, Docker, and research pipelines faster on macOS without breaking task
 semantics.
 
-[![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
-[![Five-minute benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
-[![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
+[![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
+[![Five-minute benchmark](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
+[![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Discussions](https://img.shields.io/github/discussions/cloudguo123/mac-parallel-accelerator?color=80b7ff)](https://github.com/cloudguo123/mac-parallel-accelerator/discussions)
+[![Discussions](https://img.shields.io/github/discussions/cloudguo123/atomlane?color=80b7ff)](https://github.com/cloudguo123/atomlane/discussions)
 
-[中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/mac-parallel-accelerator/) · [Report first run](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
+[中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/atomlane/) · [Report first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
 ![AtomLane: controlled benchmark showing 20m41s serial equivalent, 5m10s parallel wall time, and 15m31s saved](assets/growth/social-preview.svg)
 
 ## Install in two commands
 
 ```bash
-codex plugin marketplace add cloudguo123/mac-parallel-accelerator
+codex plugin marketplace add cloudguo123/atomlane
 codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 ```
 
@@ -97,7 +97,7 @@ The retained public run executed four isolated low-load workloads through the re
 | Observed speedup | **4.00×** |
 | Parallel efficiency | **100.0%** |
 
-The serial equivalent is the sum of the observed independent task runtimes; it is not a separately executed serial run. This demonstrates scheduler overhead and reporting behavior under controlled independent work, not a universal claim that every project will be 4× faster. See the [visual report](https://cloudguo123.github.io/mac-parallel-accelerator/), [raw evidence](https://cloudguo123.github.io/mac-parallel-accelerator/benchmark-results.json), and [benchmark protocol](BENCHMARKING.md).
+The serial equivalent is the sum of the observed independent task runtimes; it is not a separately executed serial run. This demonstrates scheduler overhead and reporting behavior under controlled independent work, not a universal claim that every project will be 4× faster. See the [visual report](https://cloudguo123.github.io/atomlane/), [raw evidence](https://cloudguo123.github.io/atomlane/benchmark-results.json), and [benchmark protocol](BENCHMARKING.md).
 
 ## Execution contract
 
@@ -152,6 +152,6 @@ Useful references:
 
 Try it on one real task, then share the sanitized result card or submit a benchmark. If the planner blocks work that should be safe, that report is just as valuable as a speedup—it identifies the next missing semantic rule.
 
-[Report your first run](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [Open a benchmark report](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [View the roadmap](ROADMAP.md)
+[Report your first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Open a benchmark report](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/atomlane/discussions) · [View the roadmap](ROADMAP.md)
 
 [MIT licensed](LICENSE) · [Privacy](PRIVACY.md) · [Terms](TERMS.md)

@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## 0.10.1 - 2026-08-27
+
+- Renamed the public GitHub repository from `mac-parallel-accelerator` to
+  `atomlane` and migrated source, Pages, installation, badge, support, launch,
+  citation, and generated-report URLs to the new canonical location.
+- Preserved the `mac-parallel-accelerator` plugin ID, marketplace name, MCP
+  key, event names, environment variables, and statistics directory so current
+  installations continue to work while GitHub redirects legacy repository URLs.
+
 ## 0.10.0 - 2026-08-27
 
 - Rebranded the public product as AtomLane with the promise “Parallelize only

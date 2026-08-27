@@ -36,13 +36,13 @@ Built iteratively with Codex: started from live parallel command execution, then
 
 ### Project details
 
-- Repository: https://github.com/cloudguo123/mac-parallel-accelerator
-- Hosted evidence: https://cloudguo123.github.io/mac-parallel-accelerator/
-- Setup: macOS with Python 3.10+. Run `codex plugin marketplace add cloudguo123/mac-parallel-accelerator`, then `codex plugin add mac-parallel-accelerator@mac-parallel-accelerator`. Open a new Codex task and ask it to inspect a build, test, Docker, or research workflow for safe parallelism. Full verification steps are in the README.
+- Repository: https://github.com/cloudguo123/atomlane
+- Hosted evidence: https://cloudguo123.github.io/atomlane/
+- Setup: macOS with Python 3.10+. Run `codex plugin marketplace add cloudguo123/atomlane`, then `codex plugin add mac-parallel-accelerator@mac-parallel-accelerator`. Open a new Codex task and ask it to inspect a build, test, Docker, or research workflow for safe parallelism. Full verification steps are in the README.
 - Display title: AtomLane — Safe Parallel Workflows
 - Tagline: Parallelize only what is proven safe.
 - Display author: cloudguo123
-- Cover image: https://raw.githubusercontent.com/cloudguo123/mac-parallel-accelerator/main/assets/growth/social-preview.png
+- Cover image: https://raw.githubusercontent.com/cloudguo123/atomlane/main/assets/growth/social-preview.png
 
 ### Project description
 
@@ -58,9 +58,9 @@ The public test dashboard retains a controlled five-minute run: four independent
 
 ## Links
 
-- Source: https://github.com/cloudguo123/mac-parallel-accelerator
-- Live report: https://cloudguo123.github.io/mac-parallel-accelerator/
-- Installation: https://github.com/cloudguo123/mac-parallel-accelerator#install-in-two-commands
+- Source: https://github.com/cloudguo123/atomlane
+- Live report: https://cloudguo123.github.io/atomlane/
+- Installation: https://github.com/cloudguo123/atomlane#install-in-two-commands
 
 ## Open-source status
 

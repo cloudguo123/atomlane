@@ -14,8 +14,8 @@ It delegates parallelism to Make, test runners, compiler drivers, Compose, or Bu
 
 The retained controlled test runs four independent workloads for at least five minutes each. Observed result: 20m41s serial equivalent, 5m10s parallel wall, 15m31s saved, 4.00×. This is evidence for the controlled workload and reporting path, not a universal speedup claim.
 
-Source: https://github.com/cloudguo123/mac-parallel-accelerator
+Source: https://github.com/cloudguo123/atomlane
 
-Report: https://cloudguo123.github.io/mac-parallel-accelerator/
+Report: https://cloudguo123.github.io/atomlane/
 
 I would value criticism of the Atom IR, failure propagation, artifact aliasing, nested worker budgeting, and the boundary between static planning and native delegates.

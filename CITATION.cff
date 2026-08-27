@@ -4,11 +4,11 @@ title: AtomLane
 type: software
 authors:
   - family-names: cloudguo123
-version: 0.10.0
+version: 0.10.1
 date-released: 2026-08-26
 license: MIT
-repository-code: https://github.com/cloudguo123/mac-parallel-accelerator
-url: https://cloudguo123.github.io/mac-parallel-accelerator/
+repository-code: https://github.com/cloudguo123/atomlane
+url: https://cloudguo123.github.io/atomlane/
 keywords:
   - Codex
   - parallel computing

@@ -4,4 +4,4 @@ This directory defines the machine-readable format for real-project results. It 
 
 Accepted results must satisfy [BENCHMARKING.md](../BENCHMARKING.md), validate against `project-result.schema.json`, and include reproducible correctness evidence. Private project content is never required.
 
-Submit a sanitized result through the [benchmark issue form](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml). After review, maintainers add it to `external-results.json` with a link to the public evidence.
+Submit a sanitized result through the [benchmark issue form](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml). After review, maintainers add it to `external-results.json` with a link to the public evidence.

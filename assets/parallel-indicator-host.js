@@ -17,7 +17,7 @@ function publish(name, detail) {
 }
 
 const app = new App(
-  { name: "AtomLane Live Indicator", version: "0.10.0" },
+  { name: "AtomLane Live Indicator", version: "0.10.1" },
   { availableDisplayModes: ["inline"] },
   { autoResize: true },
 );

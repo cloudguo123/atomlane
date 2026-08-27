@@ -23,4 +23,4 @@ This roadmap favors evidence and semantics over raw process count.
 - A portable execution core beyond macOS while retaining platform-specific resource adapters.
 - Privacy-preserving local trend summaries and opt-in community benchmark aggregation.
 
-Votes and design evidence are welcome in [GitHub Discussions](https://github.com/cloudguo123/mac-parallel-accelerator/discussions).
+Votes and design evidence are welcome in [GitHub Discussions](https://github.com/cloudguo123/atomlane/discussions).

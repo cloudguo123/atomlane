@@ -5,19 +5,19 @@
 AtomLane 是面向 AI 编程代理的安全并行执行引擎：让 Codex 在不破坏任务
 语义的前提下，更快完成 Mac 上的构建、测试、Docker 和科研流水线。
 
-[![CI](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/github-code-scanning/codeql)
-[![五分钟基准](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/mac-parallel-accelerator/actions/workflows/long-benchmark.yml)
-[![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/mac-parallel-accelerator/)
+[![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
+[![五分钟基准](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
+[![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
 
-[English](README.md) · [在线报告](https://cloudguo123.github.io/mac-parallel-accelerator/) · [反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml)
+[English](README.md) · [在线报告](https://cloudguo123.github.io/atomlane/) · [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
 ![AtomLane：受控基准测试，串行等效 20 分 41 秒，并行实际 5 分 10 秒，节约 15 分 31 秒](assets/growth/social-preview.svg)
 
 ## 两条命令安装
 
 ```bash
-codex plugin marketplace add cloudguo123/mac-parallel-accelerator
+codex plugin marketplace add cloudguo123/atomlane
 codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 ```
 
@@ -80,7 +80,7 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 | 观测加速比 | **4.00×** |
 | 并行效率 | **100.0%** |
 
-串行等效时间是四个独立任务实测时长之和，并没有为了展示数字再串行重复执行 20 分钟。这个受控测试验证了调度、实时显示和统计开销，不代表所有真实项目都能获得 4 倍加速。请查看[完整可视化报告](https://cloudguo123.github.io/mac-parallel-accelerator/)、[原始 JSON](https://cloudguo123.github.io/mac-parallel-accelerator/benchmark-results.json)和[基准规范](BENCHMARKING.md)。
+串行等效时间是四个独立任务实测时长之和，并没有为了展示数字再串行重复执行 20 分钟。这个受控测试验证了调度、实时显示和统计开销，不代表所有真实项目都能获得 4 倍加速。请查看[完整可视化报告](https://cloudguo123.github.io/atomlane/)、[原始 JSON](https://cloudguo123.github.io/atomlane/benchmark-results.json)和[基准规范](BENCHMARKING.md)。
 
 ## 核心安全契约
 
@@ -103,6 +103,6 @@ atomic_task_plan
 
 请先在一个真实任务上试用，再提交脱敏后的实测结果。即使没有加速、而是被安全规则拦住，也很有价值——它能告诉我们下一条需要补齐的语义规则。
 
-[反馈首次运行](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/mac-parallel-accelerator/discussions) · [查看路线图](ROADMAP.md) · [品牌规范](BRAND.md) · [贡献代码](CONTRIBUTING.md)
+[反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/atomlane/discussions) · [查看路线图](ROADMAP.md) · [品牌规范](BRAND.md) · [贡献代码](CONTRIBUTING.md)
 
 [MIT 许可](LICENSE) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)

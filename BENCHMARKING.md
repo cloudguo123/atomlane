@@ -63,7 +63,7 @@ Important checks:
 3. Run through the live atomic runner.
 4. Verify outputs and collect the sanitized JSON summary.
 5. Repeat under the same cold or warm condition.
-6. Submit the result with the [benchmark issue form](https://github.com/cloudguo123/mac-parallel-accelerator/issues/new?template=benchmark.yml).
+6. Submit the result with the [benchmark issue form](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml).
 
 Negative results are welcome. A safe refusal, a 1.00× result, a resource regression, or an incorrect scenario classification is actionable evidence.
 

@@ -11,7 +11,7 @@ class ReportRenderingTests(unittest.TestCase):
             {
                 "overall": "passed",
                 "generated_at": "2026-08-26T00:00:00+00:00",
-                "version": "0.10.0",
+                "version": "0.10.1",
             }
         )
         self.assertIn('property="og:image"', rendered)

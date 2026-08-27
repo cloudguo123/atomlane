@@ -25,13 +25,13 @@ requirements and must not be used to imply remote hosting.
 - Name: AtomLane
 - Category: Productivity
 - Short description: Parallelize only what is proven safe—with live progress and measured savings.
-- Website: https://cloudguo123.github.io/mac-parallel-accelerator/
-- Source: https://github.com/cloudguo123/mac-parallel-accelerator
-- Support: https://github.com/cloudguo123/mac-parallel-accelerator/discussions
-- Privacy: https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/PRIVACY.md
-- Terms: https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/TERMS.md
-- Logo: https://raw.githubusercontent.com/cloudguo123/mac-parallel-accelerator/main/assets/growth/listing-logo.png
-- Screenshot: https://raw.githubusercontent.com/cloudguo123/mac-parallel-accelerator/main/assets/growth/social-preview.png
+- Website: https://cloudguo123.github.io/atomlane/
+- Source: https://github.com/cloudguo123/atomlane
+- Support: https://github.com/cloudguo123/atomlane/discussions
+- Privacy: https://github.com/cloudguo123/atomlane/blob/main/PRIVACY.md
+- Terms: https://github.com/cloudguo123/atomlane/blob/main/TERMS.md
+- Logo: https://raw.githubusercontent.com/cloudguo123/atomlane/main/assets/growth/listing-logo.png
+- Screenshot: https://raw.githubusercontent.com/cloudguo123/atomlane/main/assets/growth/social-preview.png
 - Developer identity: `[verified publisher selection required]`
 - Availability: `[publisher decision required]`
 

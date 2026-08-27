@@ -14,9 +14,9 @@ AtomLane 的做法更像一个小编译器：先把支持的 shell、package scr
 
 公开保留的一次受控测试让四个独立低负载任务各跑 5 分钟以上：串行等效 20分41秒，并行实际 5分10秒，节约 15分31秒，观测加速 4.00 倍。串行等效是独立任务实测时长之和，不是又重复跑了一次 20 分钟串行；这也不是“所有项目都能 4 倍”的宣传。
 
-项目地址：https://github.com/cloudguo123/mac-parallel-accelerator
+项目地址：https://github.com/cloudguo123/atomlane
 
-可视化报告：https://cloudguo123.github.io/mac-parallel-accelerator/
+可视化报告：https://cloudguo123.github.io/atomlane/
 
 现在最需要的是真实项目脱敏反馈，尤其是 Web 质量门禁、Docker/Compose 健康检查 DAG、科研/论文流水线。没有加速、变慢、或者被正确拦住的结果同样欢迎。
 

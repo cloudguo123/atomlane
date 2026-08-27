@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Every honest result helps. Read [BENCHMARKING.md](https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/BENCHMARKING.md) first. Do not disclose private source, prompts, command bodies, paths, logs, or environment values.
+        Every honest result helps. Read [BENCHMARKING.md](https://github.com/cloudguo123/atomlane/blob/main/BENCHMARKING.md) first. Do not disclose private source, prompts, command bodies, paths, logs, or environment values.
   - type: input
     id: version
     attributes:

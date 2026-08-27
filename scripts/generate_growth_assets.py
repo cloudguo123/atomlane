@@ -58,7 +58,7 @@ def social_svg(data: dict[str, Any]) -> str:
     <text x="675" y="494" fill="#80b7ff" font-size="42" font-weight="800">{html.escape(saved)}</text><text x="675" y="523" fill="#809a90" font-size="16">time saved</text>
     <text x="965" y="494" fill="#d7a6ff" font-size="42" font-weight="800">{speedup}</text><text x="965" y="523" fill="#809a90" font-size="16">observed speedup</text>
   </g>
-  <text x="80" y="596" fill="#718b81" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">github.com/cloudguo123/mac-parallel-accelerator</text>
+  <text x="80" y="596" fill="#718b81" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">github.com/cloudguo123/atomlane</text>
 </svg>
 """
 
@@ -143,7 +143,7 @@ def write_share_outputs(data: dict[str, Any], output_dir: pathlib.Path) -> None:
         "speedup_multiplier": latest["savings"]["speedup_multiplier"],
         "cumulative_saved_seconds": cumulative["saved_seconds"],
         "method_note": latest["serial_equivalent"]["method"],
-        "report_url": "https://cloudguo123.github.io/mac-parallel-accelerator/",
+        "report_url": "https://cloudguo123.github.io/atomlane/",
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "social-preview.svg").write_text(social_svg(data), encoding="utf-8")

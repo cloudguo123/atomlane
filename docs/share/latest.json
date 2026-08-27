@@ -10,5 +10,5 @@
   "speedup_multiplier": 3.9998,
   "cumulative_saved_seconds": 930.502085,
   "method_note": "sum of observed task runtimes; tasks are independent and are not rerun serially",
-  "report_url": "https://cloudguo123.github.io/mac-parallel-accelerator/"
+  "report_url": "https://cloudguo123.github.io/atomlane/"
 }

@@ -23,5 +23,5 @@
     <text x="675" y="494" fill="#80b7ff" font-size="42" font-weight="800">15m 31s</text><text x="675" y="523" fill="#809a90" font-size="16">time saved</text>
     <text x="965" y="494" fill="#d7a6ff" font-size="42" font-weight="800">4.00×</text><text x="965" y="523" fill="#809a90" font-size="16">observed speedup</text>
   </g>
-  <text x="80" y="596" fill="#718b81" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">github.com/cloudguo123/mac-parallel-accelerator</text>
+  <text x="80" y="596" fill="#718b81" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18">github.com/cloudguo123/atomlane</text>
 </svg>

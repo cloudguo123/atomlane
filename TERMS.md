@@ -36,8 +36,8 @@ handling, or charges.
 ## Support and changes
 
 Community support is provided on a best-effort basis through the repository's
-[issues](https://github.com/cloudguo123/mac-parallel-accelerator/issues) and
-[discussions](https://github.com/cloudguo123/mac-parallel-accelerator/discussions).
+[issues](https://github.com/cloudguo123/atomlane/issues) and
+[discussions](https://github.com/cloudguo123/atomlane/discussions).
 Material changes to these terms will be recorded in the repository history.
 
 Privacy details are documented in [PRIVACY.md](PRIVACY.md).

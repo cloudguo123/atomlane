@@ -18,8 +18,8 @@ The public controlled run keeps every workload active for more than five minutes
 
 I am especially looking for sanitized real-project results in three areas: Web quality gates, Docker/Compose health DAGs, and research/paper pipelines. Neutral, slower, and correctly blocked results are welcome because they expose missing semantic rules.
 
-Source and installation: https://github.com/cloudguo123/mac-parallel-accelerator
+Source and installation: https://github.com/cloudguo123/atomlane
 
-Live evidence: https://cloudguo123.github.io/mac-parallel-accelerator/
+Live evidence: https://cloudguo123.github.io/atomlane/
 
 What workflow would you trust an agent to parallelize only if it could prove the dependency and shared-state model first?

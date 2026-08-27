@@ -11,29 +11,29 @@ import collect_github_metrics
 class GithubMetricsTests(unittest.TestCase):
     def test_collect_keeps_only_aggregate_signals(self) -> None:
         responses = {
-            "repos/cloudguo123/mac-parallel-accelerator": {
+            "repos/cloudguo123/atomlane": {
                 "stargazers_count": 2,
                 "forks_count": 1,
                 "subscribers_count": 1,
                 "open_issues_count": 4,
             },
-            "repos/cloudguo123/mac-parallel-accelerator/releases?per_page=100": [
+            "repos/cloudguo123/atomlane/releases?per_page=100": [
                 {"assets": [{"download_count": 3}]}
             ],
-            "repos/cloudguo123/mac-parallel-accelerator/traffic/views?per=day": {
+            "repos/cloudguo123/atomlane/traffic/views?per=day": {
                 "count": 10,
                 "uniques": 7,
             },
-            "repos/cloudguo123/mac-parallel-accelerator/traffic/clones?per=day": {
+            "repos/cloudguo123/atomlane/traffic/clones?per=day": {
                 "count": 5,
                 "uniques": 4,
             },
-            "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/referrers": [],
-            "repos/cloudguo123/mac-parallel-accelerator/traffic/popular/paths": [],
-            "search/issues?q=repo%3Acloudguo123%2Fmac-parallel-accelerator+is%3Aissue+label%3Afirst-run&per_page=1": {
+            "repos/cloudguo123/atomlane/traffic/popular/referrers": [],
+            "repos/cloudguo123/atomlane/traffic/popular/paths": [],
+            "search/issues?q=repo%3Acloudguo123%2Fatomlane+is%3Aissue+label%3Afirst-run&per_page=1": {
                 "total_count": 6
             },
-            "search/issues?q=repo%3Acloudguo123%2Fmac-parallel-accelerator+is%3Aissue+label%3Abenchmark&per_page=1": {
+            "search/issues?q=repo%3Acloudguo123%2Fatomlane+is%3Aissue+label%3Abenchmark&per_page=1": {
                 "total_count": 3
             },
         }
@@ -43,7 +43,7 @@ class GithubMetricsTests(unittest.TestCase):
             side_effect=lambda path, token: responses[path],
         ):
             result = collect_github_metrics.collect(
-                "cloudguo123/mac-parallel-accelerator", token="test"
+                "cloudguo123/atomlane", token="test"
             )
         self.assertEqual(result["stars"], 2)
         self.assertEqual(result["traffic_14d"]["unique_cloners"], 4)
@@ -59,7 +59,7 @@ class GithubMetricsTests(unittest.TestCase):
             return_value=({"items": []}, None),
         ):
             count, error = collect_github_metrics.labeled_issue_count(
-                "cloudguo123/mac-parallel-accelerator", "first-run", token=None
+                "cloudguo123/atomlane", "first-run", token=None
             )
         self.assertIsNone(count)
         self.assertIn("unexpected shape", error or "")

@@ -139,7 +139,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repository",
-        default=os.environ.get("GITHUB_REPOSITORY", "cloudguo123/mac-parallel-accelerator"),
+        default=os.environ.get("GITHUB_REPOSITORY", "cloudguo123/atomlane"),
     )
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("docs/metrics.json"))
     args = parser.parse_args()

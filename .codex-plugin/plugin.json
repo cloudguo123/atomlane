@@ -1,13 +1,13 @@
 {
   "name": "mac-parallel-accelerator",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "AtomLane compiles local work into semantics-preserving atomic plans and executes proven-safe concurrency for Codex on macOS.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"
   },
-  "homepage": "https://cloudguo123.github.io/mac-parallel-accelerator/",
-  "repository": "https://github.com/cloudguo123/mac-parallel-accelerator",
+  "homepage": "https://cloudguo123.github.io/atomlane/",
+  "repository": "https://github.com/cloudguo123/atomlane",
   "license": "MIT",
   "keywords": [
     "macos",
@@ -41,9 +41,9 @@
     ],
     "brandColor": "#65E6B4",
     "composerIcon": "./assets/growth/listing-logo.svg",
-    "websiteURL": "https://cloudguo123.github.io/mac-parallel-accelerator/",
-    "privacyPolicyURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/PRIVACY.md",
-    "termsOfServiceURL": "https://github.com/cloudguo123/mac-parallel-accelerator/blob/main/TERMS.md",
+    "websiteURL": "https://cloudguo123.github.io/atomlane/",
+    "privacyPolicyURL": "https://github.com/cloudguo123/atomlane/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/cloudguo123/atomlane/blob/main/TERMS.md",
     "logo": "./assets/growth/listing-logo.png",
     "screenshots": [
       "./assets/growth/social-preview.png"

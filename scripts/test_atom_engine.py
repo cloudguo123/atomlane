@@ -7,11 +7,13 @@ import copy
 import hashlib
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from atom_engine import (
+    MAX_STDIN_BYTES,
     AtomError,
     _normalize_resource,
     _normalize_windows_path,
@@ -166,6 +168,48 @@ class AtomEngineTests(unittest.TestCase):
         for path in rejected_paths:
             with self.subTest(path=path), self.assertRaises(AtomError):
                 _normalize_windows_path(path, cwd=r"C:\Work")
+
+    def test_atom_stdin_is_bounded_preserved_and_hash_bound(self) -> None:
+        omitted = self.atom("stdin", argv=[sys.executable, "-c", "pass"])
+        empty = copy.deepcopy(omitted)
+        empty["operation"]["stdin"] = ""
+        populated = copy.deepcopy(omitted)
+        populated["operation"]["stdin"] = "atomic-input-✓"
+        normalized = [
+            validate_atoms([candidate], self.project)[0]
+            for candidate in (omitted, empty, populated)
+        ]
+        self.assertIsNone(normalized[0]["operation"]["stdin"])
+        self.assertEqual(normalized[1]["operation"]["stdin"], "")
+        self.assertEqual(normalized[2]["operation"]["stdin"], "atomic-input-✓")
+
+        hashes = {
+            compile_atomic_plan([candidate], self.project)["plan_hash"]
+            for candidate in (omitted, empty, populated)
+        }
+        self.assertEqual(len(hashes), 3)
+
+        invalid_cases = [
+            (b"bytes", "must be a string"),
+            ("界" * (MAX_STDIN_BYTES // 3 + 1), "exceeds"),
+            ("\ud800", "valid UTF-8"),
+        ]
+        for value, message in invalid_cases:
+            invalid = copy.deepcopy(omitted)
+            invalid["operation"]["stdin"] = value
+            with self.subTest(message=message), self.assertRaisesRegex(AtomError, message):
+                validate_atoms([invalid], self.project)
+
+    def test_atom_conpty_stdin_fails_closed_even_when_empty(self) -> None:
+        for explicit_input in ("", "terminal input"):
+            raw = self.atom("conpty-input", argv=[sys.executable, "-c", "pass"])
+            raw["operation"]["terminal_mode"] = "conpty"
+            raw["operation"]["stdin"] = explicit_input
+            with (
+                self.subTest(explicit_input=explicit_input),
+                self.assertRaisesRegex(AtomError, "terminal-input"),
+            ):
+                validate_atoms([raw], self.project)
 
     def test_lower_exact_data_edges_combines_same_direction_resources(self) -> None:
         raw = [

@@ -101,7 +101,7 @@ class PlatformAdapterTests(unittest.TestCase):
             platform_adapter.windows_process_limit_blocker("conpty", 1) or "",
         )
 
-    def test_windows_capabilities_publish_process_limit_constraints(self) -> None:
+    def test_windows_capabilities_publish_preview_constraints(self) -> None:
         with (
             mock.patch.object(
                 platform_adapter,
@@ -115,6 +115,7 @@ class PlatformAdapterTests(unittest.TestCase):
             ),
         ):
             capabilities = platform_adapter.platform_capabilities()
+        self.assertFalse(capabilities["conpty_stdin_supported"])
         self.assertEqual(
             capabilities["resource_control_constraints"]["max_processes"],
             {
@@ -316,6 +317,7 @@ class PlatformAdapterTests(unittest.TestCase):
             )
             original = dict(plan["platform_contract"])
             self.assertEqual(original["adapter_protocol"], "atomlane-platform/v2")
+            self.assertFalse(original["conpty_stdin_supported"])
             self.assertEqual(
                 original["resource_control_constraints"],
                 mcp_server._current_platform_contract()[
@@ -349,6 +351,22 @@ class PlatformAdapterTests(unittest.TestCase):
                     mcp_server,
                     "_current_platform_contract",
                     return_value=changed_resource_semantics,
+                ),
+                self.assertRaisesRegex(mcp_server.InputError, "platform contract"),
+            ):
+                mcp_server._verify_compiled_plan(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+
+            changed_conpty_stdin_semantics = {
+                **original,
+                "conpty_stdin_supported": True,
+            }
+            with (
+                mock.patch.object(
+                    mcp_server,
+                    "_current_platform_contract",
+                    return_value=changed_conpty_stdin_semantics,
                 ),
                 self.assertRaisesRegex(mcp_server.InputError, "platform contract"),
             ):

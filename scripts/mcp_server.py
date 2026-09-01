@@ -28,6 +28,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from atom_engine import (
+    MAX_STDIN_BYTES,
     AtomError,
     _normalize_resource,
     _resource_overlap,
@@ -54,7 +55,11 @@ from platform_adapter import (
     power_snapshot as portable_power_snapshot,
 )
 from python_parallel_advisor import AdvisorError, analyze_python_parallelism
-from windows_job_runner import RunnerError, validate_windows_executable_contract
+from windows_job_runner import (
+    CONPTY_STDIN_UNSUPPORTED,
+    RunnerError,
+    validate_windows_executable_contract,
+)
 from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "mac-parallel-accelerator"
@@ -67,7 +72,6 @@ MAX_TASKS = 128
 MAX_CONCURRENCY = 64
 MAX_ARGV_ITEMS = 256
 MAX_ARG_LENGTH = 32_768
-MAX_STDIN_BYTES = 1_048_576
 DEFAULT_OUTPUT_BYTES = 8_192
 MAX_OUTPUT_BYTES = 65_536
 DEFAULT_TIMEOUT_SECONDS = 900.0
@@ -1358,6 +1362,7 @@ def _current_platform_contract() -> dict[str, Any]:
         ),
         "process_tree_control": capabilities["process_tree_control"],
         "supported_terminal_modes": capabilities["terminal_modes"],
+        "conpty_stdin_supported": capabilities["conpty_stdin_supported"],
         "supported_resource_controls": capabilities["resource_controls"],
         "resource_control_constraints": capabilities[
             "resource_control_constraints"
@@ -2879,7 +2884,11 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
     if stdin is not None:
         if not isinstance(stdin, str):
             raise InputError(f"task {task_id} stdin must be a string")
-        if len(stdin.encode("utf-8")) > MAX_STDIN_BYTES:
+        try:
+            stdin_size = len(stdin.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise InputError(f"task {task_id} stdin must be valid UTF-8 text") from exc
+        if stdin_size > MAX_STDIN_BYTES:
             raise InputError(f"task {task_id} stdin exceeds {MAX_STDIN_BYTES} bytes")
 
     dependencies = raw.get("depends_on", [])
@@ -2892,6 +2901,8 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
     terminal_mode = raw.get("terminal_mode", "pipes")
     if terminal_mode not in {"pipes", "conpty"}:
         raise InputError(f"task {task_id} terminal_mode must be pipes or conpty")
+    if terminal_mode == "conpty" and stdin is not None:
+        raise InputError(f"task {task_id} {CONPTY_STDIN_UNSUPPORTED}")
     capabilities = platform_capabilities()
     if terminal_mode not in capabilities["terminal_modes"]:
         raise InputError(
@@ -3938,6 +3949,7 @@ def _verify_compiled_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         "path_flavor",
         "argv_transport",
         "process_tree_control",
+        "conpty_stdin_supported",
         "supported_resource_controls",
         "resource_control_constraints",
     }
@@ -4190,7 +4202,7 @@ async def run_atomic(
                     "argv": operation["argv"],
                     "cwd": operation["cwd"],
                     "env": operation.get("env", {}),
-                    "stdin": None,
+                    "stdin": operation.get("stdin"),
                     "timeout_seconds": DEFAULT_TIMEOUT_SECONDS,
                     "depends_on": [],
                     "side_effect": atom["side_effect"],
@@ -4283,7 +4295,7 @@ TASK_SCHEMA = {
             "type": "string",
             "enum": ["pipes", "conpty"],
             "default": "pipes",
-            "description": "Use separate pipes, or Windows ConPTY with a combined VT output stream.",
+            "description": "Use separate pipes, or output-only Windows ConPTY with a combined VT stream; explicit ConPTY stdin is unsupported.",
         },
         "resources": {
             "type": "object",
@@ -4309,6 +4321,12 @@ TASK_SCHEMA = {
                     "terminal_mode": {"const": "conpty"},
                     "resources": {"required": ["max_processes"]},
                 },
+            }
+        },
+        {
+            "not": {
+                "required": ["terminal_mode", "stdin"],
+                "properties": {"terminal_mode": {"const": "conpty"}},
             }
         }
     ],

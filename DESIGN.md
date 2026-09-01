@@ -341,8 +341,10 @@ normally inherited target tree. Separate byte pipes are the
 default concurrently drained capture transport; retained bytes are decoded as
 UTF-8 with an explicit replacement flag. The live surface reports scheduler
 lifecycle counts and savings while the task runs, and returns captured
-stdout/stderr at completion. ConPTY is opt-in for terminal-sensitive programs
-and intentionally reports a combined VT stream.
+stdout/stderr at completion. ConPTY is opt-in for programs needing
+terminal-shaped output and intentionally reports a combined VT stream. Explicit
+ConPTY stdin fails before target creation because a verified terminal-input and
+EOF contract is not implemented; bounded stdin remains available through pipes.
 
 The Job boundary does not contain work created by another authority. WSL,
 Docker/container daemons, WMI, services, scheduled tasks, and remote-execution

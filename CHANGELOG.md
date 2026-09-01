@@ -14,8 +14,9 @@ All notable changes to this project are documented here.
   creation. Job-wide CPU and memory limits include the supervisor and normally
   inherited target tree, use a 128 MiB memory minimum, and exclude brokered work.
 - Added concurrently drained UTF-8-decoded pipe capture and optional ConPTY with
-  an explicit combined-output contract. Live UI updates cover lifecycle counts
-  and savings; captured task stdout/stderr is returned at completion.
+  an explicit combined-output contract. Explicit ConPTY stdin fails closed because
+  a verified terminal-input and EOF contract is not implemented. Live UI updates cover lifecycle
+  counts and savings; captured task stdout/stderr is returned at completion.
 - Added Windows path alias, case, UNC, extended-prefix, reserved-device, and
   alternate-data-stream safety rules plus conservative whole-file `pwsh` atoms.
 - Upgraded Python rewrite previews to use an explicit `spawn` context and a

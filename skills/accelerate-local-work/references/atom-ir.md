@@ -48,8 +48,9 @@ precondition must stop execution rather than fall back to an unverified plan.
 
 The v2 hash also binds a platform contract: OS family, native/WSL/container
 realm, architecture, path flavor, argv transport, process-tree backend, and
-required terminal modes. A plan compiled for macOS, native Windows, WSL, or a
-different architecture must be recompiled in its execution realm.
+required terminal modes, including whether ConPTY stdin is available, plus
+resource-control semantics. A plan compiled for macOS, native Windows, WSL, or
+a different architecture must be recompiled in its execution realm.
 
 ## Atom model
 
@@ -69,6 +70,12 @@ Each executable atom needs enough information to establish these dimensions:
 | Semantics | Determinism, idempotence, retryability, cacheability, failure behavior, and ordering sensitivity |
 | Policy | Authorization, provenance, formal-evidence, post-candidate, or other task-specific fences |
 | Cost | Estimated duration, memory, nested worker demand, and startup overhead when known |
+
+For pipe mode, `operation.stdin` is optional UTF-8 text capped at 1 MiB. Its
+exact value—including the distinction between omission and an empty string—is
+part of the canonical plan hash. The executor writes the bounded payload and
+then closes the pipe so EOF is observable. Explicit ConPTY stdin, including an
+empty string, is rejected before target creation.
 
 ### Artifact effects
 
@@ -300,7 +307,9 @@ Job-wide active-member ceiling (minimum 2) and includes the supervisor; it is
 not a target-only allowance. ConPTY with `max_processes` fails closed because
 console-host Job membership is not proven, while ConPTY with CPU or memory
 limits remains supported. ConPTY reports one combined VT stream; MCP and
-live-runner progress do not require it.
+live-runner progress do not require it. Explicit ConPTY stdin fails before
+target creation because no verified terminal-input and EOF contract is
+implemented; use pipes for bounded stdin.
 
 A supplied serial baseline supports a measured comparison. Otherwise label
 savings and multiplier as estimates derived from observed atom durations; do

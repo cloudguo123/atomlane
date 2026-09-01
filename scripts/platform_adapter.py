@@ -467,6 +467,7 @@ def platform_capabilities() -> dict[str, Any]:
         "process_tree_control": "windows_job_object" if environment["is_windows_native"] else "posix_session",
         "terminal_modes": ["pipes", "conpty"] if conpty else ["pipes"],
         "conpty_available": conpty,
+        "conpty_stdin_supported": False,
         "resource_controls": (
             ["cpu_rate_percent", "memory_limit_mb", "max_processes"]
             if environment["is_windows_native"]

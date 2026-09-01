@@ -22,12 +22,17 @@ from pathlib import Path
 from typing import Any
 
 from platform_adapter import brokered_execution_boundary, windows_process_limit_blocker
-from windows_job_runner import RunnerError, validate_windows_executable_contract
+from windows_job_runner import (
+    CONPTY_STDIN_UNSUPPORTED,
+    RunnerError,
+    validate_windows_executable_contract,
+)
 
 IR_VERSION = "2.0"
 MAX_ATOMS = 512
 MAX_EDGES = 4096
 MAX_COMMAND_CHARS = 32_768
+MAX_STDIN_BYTES = 1_048_576
 MAX_SOURCE_BYTES = 2_000_000
 MAX_RECURSION = 64
 ATOM_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
@@ -807,6 +812,16 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
         _bounded_text(key, f"atom {atom_id} env key", 512): _bounded_text(val, f"atom {atom_id} env value")
         for key, val in environment_raw.items()
     }
+    stdin = operation_raw.get("stdin")
+    if stdin is not None:
+        if not isinstance(stdin, str):
+            raise AtomError(f"atom {atom_id} stdin must be a string")
+        try:
+            stdin_size = len(stdin.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise AtomError(f"atom {atom_id} stdin must be valid UTF-8 text") from exc
+        if stdin_size > MAX_STDIN_BYTES:
+            raise AtomError(f"atom {atom_id} stdin exceeds {MAX_STDIN_BYTES} bytes")
     if os.name == "nt":
         if any(
             re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is None
@@ -826,6 +841,8 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
     terminal_mode = operation_raw.get("terminal_mode", "pipes")
     if terminal_mode not in {"pipes", "conpty"}:
         raise AtomError(f"atom {atom_id} terminal_mode must be pipes or conpty")
+    if terminal_mode == "conpty" and stdin is not None:
+        raise AtomError(f"atom {atom_id} {CONPTY_STDIN_UNSUPPORTED}")
     if terminal_mode == "conpty" and os.name != "nt":
         raise AtomError(f"atom {atom_id} ConPTY requires native Windows")
     resource_limits_raw = operation_raw.get("resource_limits", {})
@@ -1025,6 +1042,7 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
             "command": command,
             "cwd": str(cwd),
             "env": environment,
+            "stdin": stdin,
             "completion": completion,
             "internal_parallelism": {"kind": internal_kind, "tokens": internal_tokens},
             "terminal_mode": terminal_mode,

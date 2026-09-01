@@ -19,7 +19,7 @@ runs on GitHub's `windows-2025` image with CPython 3.10, 3.11, 3.12, and 3.13.
 | PowerShell | One existing `.ps1` file is one snapshotted atom, launched by `pwsh -NoLogo -NoProfile -NonInteractive -File`. |
 | Process scope | A waiting supervisor is opened by PID and placed in a kill-on-close Windows Job Object before it receives the launch record and creates the target. Normal inherited target descendants share the Job; broker-created WSL, Docker, WMI, service, scheduled-task, or remote work does not. This is staged supervision, not atomic target creation. |
 | Resources | Optional Job-wide CPU hard-cap percentage and memory limit cover the supervisor plus the normally inherited target tree. Memory is at least 128 MiB. In pipe mode, `max_processes` is an exact Job-wide active-member ceiling of 2–4096; the verified supervisor consumes one slot while alive. ConPTY with `max_processes` fails before target code starts because console-host Job membership is not yet proven; CPU and memory limits remain available. |
-| Output | Separate byte pipes, decoded as UTF-8 with replacement, by default; ConPTY is opt-in for programs that need terminal semantics. Pipes are drained concurrently and capture remains bounded; user-visible counters and savings are emitted while work is running. Captured task output is returned in the final result. |
+| Output | Separate byte pipes, decoded as UTF-8 with replacement, by default; ConPTY is opt-in for programs that need output-side terminal semantics. Pipes are drained concurrently and capture remains bounded; user-visible counters and savings are emitted while work is running. Captured task output is returned in the final result. |
 | Python advice | The static advisor can target Windows and emits an explicit `multiprocessing.get_context("spawn")` process-pool preview for eligible CPU maps. |
 | Docker | Resource advice can target an identified Linux Docker daemon, including Docker Desktop. Windows containers are advisory-only. |
 
@@ -65,15 +65,17 @@ cancellation AtomLane terminates the Job and queries it until it reports zero
 active processes. That proves only that the Job is empty, not that work
 delegated through an external broker stopped.
 
-Use `terminal_mode: "pipes"` unless the program changes behavior when attached
+Use `terminal_mode: "pipes"` unless the program changes output behavior when attached
 to a console. `terminal_mode: "conpty"` uses the native ConPTY API and returns
 one combined VT output stream, so stderr is not independently attributable.
 ConPTY requires Windows 10 version 1809 or later and must be present when the
-plan is compiled and executed. It provides terminal semantics and concurrent
-bounded output draining, not a live-output event feed or an open-ended
-interactive keyboard session; any stdin is bounded and supplied by the launch
-request. The live progress surface reports scheduler counters and savings
-during execution, while captured stdout/stderr is returned at completion.
+plan is compiled and executed. It provides output-side terminal semantics and
+concurrent bounded draining, not a live-output event feed or an interactive
+keyboard session. Explicit ConPTY `stdin`, including an empty string, fails
+before target creation because this Preview has no verified terminal-input and
+EOF contract. Use pipes for bounded stdin. The live progress
+surface reports scheduler counters and savings during execution, while captured
+stdout/stderr is returned at completion.
 
 ## PowerShell is a whole-file atom
 
@@ -213,9 +215,9 @@ automatic proof boundary. A frozen application needs its own reviewed
   entrypoints have no native automatic lowering.
 - ConPTY combines stdout and stderr and is unsuitable when their separation is
   part of the task contract.
-- ConPTY accepts bounded UTF-8/VT terminal input. It is not a raw stdin byte
-  stream: send carriage return (`\r`) to represent Enter. Callers that require
-  portable, observable stdin EOF semantics should use `terminal_mode: "pipes"`.
+- ConPTY launch stdin is rejected before target creation because this Preview
+  has no verified terminal-input and EOF contract. Use `terminal_mode: "pipes"`
+  for bounded stdin and observable EOF semantics.
 - Interactive prompts, UAC elevation, GUI automation, Windows services, and
   detached processes that require escape from the Job Object are not covered.
 - The 128 MiB minimum is a Job-wide floor, not 128 MiB exclusively available

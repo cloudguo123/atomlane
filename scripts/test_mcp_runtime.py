@@ -145,6 +145,79 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result["status"], "timed_out")
         self.assertEqual(result["outcome"], "not_completed")
 
+    def test_raw_task_stdin_rejects_invalid_utf8_text(self) -> None:
+        with self.assertRaisesRegex(mcp_server.InputError, "valid UTF-8"):
+            mcp_server.normalize_task(
+                {
+                    "id": "invalid-stdin",
+                    "argv": [sys.executable, "-c", "pass"],
+                    "cwd": str(self.project),
+                    "stdin": "\ud800",
+                },
+                0,
+                None,
+            )
+
+    def test_atomic_pipe_stdin_round_trips_unicode_and_eof(self) -> None:
+        expected = "atomic-input-✓"
+        atom = {
+            "id": "pipe-stdin",
+            "operation": {
+                "kind": "read",
+                "argv": [
+                    sys.executable,
+                    "-c",
+                    "import sys;print(sys.stdin.buffer.read().hex(),flush=True)",
+                ],
+                "cwd": str(self.project),
+                "stdin": expected,
+                "terminal_mode": "pipes",
+                "completion": "process_exit",
+                "internal_parallelism": {"kind": "none", "tokens": None},
+            },
+            "dependencies": [],
+            "accesses": [],
+            "effects": [],
+            "claims": [],
+            "side_effect": False,
+            "semantics": {
+                "idempotent": True,
+                "retryable": False,
+                "deterministic": True,
+                "cacheable": False,
+                "commutative": False,
+                "cancel_safe": True,
+                "splittable": False,
+                "reorderable": "explicit",
+            },
+            "cost": {"duration_seconds": 0.01, "startup_seconds": 0.0},
+            "batch": None,
+            "assurance": {
+                "parse": "exact",
+                "control": "exact",
+                "effects": "complete_declared",
+                "codegen": "exact_argv",
+                "rank": 1.0,
+                "blockers": [],
+            },
+        }
+        plan = mcp_server.atomic_task_plan(
+            {"project_path": str(self.project), "atoms": [atom], "max_concurrency": 1}
+        )
+        self.assertEqual(plan["atoms"][0]["operation"]["stdin"], expected)
+        result = asyncio.run(
+            asyncio.wait_for(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                ),
+                timeout=10,
+            )
+        )
+        self.assertEqual(result["results"][0]["status"], "succeeded")
+        self.assertEqual(
+            result["results"][0]["stdout"].strip(), expected.encode("utf-8").hex()
+        )
+
     def test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor(self) -> None:
         def atom(atom_id: str, dependencies: list[dict[str, str]] | None = None) -> dict:
             return {

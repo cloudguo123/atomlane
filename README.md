@@ -132,8 +132,9 @@ At completion, every atom's status, return code, timeout, skip reason, output tr
 
 On Windows, the live surface shows scheduler lifecycle counts and savings;
 captured task stdout/stderr is returned with the completed result. Ordinary
-commands drain through separate byte pipes, while terminal-sensitive commands
-may opt into ConPTY and one combined VT stream. A waiting supervisor is added
+commands drain through separate byte pipes, while commands needing
+terminal-shaped output may opt into ConPTY and one combined VT stream. A
+waiting supervisor is added
 to the Job Object by PID before it receives the launch record and creates the
 target. This is staged supervision, not atomic target creation. Job CPU and
 memory budgets include the supervisor plus the normally inherited target tree.
@@ -162,6 +163,9 @@ Object supervision, optional ConPTY, and a conservative `pwsh` file frontend.
   console-host Job membership is not yet proven; CPU and memory limits remain
   available. None of these limits constrain brokered work. Windows process-pool
   advice never exceeds the platform's 61-worker wait limit.
+- ConPTY is output-only in this Preview. Explicit ConPTY `stdin` fails before
+  target creation because a verified terminal-input and EOF contract is not
+  implemented; use pipes for bounded stdin and observable EOF.
 
 The complete boundary and troubleshooting notes are in
 [Windows Preview](docs/WINDOWS_PREVIEW.md).

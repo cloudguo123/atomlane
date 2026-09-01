@@ -42,6 +42,10 @@ ERROR_OPERATION_ABORTED = 995
 ERROR_NOT_FOUND = 1168
 THREAD_TERMINATE = 0x0001
 ARGV_ASSURANCE = "resolved-lpapplicationname/windows-crt-v1"
+CONPTY_STDIN_UNSUPPORTED = (
+    "ConPTY launch stdin is unavailable in Windows Preview because verified "
+    "terminal-input and EOF semantics are not implemented; use pipes for stdin"
+)
 
 
 class RunnerError(RuntimeError):
@@ -171,6 +175,8 @@ def _validate_payload(raw: Any) -> tuple[list[str], str, bytes | None, str, dict
             raise RunnerError("stdin_base64 is invalid") from exc
     else:
         raise RunnerError("stdin_base64 must be a string or null")
+    if terminal_mode == "conpty" and stdin_data is not None:
+        raise RunnerError(CONPTY_STDIN_UNSUPPORTED)
     return argv, cwd, stdin_data, terminal_mode, env
 
 
@@ -331,14 +337,6 @@ def _configure_conpty(kernel32: Any) -> None:
         ctypes.c_void_p,
     ]
     kernel32.ReadFile.restype = wintypes.BOOL
-    kernel32.WriteFile.argtypes = [
-        wintypes.HANDLE,
-        ctypes.c_void_p,
-        wintypes.DWORD,
-        ctypes.POINTER(wintypes.DWORD),
-        ctypes.c_void_p,
-    ]
-    kernel32.WriteFile.restype = wintypes.BOOL
     kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
     kernel32.WaitForSingleObject.restype = wintypes.DWORD
     kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
@@ -351,71 +349,6 @@ def _configure_conpty(kernel32: Any) -> None:
     kernel32.CancelSynchronousIo.restype = wintypes.BOOL
     kernel32.CancelIoEx.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
     kernel32.CancelIoEx.restype = wintypes.BOOL
-
-
-def _write_handle(
-    kernel32: Any,
-    handle: Any,
-    data: bytes,
-    errors: list[str],
-    stopping: threading.Event | None = None,
-    *,
-    close_handle: bool = True,
-) -> None:
-    stopping = stopping or threading.Event()
-    try:
-        offset = 0
-        while offset < len(data):
-            chunk = data[offset : offset + 65_536]
-            written = wintypes.DWORD(0)
-            buffer = ctypes.create_string_buffer(chunk)
-            if not kernel32.WriteFile(
-                handle, buffer, len(chunk), ctypes.byref(written), None
-            ):
-                code = ctypes.get_last_error()
-                if code not in {ERROR_BROKEN_PIPE, ERROR_NO_DATA} and not (
-                    stopping.is_set() and code == ERROR_OPERATION_ABORTED
-                ):
-                    errors.append(f"ConPTY WriteFile failed ({code}): {ctypes.FormatError(code)}")
-                break
-            progress = int(written.value)
-            if progress <= 0:
-                errors.append("ConPTY WriteFile made zero progress")
-                break
-            offset += progress
-    except Exception as exc:  # noqa: BLE001 - marshal thread failure to the supervisor.
-        errors.append(f"ConPTY input thread failed: {type(exc).__name__}: {exc}")
-    finally:
-        if close_handle:
-            kernel32.CloseHandle(handle)
-
-
-def _conpty_input_thread(
-    kernel32: Any,
-    handle: Any,
-    stdin_data: bytes | None,
-    errors: list[str],
-    stopping: threading.Event,
-) -> tuple[threading.Thread, Any] | None:
-    """Transfer bounded input while leaving ConPTY handle ownership with the runner."""
-
-    if stdin_data is None:
-        return None
-    # Closing the ConPTY input side after a bounded write can interrupt the
-    # target instead of providing portable EOF semantics. The runner retains
-    # this borrowed handle until target exit and teardown.
-    writer_handle = wintypes.HANDLE(handle.value)
-    return (
-        threading.Thread(
-            target=_write_handle,
-            args=(kernel32, writer_handle, stdin_data, errors, stopping),
-            kwargs={"close_handle": False},
-            name="conpty-input",
-            daemon=True,
-        ),
-        writer_handle,
-    )
-
 
 def _read_handle(
     kernel32: Any,
@@ -551,6 +484,8 @@ def _windows_environment_block(env: dict[str, str]) -> ctypes.Array[Any]:
 def _run_conpty(
     argv: list[str], cwd: str, stdin_data: bytes | None, env: dict[str, str]
 ) -> int:
+    if stdin_data is not None:
+        raise RunnerError(CONPTY_STDIN_UNSUPPORTED)
     kernel32 = _kernel32()
     if not hasattr(kernel32, "CreatePseudoConsole"):
         raise RunnerError("ConPTY requires Windows 10 version 1809 or newer")
@@ -638,14 +573,7 @@ def _run_conpty(
         )
         output_read = wintypes.HANDLE()
         io_bindings = [(reader, reader_handle)]
-        input_binding = _conpty_input_thread(
-            kernel32, input_write, stdin_data, io_errors, stopping
-        )
         reader.start()
-        if input_binding is not None:
-            writer, writer_handle = input_binding
-            io_bindings.append((writer, writer_handle))
-            writer.start()
         while True:
             wait_result = kernel32.WaitForSingleObject(process_info.hProcess, 100)
             if wait_result == WAIT_OBJECT_0:

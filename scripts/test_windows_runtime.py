@@ -95,7 +95,7 @@ class WindowsPortableContractTests(unittest.TestCase):
         self.assertEqual(controller._kernel32.closed, [])
 
     @unittest.skipIf(jsonschema is None, "jsonschema is unavailable")
-    def test_task_schema_exposes_only_provable_process_limit_combinations(self) -> None:
+    def test_task_schema_exposes_only_provable_conpty_combinations(self) -> None:
         validator = jsonschema.Draft202012Validator(mcp_server.TASK_SCHEMA)
         self.assertTrue(
             validator.is_valid(
@@ -114,6 +114,15 @@ class WindowsPortableContractTests(unittest.TestCase):
         self.assertFalse(
             validator.is_valid(
                 {"argv": ["tool.exe"], "resources": {"max_processes": 1}}
+            )
+        )
+        self.assertFalse(
+            validator.is_valid(
+                {
+                    "argv": ["tool.exe"],
+                    "terminal_mode": "conpty",
+                    "stdin": "terminal input",
+                }
             )
         )
 
@@ -248,55 +257,33 @@ class WindowsPortableContractTests(unittest.TestCase):
                 self.assertEqual(block[:], expected)
                 self.assertEqual(len(block), len(expected))
 
-    def test_conpty_writer_fails_closed_on_zero_progress(self) -> None:
-        class ZeroProgressKernel:
-            @staticmethod
-            def WriteFile(
-                _handle: object,
-                _buffer: object,
-                _length: int,
-                written: object,
-                _overlapped: object,
-            ) -> bool:
-                written._obj.value = 0  # type: ignore[attr-defined]
-                return True
-
-            @staticmethod
-            def CloseHandle(_handle: object) -> bool:
-                return True
-
-        errors: list[str] = []
-        windows_job_runner._write_handle(
-            ZeroProgressKernel(), object(), b"payload", errors
-        )
-        self.assertTrue(any("zero progress" in message for message in errors), errors)
-
-    def test_conpty_input_writer_borrows_handle_and_preserves_absence(self) -> None:
-        class TrackingKernel:
-            def __init__(self) -> None:
-                self.closed: list[int] = []
-
-            def CloseHandle(self, candidate: object) -> bool:
-                self.closed.append(int(candidate.value))  # type: ignore[attr-defined]
-                return True
-
-        kernel = TrackingKernel()
-        handle = windows_job_runner.wintypes.HANDLE(123)
-        stopping = threading.Event()
-        self.assertIsNone(
-            windows_job_runner._conpty_input_thread(
-                kernel, handle, None, [], stopping
-            )
-        )
-        explicit_empty = windows_job_runner._conpty_input_thread(
-            kernel, handle, b"", [], stopping
-        )
-        self.assertIsNotNone(explicit_empty)
-        self.assertEqual(explicit_empty[0].name, "conpty-input")
-        explicit_empty[0].start()
-        explicit_empty[0].join(timeout=1)
-        self.assertFalse(explicit_empty[0].is_alive())
-        self.assertEqual(kernel.closed, [])
+    def test_conpty_explicit_stdin_fails_at_both_launch_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for encoded_input, decoded_input in (("", b""), ("eA==", b"x")):
+                payload = {
+                    "protocol": "atomlane-windows-supervisor/v1",
+                    "argv": ["tool.exe"],
+                    "cwd": str(Path(temporary).resolve()),
+                    "stdin_base64": encoded_input,
+                    "terminal_mode": "conpty",
+                    "env": {},
+                }
+                with (
+                    self.subTest(encoded_input=encoded_input),
+                    self.assertRaisesRegex(
+                        windows_job_runner.RunnerError, "terminal-input"
+                    ),
+                ):
+                    windows_job_runner._validate_payload(payload)
+                with (
+                    self.subTest(decoded_input=decoded_input),
+                    self.assertRaisesRegex(
+                        windows_job_runner.RunnerError, "terminal-input"
+                    ),
+                ):
+                    windows_job_runner._run_conpty(
+                        ["tool.exe"], str(Path(temporary).resolve()), decoded_input, {}
+                    )
 
     def test_conpty_reader_marshals_output_sink_failure(self) -> None:
         class OneReadKernel:
@@ -740,33 +727,58 @@ if os.name == "nt":
                 "supervisor_and_inherited_windows_tree",
             )
 
-        def test_conpty_round_trips_bounded_terminal_input(self) -> None:
-            payload = "conpty-input-✓\r"
-            program = "value=input();print('received:'+value,flush=True)"
+        def test_conpty_explicit_input_fails_before_target_creation(self) -> None:
+            marker = self.project / "conpty-input-target-ran.txt"
+            program = (
+                "import pathlib;"
+                f"pathlib.Path({str(marker)!r}).write_text('ran',encoding='utf-8')"
+            )
+            for explicit_input in ("", "terminal input\r"):
+                with (
+                    self.subTest(explicit_input=explicit_input),
+                    self.assertRaisesRegex(mcp_server.InputError, "terminal-input"),
+                ):
+                    _task(
+                        self.project,
+                        [sys.executable, "-c", program],
+                        terminal_mode="conpty",
+                        stdin=explicit_input,
+                    )
+
+                atom = {
+                    "id": "conpty-input",
+                    "operation": {
+                        "kind": "command",
+                        "argv": [sys.executable, "-c", program],
+                        "cwd": str(self.project),
+                        "terminal_mode": "conpty",
+                        "stdin": explicit_input,
+                    },
+                    "accesses": [],
+                }
+                with self.assertRaisesRegex(mcp_server.InputError, "terminal-input"):
+                    mcp_server.atomic_task_plan(
+                        {"project_path": str(self.project), "atoms": [atom]}
+                    )
+            self.assertFalse(marker.exists())
+
+        def test_pipe_stdin_round_trips_unicode_and_observable_eof(self) -> None:
+            expected = "windows-pipe-✓\n"
+            program = (
+                "import sys;data=sys.stdin.read();"
+                "print('EOF=' + str(data == 'windows-pipe-✓\\n'));"
+                "print(data, end='')"
+            )
             task = _task(
                 self.project,
                 [sys.executable, "-c", program],
-                terminal_mode="conpty",
-                stdin=payload,
+                terminal_mode="pipes",
+                stdin=expected,
             )
-            result = asyncio.run(mcp_server.execute_task(task, 8192))
+            result = asyncio.run(mcp_server.execute_task(task, 65_536))
             self.assertEqual(result["status"], "succeeded", _failure_summary(result))
-            self.assertIn("received:conpty-input-✓", result["stdout"])
-
-        def test_conpty_explicit_empty_input_does_not_interrupt_target(self) -> None:
-            task = _task(
-                self.project,
-                [
-                    sys.executable,
-                    "-c",
-                    "import time;time.sleep(0.25);print('empty-input-ok',flush=True)",
-                ],
-                terminal_mode="conpty",
-                stdin="",
-            )
-            result = asyncio.run(mcp_server.execute_task(task, 8192))
-            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
-            self.assertIn("empty-input-ok", result["stdout"])
+            self.assertIn("EOF=True", result["stdout"])
+            self.assertIn(expected.rstrip(), result["stdout"])
 
         def test_conpty_rejects_an_unverifiable_active_process_limit(self) -> None:
             with self.assertRaisesRegex(mcp_server.InputError, "cannot be combined"):

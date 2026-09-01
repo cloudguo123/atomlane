@@ -107,7 +107,7 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 Windows 的实时界面在运行期间显示任务生命周期计数与节约时间；捕获的任务
 stdout/stderr 在任务完成后随结果返回。普通任务通过独立字节管道并发排空；
-需要终端语义的任务可选择 ConPTY，此时两路输出合并为一条 VT 流。父进程先按
+需要终端输出语义的任务可选择 ConPTY，此时两路输出合并为一条 VT 流。父进程先按
 PID 把等待中的 supervisor 加入 Job Object，再发送启动记录，由 supervisor
 创建目标进程。这是分阶段监管，不是原子创建目标进程。Job 的 CPU 与内存预算
 包括 supervisor 和正常继承的目标进程树；WSL、Docker、WMI、服务、计划任务或
@@ -128,6 +128,8 @@ Preview 与 macOS 共用 Atom IR、不可变计划哈希、副作用检查、调
   额外配额。ConPTY 与 `max_processes` 的组合会在启动目标代码前拒绝，但 CPU
   和内存限制仍可使用。broker 外部工作不受这些限制。Windows 进程池建议
   不会超过 61 个 worker。
+- 本 Preview 的 ConPTY 只承诺输出端终端语义。由于尚未实现并验证终端输入与 EOF
+  语义，显式 ConPTY `stdin` 会在目标创建前拒绝；有界 stdin 请使用管道模式。
 
 完整边界和排障说明见 [Windows Preview](docs/WINDOWS_PREVIEW.md)。
 

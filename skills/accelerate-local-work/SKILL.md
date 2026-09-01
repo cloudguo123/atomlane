@@ -159,12 +159,12 @@ active-member ceiling includes the verified supervisor and must be at least 2;
 it is not a target-only allowance. Combining it with ConPTY fails closed because
 console-host Job membership is not yet proven. If Job assignment
 fails, do not start target code and do not fall back to killing only the direct
-child. Use `terminal_mode: conpty` only when terminal behavior is required; it
-combines stdout/stderr into one VT stream. Its bounded `stdin` is UTF-8/VT
-terminal input, so carriage return (`\r`) represents Enter; it does not promise
-raw byte-stream or observable EOF semantics. Ordinary tasks retain separate
-pipes, while MCP/live-runner heartbeats still provide real-time elapsed, state,
-and saving updates.
+child. Use `terminal_mode: conpty` only when output-side terminal behavior is
+required; it combines stdout/stderr into one VT stream. Explicit ConPTY `stdin`
+fails before target creation because the Preview has no verified terminal-input
+and EOF contract; use pipes for bounded stdin and observable EOF semantics.
+Ordinary tasks retain separate pipes, while MCP/live-runner heartbeats still
+provide real-time elapsed, state, and saving updates.
 
 For numerical or media implementation work, call `mac_accelerator_plan` before
 choosing an Apple backend. On a non-macOS host it is explicitly unavailable:

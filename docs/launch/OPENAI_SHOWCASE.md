@@ -54,7 +54,7 @@ Builds, tests, Docker pipelines, paper workflows, batch tasks, and Python loops 
 
 ## Evidence
 
-The public test dashboard retains a controlled five-minute run: four independent workloads completed in 5m10s of wall time versus 20m41s serial equivalent, saving 15m31s at 4.00× observed speedup. The serial equivalent is the sum of observed task durations, not a separately rerun serial workflow, and the project does not claim every workload will achieve this result.
+The public test dashboard retains a controlled five-minute run: four independent workloads completed in 5m10s of wall time versus 20m40s serial equivalent, saving 15m30s at 4.00× observed speedup. The serial equivalent is the sum of observed task durations, not a separately rerun serial workflow, and the project does not claim every workload will achieve this result.
 
 ## Links
 

@@ -1,6 +1,6 @@
 # AtomLane benchmark
 
-⚡ **5m 10s parallel wall time** vs **20m 41s serial equivalent** — **15m 31s saved (4.00×)**.
+⚡ **5m 10s parallel wall time** vs **20m 40s serial equivalent** — **15m 30s saved (4.00×)**.
 
 This is a controlled low-load run with four independent workloads. The serial equivalent is the sum of observed task runtimes; the tasks were not rerun serially. [Inspect the live report](https://cloudguo123.github.io/atomlane/) and [raw evidence](https://cloudguo123.github.io/atomlane/benchmark-results.json).
 

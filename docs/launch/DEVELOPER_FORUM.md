@@ -14,7 +14,7 @@ I built AtomLane after repeatedly hitting a bad tradeoff in AI-generated project
 
 AtomLane treats planning like compilation. On macOS it parses supported shell/package/Make/Compose/test entrypoints into a typed Atom IR; its scoped native Windows Preview accepts exact argv and declared PowerShell files while keeping WSL and Docker in separate realms. It preserves success/failure/data/lifecycle edges, models artifacts and resource capacity, and executes only the exact hashed plan. Unknown effects fail closed. For long runs, the live view shows running/ready/completed/failed counts and current estimated savings instead of a blank spinner. Windows adds staged Job Object process-tree containment and optional ConPTY capture.
 
-The public controlled run keeps every workload active for more than five minutes: 20m41s serial equivalent, 5m10s parallel wall time, 15m31s saved, 4.00× observed. The serial equivalent is the sum of observed independent task durations—not a separate 20-minute serial rerun—and it is not a universal speedup claim.
+The public controlled run keeps every workload active for more than five minutes: 20m40s serial equivalent, 5m10s parallel wall time, 15m30s saved, 4.00× observed. The serial equivalent is the sum of observed independent task durations—not a separate 20-minute serial rerun—and it is not a universal speedup claim.
 
 I am especially looking for sanitized real-project results in three areas: Web quality gates, Docker/Compose health DAGs, and research/paper pipelines. Neutral, slower, and correctly blocked results are welcome because they expose missing semantic rules.
 

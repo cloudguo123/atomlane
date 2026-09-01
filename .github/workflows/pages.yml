@@ -92,6 +92,11 @@ jobs:
               if [[ ! -f "$download_dir/$source_name" ]]; then
                 return 1
               fi
+              if ! python3 scripts/generate_test_report.py \
+                --canonicalize-json-evidence "$download_dir/$source_name"; then
+                echo "Could not canonicalize $workflow_name evidence." >&2
+                return 1
+              fi
               local validation_option=""
               case "$validator" in
                 macos-benchmark)

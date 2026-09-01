@@ -16,7 +16,7 @@ is available as a fail-closed Preview.
 
 [中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/atomlane/) · [Report first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
-![AtomLane: controlled benchmark showing 20m40s serial equivalent, 5m10s parallel wall time, and 15m30s saved](assets/growth/social-preview.svg)
+![AtomLane controlled five-minute parallel benchmark](assets/growth/social-preview.svg)
 
 ## Install in two commands
 

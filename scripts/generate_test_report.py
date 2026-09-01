@@ -29,6 +29,9 @@ REPORT_EVIDENCE_INPUTS = {
     "docs/windows-benchmark-results.json",
     "docs/windows-preview-results.json",
 }
+REPORT_ROLE_DASHBOARD = "dashboard"
+REPORT_ROLE_WINDOWS_EVIDENCE = "native_windows_ci_evidence"
+REPORT_ROLES = {REPORT_ROLE_DASHBOARD, REPORT_ROLE_WINDOWS_EVIDENCE}
 
 DOMAIN_META = {
     "test_atom_engine": {
@@ -395,6 +398,37 @@ def sha256(path: pathlib.Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def write_utf8_lf(path: pathlib.Path, text: str) -> None:
+    """Write deterministic UTF-8 evidence bytes without platform newline translation."""
+    if "\r" in text:
+        raise ValueError("evidence output contains a non-canonical carriage return")
+    path.write_bytes(text.encode("utf-8"))
+
+
+def canonicalize_json_evidence(path: pathlib.Path) -> None:
+    """Rewrite valid JSON as stable UTF-8/LF bytes or fail without publishing it."""
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-standard JSON constant: {value}")
+
+    def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON object key: {key}")
+            result[key] = value
+        return result
+
+    payload = json.loads(
+        path.read_bytes().decode("utf-8-sig"),
+        parse_constant=reject_constant,
+        object_pairs_hook=reject_duplicate_keys,
+    )
+    write_utf8_lf(
+        path,
+        json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+    )
 
 
 def _evidence_number(value: Any) -> float:
@@ -844,6 +878,242 @@ def _windows_evidence_matches_source(commit: str) -> bool:
     return _benchmark_evidence_matches_source(commit)
 
 
+def windows_report_structure_is_consistent(report: dict[str, Any]) -> bool:
+    """Check that a native report's summaries are derived from its detailed rows."""
+    environment = report.get("environment")
+    summary = report.get("summary")
+    source = report.get("source")
+    domains = report.get("domains")
+    checks = report.get("checks")
+    tests = report.get("tests")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (environment, dict),
+            (summary, dict),
+            (source, dict),
+            (domains, list),
+            (checks, list),
+            (tests, list),
+        )
+    ):
+        return False
+    if not (
+        report.get("schema_version") == "1.0"
+        and report.get("report_role") == REPORT_ROLE_WINDOWS_EVIDENCE
+        and report.get("project") == "AtomLane"
+        and isinstance(report.get("version"), str)
+        and str(environment.get("os", "")).startswith("Windows")
+        and source.get("repository") == "cloudguo123/atomlane"
+        and source.get("clean") is True
+        and GIT_COMMIT_PATTERN.fullmatch(str(source.get("commit", ""))) is not None
+        and source.get("commit_short") == str(source.get("commit"))[:10]
+        and source.get("branch") == "main"
+    ):
+        return False
+    generated_at = report.get("generated_at")
+    if not isinstance(generated_at, str):
+        return False
+    try:
+        generated = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if generated.tzinfo is None:
+        return False
+
+    allowed_statuses = {
+        "passed",
+        "failed",
+        "error",
+        "skipped",
+        "expected_failure",
+        "unexpected_success",
+    }
+    if not all(
+        isinstance(test, dict)
+        and isinstance(test.get("id"), str)
+        and test.get("id")
+        and isinstance(test.get("module"), str)
+        and test.get("module") in DOMAIN_META
+        and test.get("status") in allowed_statuses
+        and isinstance(test.get("duration_ms"), (int, float))
+        and not isinstance(test.get("duration_ms"), bool)
+        and math.isfinite(float(test["duration_ms"]))
+        and float(test["duration_ms"]) >= 0
+        for test in tests
+    ):
+        return False
+    test_ids = [str(test["id"]) for test in tests]
+    if len(test_ids) != len(set(test_ids)):
+        return False
+    status_counts = Counter(str(test["status"]) for test in tests)
+    summary_expected = {
+        "total": len(tests),
+        "passed": status_counts["passed"],
+        "failed": status_counts["failed"],
+        "errors": status_counts["error"],
+        "skipped": status_counts["skipped"],
+        "expected_failures": status_counts["expected_failure"],
+        "unexpected_successes": status_counts["unexpected_success"],
+        "checks_passed": sum(
+            isinstance(check, dict) and check.get("status") == "passed"
+            for check in checks
+        ),
+        "checks_total": len(checks),
+    }
+    if any(summary.get(key) != value for key, value in summary_expected.items()):
+        return False
+    required_tests = max(
+        0,
+        len(tests) - status_counts["skipped"] - status_counts["expected_failure"],
+    )
+    expected_pass_rate = (
+        round(status_counts["passed"] / required_tests * 100, 2)
+        if required_tests
+        else 0
+    )
+    if summary.get("pass_rate") != expected_pass_rate:
+        return False
+    if not checks or not all(
+        isinstance(check, dict)
+        and isinstance(check.get("name"), str)
+        and check.get("status") in {"passed", "failed", "skipped"}
+        and isinstance(check.get("returncode"), int)
+        and not isinstance(check.get("returncode"), bool)
+        and (
+            (check.get("status") == "passed" and check.get("returncode") == 0)
+            or (check.get("status") == "skipped")
+            or (check.get("status") == "failed" and check.get("returncode") != 0)
+        )
+        and isinstance(check.get("duration_ms"), (int, float))
+        and not isinstance(check.get("duration_ms"), bool)
+        and math.isfinite(float(check["duration_ms"]))
+        and float(check["duration_ms"]) >= 0
+        for check in checks
+    ):
+        return False
+    check_names = [str(check["name"]) for check in checks]
+    if len(check_names) != len(set(check_names)):
+        return False
+    expected_overall = (
+        "passed"
+        if all(check["status"] in {"passed", "skipped"} for check in checks)
+        and status_counts["failed"] == 0
+        and status_counts["error"] == 0
+        and status_counts["unexpected_success"] == 0
+        else "failed"
+    )
+    if report.get("overall") != expected_overall:
+        return False
+
+    domain_by_module: dict[str, dict[str, Any]] = {}
+    for domain in domains:
+        if not isinstance(domain, dict):
+            return False
+        module = domain.get("module")
+        if not isinstance(module, str) or module in domain_by_module:
+            return False
+        domain_by_module[module] = domain
+    if set(domain_by_module) != {str(test["module"]) for test in tests}:
+        return False
+    for module, domain in domain_by_module.items():
+        rows = [test for test in tests if test["module"] == module]
+        counts = Counter(str(test["status"]) for test in rows)
+        expected = {
+            "total": len(rows),
+            "passed": counts["passed"],
+            "failed": counts["failed"],
+            "errors": counts["error"],
+            "skipped": counts["skipped"],
+        }
+        if any(domain.get(key) != value for key, value in expected.items()):
+            return False
+    return sum(int(domain["total"]) for domain in domains) == summary["total"]
+
+
+def build_windows_preview_self_evidence(report: dict[str, Any]) -> dict[str, Any]:
+    """Describe a native Windows CI report without recursively linking to itself."""
+    environment = report.get("environment")
+    summary = report.get("summary")
+    source = report.get("source")
+    checks = report.get("checks")
+    tests = report.get("tests")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (environment, dict),
+            (summary, dict),
+            (source, dict),
+            (checks, list),
+            (tests, list),
+        )
+    ):
+        return {
+            "available": False,
+            "relation": "self",
+            "status": "native_evidence_gate_failed",
+            "source_match": False,
+        }
+
+    source_commit = str(source.get("commit", ""))
+    native_test_rows = [
+        test
+        for test in tests
+        if isinstance(test, dict) and test.get("class") == "WindowsNativeRuntimeTests"
+    ]
+    critical = {test.get("name"): test.get("status") for test in native_test_rows}
+    release_checks_passed = sum(
+        isinstance(check, dict) and check.get("status") == "passed" for check in checks
+    )
+    source_matches = (
+        GIT_COMMIT_PATTERN.fullmatch(source_commit) is not None
+        and source.get("clean") is True
+    )
+    available = (
+        windows_report_structure_is_consistent(report)
+        and report.get("overall") == "passed"
+        and str(environment.get("os", "")).startswith("Windows")
+        and source_matches
+        and WINDOWS_CRITICAL_TESTS.issubset(critical)
+        and len(critical) == len(native_test_rows)
+        and all(test.get("status") == "passed" for test in native_test_rows)
+        and release_checks_passed == len(checks)
+        and bool(checks)
+    )
+    return {
+        "available": available,
+        "relation": "self",
+        "status": "passed" if available else "native_evidence_gate_failed",
+        "source_match": source_matches,
+        "version": report.get("version", "unknown"),
+        "verified_at": report.get("generated_at", "unknown"),
+        "commit": source_commit,
+        "runner": environment.get("runner", "unknown"),
+        "os": environment.get("os", "unknown"),
+        "architecture": environment.get("architecture", "unknown"),
+        "python": environment.get("python", "unknown"),
+        "tests": {
+            "total": summary.get("total", 0),
+            "passed": summary.get("passed", 0),
+            "failed": summary.get("failed", 0),
+            "errors": summary.get("errors", 0),
+            "skipped": summary.get("skipped", 0),
+        },
+        "native_runtime": {
+            "total": len(native_test_rows),
+            "passed": sum(test.get("status") == "passed" for test in native_test_rows),
+            "failed": sum(test.get("status") == "failed" for test in native_test_rows),
+            "errors": sum(test.get("status") == "error" for test in native_test_rows),
+            "skipped": sum(test.get("status") == "skipped" for test in native_test_rows),
+        },
+        "release_checks": {
+            "passed": release_checks_passed,
+            "total": len(checks),
+        },
+        "critical_tests": sorted(WINDOWS_CRITICAL_TESTS),
+    }
+
+
 def load_windows_preview_evidence(
     path: pathlib.Path | None = None,
     *,
@@ -875,6 +1145,9 @@ def load_windows_preview_evidence(
         )
     ):
         return {"available": False, "status": "invalid_evidence"}
+    expected_self_evidence = build_windows_preview_self_evidence(report)
+    self_evidence_matches = report.get("windows_preview") == expected_self_evidence
+    structure_is_consistent = windows_report_structure_is_consistent(report)
     if not str(environment.get("os", "")).startswith("Windows"):
         return {"available": False, "status": "not_native_windows"}
     runtime_domain = next(
@@ -929,6 +1202,9 @@ def load_windows_preview_evidence(
         and native_gate_passed
         and release_gate_passed
         and evidence_is_current
+        and report.get("report_role") == REPORT_ROLE_WINDOWS_EVIDENCE
+        and self_evidence_matches
+        and structure_is_consistent
     ):
         return {
             "available": False,
@@ -939,6 +1215,8 @@ def load_windows_preview_evidence(
                 critical.get(name) == "passed" for name in WINDOWS_CRITICAL_TESTS
             ),
             "critical_tests_required": len(WINDOWS_CRITICAL_TESTS),
+            "self_evidence_matches": self_evidence_matches,
+            "structure_is_consistent": structure_is_consistent,
         }
     return {
         "available": True,
@@ -991,7 +1269,16 @@ def load_windows_benchmark_evidence(
     latest = report.get("latest")
     cumulative = report.get("cumulative")
     history = report.get("history")
-    if not isinstance(latest, dict) or not isinstance(cumulative, dict) or not isinstance(history, list):
+    realms = report.get("realms")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (latest, dict),
+            (cumulative, dict),
+            (history, list),
+            (realms, dict),
+        )
+    ):
         return {"available": False, "status": "invalid_benchmark_evidence"}
     platform_info = latest.get("platform")
     tasks = latest.get("tasks")
@@ -1009,48 +1296,122 @@ def load_windows_benchmark_evidence(
             (savings, dict),
             (progress, list),
         )
-    ):
+    ) or not all(isinstance(task, dict) for task in tasks):
         return {"available": False, "status": "invalid_benchmark_evidence"}
     try:
-        durations = [float(task["duration_seconds"]) for task in tasks]
-        wall_seconds = float(parallel["wall_time_seconds"])
-        serial_seconds = float(serial["seconds"])
-        saved_seconds = float(savings["seconds"])
-        peak = int(parallel["peak_concurrency"])
+        minimum_seconds = _evidence_number(latest["minimum_task_seconds"])
+        target_seconds = _evidence_number(latest["target_task_seconds"])
+        observed_field = _evidence_number(latest["observed_minimum_task_seconds"])
+        tolerance_seconds = _evidence_number(
+            latest["worker_duration_tolerance_seconds"]
+        )
+        task_count = _evidence_integer(latest["task_count"])
+        durations = [_evidence_number(task["duration_seconds"]) for task in tasks]
+        outer_durations = [
+            _evidence_number(task["outer_duration_seconds"]) for task in tasks
+        ]
+        duration_drifts = [
+            _evidence_number(task["duration_drift_seconds"]) for task in tasks
+        ]
+        iterations = [_evidence_integer(task["iterations"]) for task in tasks]
+        work_units = [_evidence_integer(task["work_units"]) for task in tasks]
+        wall_seconds = _evidence_number(parallel["wall_time_seconds"])
+        peak = _evidence_integer(parallel["peak_concurrency"])
+        chosen = _evidence_integer(parallel["chosen_concurrency"])
+        serial_seconds = _evidence_number(serial["seconds"])
+        saved_seconds = _evidence_number(savings["seconds"])
+        speedup = _evidence_number(savings["speedup_multiplier"])
+        percent = _evidence_number(savings["percent"])
+        efficiency = _evidence_number(savings["parallel_efficiency"])
     except (KeyError, TypeError, ValueError, OverflowError):
         return {"available": False, "status": "invalid_benchmark_evidence"}
-    finite_values = [*durations, wall_seconds, serial_seconds, saved_seconds]
     observed_minimum = min(durations) if durations else 0.0
     system = str(platform_info.get("system") or platform_info.get("platform") or "")
     realm = str(platform_info.get("execution_realm") or "")
-    all_succeeded = len(tasks) == 4 and all(
-        isinstance(task, dict) and task.get("status") == "succeeded" for task in tasks
+    task_ids = [task.get("id") for task in tasks]
+    tasks_are_complete = (
+        len(tasks) == len(LONG_BENCHMARK_TASK_IDS)
+        and task_count == len(LONG_BENCHMARK_TASK_IDS)
+        and all(isinstance(task_id, str) for task_id in task_ids)
+        and set(task_ids) == LONG_BENCHMARK_TASK_IDS
+        and all(task.get("scenario") == task.get("id") for task in tasks)
+        and all(task.get("status") == "succeeded" for task in tasks)
+        and all(task.get("worker_evidence_valid") is True for task in tasks)
+        and all(task.get("worker_evidence_errors") == [] for task in tasks)
+        and all(value > 0 for value in iterations)
+        and all(value > 0 for value in work_units)
+    )
+    expected_tolerance = max(2.0, target_seconds * 0.02)
+    durations_are_observed = (
+        all(value >= 300 for value in durations)
+        and all(value >= 300 for value in outer_durations)
+        and all(value >= 0 for value in duration_drifts)
+        and all(
+            math.isclose(
+                drift,
+                abs(outer - observed),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and drift <= tolerance_seconds
+            for observed, outer, drift in zip(
+                durations,
+                outer_durations,
+                duration_drifts,
+                strict=True,
+            )
+        )
+    )
+    progress_is_valid = bool(progress) and all(
+        isinstance(sample, dict) for sample in progress
     )
     has_live_sample = False
-    for sample in progress:
-        if not isinstance(sample, dict):
-            continue
+    if progress_is_valid:
         try:
-            has_live_sample = (
-                int(sample.get("running_tasks", 0)) >= 2
-                and int(sample.get("completed_tasks", 0)) < len(tasks)
-                and float(sample.get("elapsed_seconds", wall_seconds)) < wall_seconds
+            has_live_sample = any(
+                _evidence_integer(sample["running_tasks"])
+                == len(LONG_BENCHMARK_TASK_IDS)
+                and 0
+                <= _evidence_integer(sample["completed_tasks"])
+                < len(LONG_BENCHMARK_TASK_IDS)
+                and 0 <= _evidence_number(sample["elapsed_seconds"]) < wall_seconds
+                and sample.get("savings_eligible") is True
+                for sample in progress
             )
-        except (TypeError, ValueError, OverflowError):
-            has_live_sample = False
-        if has_live_sample:
-            break
+        except (KeyError, TypeError, ValueError, OverflowError):
+            progress_is_valid = False
     arithmetic_matches = (
-        math.isclose(serial_seconds, sum(durations), rel_tol=0, abs_tol=0.01)
-        and math.isclose(saved_seconds, max(0.0, serial_seconds - wall_seconds), rel_tol=0, abs_tol=0.01)
-    )
-    observed_field = latest.get("observed_minimum_task_seconds", observed_minimum)
-    try:
-        observed_field_matches = math.isclose(
-            float(observed_field), observed_minimum, rel_tol=0, abs_tol=0.01
+        wall_seconds > 0
+        and peak > 0
+        and serial_seconds > 0
+        and saved_seconds >= 0
+        and math.isclose(serial_seconds, sum(durations), rel_tol=0, abs_tol=0.01)
+        and math.isclose(
+            saved_seconds,
+            max(0.0, serial_seconds - wall_seconds),
+            rel_tol=0,
+            abs_tol=0.01,
         )
-    except (TypeError, ValueError, OverflowError):
-        observed_field_matches = False
+        and math.isclose(observed_field, observed_minimum, rel_tol=0, abs_tol=0.01)
+        and math.isclose(
+            speedup,
+            serial_seconds / wall_seconds,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+        and math.isclose(
+            percent,
+            saved_seconds / serial_seconds * 100,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+        and math.isclose(
+            efficiency,
+            serial_seconds / wall_seconds / peak,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+    )
     latest_commit = str(latest.get("commit", ""))
     expected_commit_matches = expected_commit is None or (
         isinstance(expected_commit, str)
@@ -1068,63 +1429,111 @@ def load_windows_benchmark_evidence(
     )
     run_ids = [str(row.get("run_id", "")) for row in history if isinstance(row, dict)]
     latest_run_id = str(latest.get("run_id", ""))
-    latest_is_in_history = latest_run_id in run_ids
-    history_is_unique = len(run_ids) == len(set(run_ids)) and all(run_ids)
+    history_is_unique = (
+        len(run_ids) == len(history)
+        and len(run_ids) == len(set(run_ids))
+        and all(run_id.endswith("@windows_native") for run_id in run_ids)
+    )
     current_history_rows = [
         row
         for row in history
         if isinstance(row, dict) and str(row.get("run_id", "")) == latest_run_id
     ]
+    history_arithmetic_matches = True
+    try:
+        for row in history:
+            row_commit = row["commit"]
+            if (
+                not isinstance(row_commit, str)
+                or GIT_COMMIT_PATTERN.fullmatch(row_commit) is None
+            ):
+                history_arithmetic_matches = False
+                break
+            row_wall = _evidence_number(row["wall_time_seconds"])
+            row_serial = _evidence_number(row["serial_equivalent_seconds"])
+            row_saved = _evidence_number(row["saved_seconds"])
+            row_speedup = _evidence_number(row["speedup_multiplier"])
+            if not (
+                row_wall > 0
+                and row_serial > 0
+                and row_saved >= 0
+                and math.isclose(
+                    row_saved,
+                    max(0.0, row_serial - row_wall),
+                    rel_tol=0,
+                    abs_tol=0.01,
+                )
+                and math.isclose(
+                    row_speedup,
+                    row_serial / row_wall,
+                    rel_tol=0,
+                    abs_tol=0.0001,
+                )
+            ):
+                history_arithmetic_matches = False
+                break
+    except (KeyError, TypeError, ValueError, OverflowError):
+        history_arithmetic_matches = False
     try:
         current_history_matches = len(current_history_rows) == 1 and (
             current_history_rows[0].get("commit") == latest.get("commit")
             and math.isclose(
-                float(current_history_rows[0]["wall_time_seconds"]),
+                _evidence_number(current_history_rows[0]["wall_time_seconds"]),
                 wall_seconds,
                 rel_tol=0,
                 abs_tol=0.01,
             )
             and math.isclose(
-                float(current_history_rows[0]["serial_equivalent_seconds"]),
+                _evidence_number(
+                    current_history_rows[0]["serial_equivalent_seconds"]
+                ),
                 serial_seconds,
                 rel_tol=0,
                 abs_tol=0.01,
             )
             and math.isclose(
-                float(current_history_rows[0]["saved_seconds"]),
+                _evidence_number(current_history_rows[0]["saved_seconds"]),
                 saved_seconds,
                 rel_tol=0,
                 abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(current_history_rows[0]["speedup_multiplier"]),
+                speedup,
+                rel_tol=0,
+                abs_tol=0.0001,
             )
         )
     except (KeyError, TypeError, ValueError, OverflowError):
         current_history_matches = False
     try:
         cumulative_matches = (
-            int(cumulative["run_count"]) == len(history)
+            _evidence_integer(cumulative["run_count"]) == len(history)
             and math.isclose(
-                float(cumulative["parallel_wall_seconds"]),
-                sum(float(row["wall_time_seconds"]) for row in history),
+                _evidence_number(cumulative["parallel_wall_seconds"]),
+                sum(_evidence_number(row["wall_time_seconds"]) for row in history),
                 rel_tol=0,
                 abs_tol=0.01,
             )
             and math.isclose(
-                float(cumulative["serial_equivalent_seconds"]),
-                sum(float(row["serial_equivalent_seconds"]) for row in history),
+                _evidence_number(cumulative["serial_equivalent_seconds"]),
+                sum(
+                    _evidence_number(row["serial_equivalent_seconds"])
+                    for row in history
+                ),
                 rel_tol=0,
                 abs_tol=0.01,
             )
             and math.isclose(
-                float(cumulative["saved_seconds"]),
-                sum(float(row["saved_seconds"]) for row in history),
+                _evidence_number(cumulative["saved_seconds"]),
+                sum(_evidence_number(row["saved_seconds"]) for row in history),
                 rel_tol=0,
                 abs_tol=0.01,
             )
         )
     except (KeyError, TypeError, ValueError, OverflowError):
         cumulative_matches = False
-    realms = report.get("realms")
-    windows_state = realms.get("windows_native") if isinstance(realms, dict) else None
+    windows_state = realms.get("windows_native")
     realm_state_matches = (
         isinstance(windows_state, dict)
         and windows_state.get("history") == history
@@ -1136,21 +1545,33 @@ def load_windows_benchmark_evidence(
         and report.get("aggregation_scope") == "execution_realm"
         and report.get("latest_realm") == "windows_native"
         and latest.get("status") == "passed"
+        and latest.get("worker_evidence_complete") is True
+        and latest.get("minimum_duration_met") is True
+        and latest.get("full_parallelism_observed") is True
         and system.casefold().startswith("windows")
         and realm == "windows_native"
-        and all(math.isfinite(value) and value >= 0 for value in finite_values)
-        and all_succeeded
+        and latest_run_id.endswith("@windows_native")
+        and math.isclose(minimum_seconds, 300.0, rel_tol=0, abs_tol=0.000001)
+        and math.isclose(target_seconds, 310.0, rel_tol=0, abs_tol=0.000001)
+        and math.isclose(
+            tolerance_seconds,
+            expected_tolerance,
+            rel_tol=0,
+            abs_tol=0.000001,
+        )
+        and tasks_are_complete
+        and durations_are_observed
         and observed_minimum >= 300
-        and latest.get("minimum_duration_met") is True
-        and peak >= 2
+        and peak == len(LONG_BENCHMARK_TASK_IDS)
+        and chosen == len(LONG_BENCHMARK_TASK_IDS)
+        and progress_is_valid
         and has_live_sample
         and arithmetic_matches
-        and observed_field_matches
         and source_matches
         and history_is_windows_only
-        and latest_is_in_history
         and current_history_matches
         and history_is_unique
+        and history_arithmetic_matches
         and cumulative_matches
         and realm_state_matches
     )
@@ -1160,7 +1581,10 @@ def load_windows_benchmark_evidence(
             "status": "native_benchmark_gate_failed",
             "source_match": source_matches,
             "observed_minimum_task_seconds": round(observed_minimum, 6),
-            "all_tasks_succeeded": all_succeeded,
+            "all_tasks_succeeded": tasks_are_complete,
+            "worker_evidence_complete": latest.get("worker_evidence_complete")
+            is True,
+            "task_arithmetic_matches": arithmetic_matches,
             "live_progress_observed": has_live_sample,
             "history_is_windows_only": history_is_windows_only,
             "current_history_matches_latest": current_history_matches,
@@ -1259,7 +1683,11 @@ def build_python_advisor_evidence() -> tuple[dict[str, Any], dict[str, Any]]:
     return check, evidence
 
 
-def build_report() -> dict[str, Any]:
+def build_report(*, report_role: str = REPORT_ROLE_DASHBOARD) -> dict[str, Any]:
+    if report_role not in REPORT_ROLES:
+        raise ValueError(f"unsupported report role: {report_role}")
+    if report_role == REPORT_ROLE_WINDOWS_EVIDENCE and platform.system() != "Windows":
+        raise RuntimeError("native Windows evidence must be generated on Windows")
     checks: list[dict[str, Any]] = []
     python_sources = sorted(str(path.relative_to(ROOT)) for path in SCRIPTS.glob("*.py"))
     checks.append(
@@ -1313,8 +1741,9 @@ def build_report() -> dict[str, Any]:
         )
 
     bundle = ROOT / "assets" / "parallel-indicator-host.bundle.js"
-    return {
+    report = {
         "schema_version": "1.0",
+        "report_role": report_role,
         "project": "AtomLane",
         "version": json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())["version"],
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -1354,7 +1783,11 @@ def build_report() -> dict[str, Any]:
         "domains": domain_rows,
         "tests": tests,
         "benchmark": load_long_benchmark(),
-        "windows_preview": load_windows_preview_evidence(),
+        "windows_preview": (
+            load_windows_preview_evidence()
+            if report_role == REPORT_ROLE_DASHBOARD
+            else {"available": False, "relation": "self", "status": "building"}
+        ),
         "windows_benchmark": load_windows_benchmark_evidence(),
         "python_advisor": advisor_evidence,
         "growth": load_growth_metrics(),
@@ -1365,6 +1798,9 @@ def build_report() -> dict[str, Any]:
             "not a statement of line or branch coverage."
         ),
     }
+    if report_role == REPORT_ROLE_WINDOWS_EVIDENCE:
+        report["windows_preview"] = build_windows_preview_self_evidence(report)
+    return report
 
 
 def render_html(report: dict[str, Any]) -> str:
@@ -1687,7 +2123,45 @@ def main() -> int:
         "--expected-commit",
         help="exact source commit required by artifact validation modes",
     )
+    parser.add_argument(
+        "--report-role",
+        choices=sorted(REPORT_ROLES),
+        default=REPORT_ROLE_DASHBOARD,
+        help="declare whether the output is a public dashboard or native Windows CI evidence",
+    )
+    parser.add_argument(
+        "--canonicalize-json-evidence",
+        type=pathlib.Path,
+        help="rewrite one JSON evidence file as deterministic UTF-8 with LF newlines",
+    )
     args = parser.parse_args()
+    if args.canonicalize_json_evidence is not None:
+        if args.expected_commit is not None:
+            parser.error("--expected-commit cannot be used while canonicalizing JSON")
+        if any(
+            path is not None
+            for path in (
+                args.validate_macos_benchmark_evidence,
+                args.validate_windows_preview_evidence,
+                args.validate_windows_benchmark_evidence,
+            )
+        ):
+            parser.error("evidence validation and canonicalization are mutually exclusive")
+        try:
+            canonicalize_json_evidence(args.canonicalize_json_evidence)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            print(f"invalid JSON evidence: {exc}", file=sys.stderr)
+            return 1
+        print(
+            json.dumps(
+                {
+                    "canonical": True,
+                    "path": str(args.canonicalize_json_evidence),
+                },
+                separators=(",", ":"),
+            )
+        )
+        return 0
     validation_mode = next(
         (
             (name, path)
@@ -1751,11 +2225,19 @@ def main() -> int:
         return 0 if evidence.get("available") is True else 1
     if args.expected_commit is not None:
         parser.error("--expected-commit requires an artifact validation mode")
-    report = build_report()
+    if (
+        args.report_role == REPORT_ROLE_WINDOWS_EVIDENCE
+        and platform.system() != "Windows"
+    ):
+        parser.error("native Windows evidence must be generated on Windows")
+    report = build_report(report_role=args.report_role)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render_html(report), encoding="utf-8")
-    args.json_output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_utf8_lf(args.output, render_html(report))
+    write_utf8_lf(
+        args.json_output,
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+    )
     shutil.copy2(ROOT / "benchmarks" / "project-result.schema.json", ROOT / "docs")
     shutil.copy2(ROOT / "benchmarks" / "external-results.json", ROOT / "docs")
     print(
@@ -1764,6 +2246,17 @@ def main() -> int:
                 "overall": report["overall"],
                 "tests": report["summary"]["total"],
                 "passed": report["summary"]["passed"],
+                "failed_checks": [
+                    check["name"]
+                    for check in report["checks"]
+                    if check["status"] not in {"passed", "skipped"}
+                ],
+                "non_passing_tests": [
+                    {"id": test["id"], "status": test["status"]}
+                    for test in report["tests"]
+                    if test["status"]
+                    not in {"passed", "skipped", "expected_failure"}
+                ],
                 "output": str(args.output),
             }
         )

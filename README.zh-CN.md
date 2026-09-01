@@ -13,7 +13,7 @@ Docker 和科研流水线。macOS 为稳定版，原生 Windows 已提供严格�
 
 [English](README.md) · [在线报告](https://cloudguo123.github.io/atomlane/) · [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
-![AtomLane：受控基准测试，串行等效 20 分 41 秒，并行实际 5 分 10 秒，节约 15 分 31 秒](assets/growth/social-preview.svg)
+![AtomLane 受控五分钟并行基准测试](assets/growth/social-preview.svg)
 
 ## 两条命令安装
 

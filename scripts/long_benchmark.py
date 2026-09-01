@@ -649,7 +649,10 @@ async def run_benchmark(
         previous = {}
     report = merge_history(previous, latest)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    encoded = (json.dumps(report, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if b"\r" in encoded:
+        raise ValueError("benchmark evidence contains a non-canonical carriage return")
+    output.write_bytes(encoded)
     print(
         "BENCHMARK_RESULT "
         f"status={latest['status']} wall={latest['parallel']['wall_time_seconds']:.2f}s "

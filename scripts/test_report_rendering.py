@@ -109,7 +109,134 @@ def _macos_benchmark_report(commit: str = "a" * 40) -> dict[str, object]:
     }
 
 
+def _windows_preview_report(commit: str = "a" * 40) -> dict[str, object]:
+    names = sorted(generate_test_report.WINDOWS_CRITICAL_TESTS) + [
+        "test_additional_native_gate_is_allowed"
+    ]
+    tests = [
+        {
+            "id": f"test_windows_runtime.WindowsNativeRuntimeTests.{name}",
+            "module": "test_windows_runtime",
+            "domain": "Windows runtime contracts",
+            "class": "WindowsNativeRuntimeTests",
+            "name": name,
+            "title": name.removeprefix("test_").replace("_", " "),
+            "status": "passed",
+            "duration_ms": 1.0,
+        }
+        for name in names
+    ]
+    checks = [
+        {
+            "name": "Regression suite",
+            "status": "passed",
+            "duration_ms": 1.0,
+            "returncode": 0,
+        },
+        {
+            "name": "Clean source provenance",
+            "status": "passed",
+            "duration_ms": 1.0,
+            "returncode": 0,
+        },
+    ]
+    report: dict[str, object] = {
+        "schema_version": "1.0",
+        "report_role": generate_test_report.REPORT_ROLE_WINDOWS_EVIDENCE,
+        "project": "AtomLane",
+        "overall": "passed",
+        "version": "0.12.0",
+        "generated_at": "2026-09-01T00:00:00+00:00",
+        "source": {
+            "commit": commit,
+            "commit_short": commit[:10],
+            "branch": "main",
+            "clean": True,
+            "repository": "cloudguo123/atomlane",
+        },
+        "environment": {
+            "os": "Windows 2025",
+            "architecture": "AMD64",
+            "python": "3.13.7",
+            "runner": "GitHub Actions 1",
+        },
+        "summary": {
+            "total": len(tests),
+            "passed": len(tests),
+            "failed": 0,
+            "errors": 0,
+            "skipped": 0,
+            "expected_failures": 0,
+            "unexpected_successes": 0,
+            "checks_passed": len(checks),
+            "checks_total": len(checks),
+            "pass_rate": 100.0,
+        },
+        "domains": [
+            {
+                "module": "test_windows_runtime",
+                "total": len(tests),
+                "passed": len(tests),
+                "failed": 0,
+                "errors": 0,
+                "skipped": 0,
+                "duration_ms": float(len(tests)),
+            }
+        ],
+        "checks": checks,
+        "tests": tests,
+    }
+    report["windows_preview"] = (
+        generate_test_report.build_windows_preview_self_evidence(report)
+    )
+    return report
+
+
+def _windows_benchmark_report(commit: str = "a" * 40) -> dict[str, object]:
+    report = json.loads(json.dumps(_macos_benchmark_report(commit)))
+    latest = report["latest"]
+    old_run_id = latest["run_id"]
+    run_id = old_run_id.removesuffix("@macos_native") + "@windows_native"
+    latest["run_id"] = run_id
+    latest["platform"]["system"] = "Windows"
+    latest["platform"]["execution_realm"] = "windows_native"
+    for row in report["history"]:
+        row["run_id"] = run_id
+        row["execution_realm"] = "windows_native"
+    report["latest_realm"] = "windows_native"
+    report["realms"] = {
+        "windows_native": {
+            "latest": latest,
+            "history": report["history"],
+            "cumulative": report["cumulative"],
+        }
+    }
+    return report
+
+
 class ReportRenderingTests(unittest.TestCase):
+    def test_native_windows_report_role_fails_closed_off_windows(self) -> None:
+        with (
+            mock.patch.object(generate_test_report.platform, "system", return_value="Darwin"),
+            self.assertRaises(RuntimeError),
+        ):
+            generate_test_report.build_report(
+                report_role=generate_test_report.REPORT_ROLE_WINDOWS_EVIDENCE
+            )
+
+    def test_json_evidence_canonicalizer_is_lf_and_rejects_ambiguous_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "evidence.json"
+            path.write_bytes(b'{\r\n  "value": 1\r\n}\r\n')
+            generate_test_report.canonicalize_json_evidence(path)
+            self.assertEqual(path.read_bytes(), b'{\n  "value": 1\n}\n')
+
+            for payload in (b'{"value":NaN}', b'{"value":1,"value":2}'):
+                with self.subTest(payload=payload):
+                    path.write_bytes(payload)
+                    with self.assertRaises(ValueError):
+                        generate_test_report.canonicalize_json_evidence(path)
+
     def test_bundle_check_invokes_node_without_a_platform_shell_shim(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -380,9 +507,11 @@ class ReportRenderingTests(unittest.TestCase):
             generate_test_report.ROOT / ".github" / "workflows" / "pages.yml"
         ).read_text(encoding="utf-8")
         report_section, deploy_section = workflow.split("\n  deploy:\n", maxsplit=1)
+        canonicalizer = workflow.index("--canonicalize-json-evidence")
         validator = workflow.index("--validate-macos-benchmark-evidence")
         copy = workflow.index('cp "$download_dir/$source_name" "$destination"')
 
+        self.assertLess(canonicalizer, validator)
         self.assertLess(validator, copy)
         self.assertIn("ref: refs/heads/main", report_section)
         self.assertIn("fetch-depth: 0", report_section)
@@ -545,53 +674,7 @@ class ReportRenderingTests(unittest.TestCase):
             docs.mkdir()
             evidence_path = docs / "windows-preview-results.json"
             evidence_path.write_text(
-                json.dumps(
-                    {
-                        "overall": "passed",
-                        "version": "0.12.0",
-                        "generated_at": "2026-09-01T00:00:00+00:00",
-                        "source": {"commit": "a" * 40},
-                        "environment": {
-                            "os": "Windows 2025",
-                            "architecture": "AMD64",
-                            "python": "3.13.7",
-                            "runner": "GitHub Actions 1",
-                        },
-                        "summary": {
-                            "total": 126,
-                            "passed": 126,
-                            "failed": 0,
-                            "errors": 0,
-                            "skipped": 0,
-                        },
-                        "domains": [
-                            {
-                                "module": "test_windows_runtime",
-                                "total": 11,
-                                "passed": 11,
-                                "failed": 0,
-                                "errors": 0,
-                                "skipped": 0,
-                            }
-                        ],
-                        "checks": [{"status": "passed"}, {"status": "passed"}],
-                        "tests": [
-                            {
-                                "class": "WindowsNativeRuntimeTests",
-                                "name": name,
-                                "status": "passed",
-                            }
-                            for name in generate_test_report.WINDOWS_CRITICAL_TESTS
-                        ]
-                        + [
-                            {
-                                "class": "WindowsNativeRuntimeTests",
-                                "name": "test_additional_native_gate_is_allowed",
-                                "status": "passed",
-                            }
-                        ],
-                    }
-                ),
+                json.dumps(_windows_preview_report()),
                 encoding="utf-8",
             )
             with (
@@ -622,92 +705,120 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertEqual(evidence["native_runtime"]["skipped"], 0)
         self.assertEqual(evidence["release_checks"], {"passed": 2, "total": 2})
 
+    def test_windows_evidence_self_summary_is_canonical_and_non_recursive(self) -> None:
+        report = _windows_preview_report()
+        self_evidence = report["windows_preview"]
+        self.assertTrue(self_evidence["available"])
+        self.assertEqual(self_evidence["relation"], "self")
+        self.assertNotIn("evidence_sha256", self_evidence)
+        self.assertNotIn("evidence_url", self_evidence)
+        self.assertEqual(
+            self_evidence,
+            generate_test_report.build_windows_preview_self_evidence(report),
+        )
+
+    def test_windows_evidence_rejects_recursive_or_inconsistent_self_summaries(self) -> None:
+        def wrong_role(report: dict[str, object]) -> None:
+            report["report_role"] = generate_test_report.REPORT_ROLE_DASHBOARD
+
+        def recursive_hash(report: dict[str, object]) -> None:
+            report["windows_preview"]["evidence_sha256"] = "0" * 64
+
+        def wrong_relation(report: dict[str, object]) -> None:
+            report["windows_preview"]["relation"] = "previous"
+
+        def wrong_summary(report: dict[str, object]) -> None:
+            report["summary"]["total"] += 1
+
+        def wrong_domain(report: dict[str, object]) -> None:
+            report["domains"][0]["passed"] -= 1
+
+        def duplicate_test(report: dict[str, object]) -> None:
+            report["tests"][1]["id"] = report["tests"][0]["id"]
+
+        def change_generated_time(report: dict[str, object]) -> None:
+            report["generated_at"] = "2026-09-01T00:00:01+00:00"
+
+        def change_environment(report: dict[str, object]) -> None:
+            report["environment"]["python"] = "3.13.8"
+
+        def remove_critical_summary(report: dict[str, object]) -> None:
+            report["windows_preview"]["critical_tests"].pop()
+
+        def duplicate_check_name(report: dict[str, object]) -> None:
+            report["checks"][1]["name"] = report["checks"][0]["name"]
+
+        def wrong_commit_short(report: dict[str, object]) -> None:
+            report["source"]["commit_short"] = "b" * 10
+
+        mutations = {
+            "wrong role": wrong_role,
+            "recursive hash": recursive_hash,
+            "wrong relation": wrong_relation,
+            "wrong summary": wrong_summary,
+            "wrong domain": wrong_domain,
+            "duplicate test": duplicate_test,
+            "changed generated time": change_generated_time,
+            "changed environment": change_environment,
+            "missing critical summary": remove_critical_summary,
+            "duplicate check name": duplicate_check_name,
+            "wrong commit short": wrong_commit_short,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "docs").mkdir()
+            (root / ".codex-plugin").mkdir()
+            (root / ".codex-plugin" / "plugin.json").write_text(
+                '{"version":"0.12.0"}\n', encoding="utf-8"
+            )
+            evidence_path = root / "docs" / "windows-preview-results.json"
+            for label, mutate in mutations.items():
+                with self.subTest(label=label):
+                    report = json.loads(json.dumps(_windows_preview_report()))
+                    mutate(report)
+                    evidence_path.write_text(json.dumps(report), encoding="utf-8")
+                    with (
+                        mock.patch.object(generate_test_report, "ROOT", root),
+                        mock.patch.object(
+                            generate_test_report,
+                            "_windows_evidence_matches_source",
+                            return_value=True,
+                        ),
+                    ):
+                        evidence = generate_test_report.load_windows_preview_evidence()
+                    self.assertFalse(evidence["available"])
+
+    def test_ci_generates_explicit_native_windows_self_report(self) -> None:
+        workflow = (
+            generate_test_report.ROOT / ".github" / "workflows" / "ci.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "--report-role native_windows_ci_evidence",
+            workflow,
+        )
+        self.assertIn(
+            "Copy-Item windows-report/windows-preview-results.json "
+            "windows-report/test-results.json",
+            workflow,
+        )
+        self.assertIn("Windows evidence is not canonical LF JSON", workflow)
+        self.assertIn("self evidence must not contain a recursive hash or URL", workflow)
+        self.assertIn("refs/heads/main", workflow)
+        self.assertIn(
+            "if: always() && matrix.os == 'windows-2025' && matrix.python == '3.13'",
+            workflow,
+        )
+
     def test_windows_benchmark_requires_observed_five_minute_native_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             docs = root / "docs"
             docs.mkdir()
-            tasks = [
-                {
-                    "id": f"task-{index}",
-                    "label": f"Task {index}",
-                    "status": "succeeded",
-                    "duration_seconds": 310.0 + index,
-                }
-                for index in range(4)
-            ]
-            serial = sum(task["duration_seconds"] for task in tasks)
-            wall = 314.0
             evidence_path = docs / "windows-benchmark-results.json"
             evidence_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "1.1",
-                        "latest": {
-                            "run_id": "123-windows_native",
-                            "commit": "a" * 40,
-                            "status": "passed",
-                            "minimum_task_seconds": 300.0,
-                            "target_task_seconds": 310.0,
-                            "minimum_duration_met": True,
-                            "observed_minimum_task_seconds": 310.0,
-                            "task_count": 4,
-                            "tasks": tasks,
-                            "parallel": {
-                                "wall_time_seconds": wall,
-                                "peak_concurrency": 4,
-                            },
-                            "serial_equivalent": {"seconds": serial},
-                            "savings": {
-                                "seconds": serial - wall,
-                                "speedup_multiplier": serial / wall,
-                            },
-                            "platform": {
-                                "system": "Windows",
-                                "execution_realm": "windows_native",
-                                "architecture": "AMD64",
-                            },
-                            "progress_samples": [
-                                {
-                                    "elapsed_seconds": 1.0,
-                                    "running_tasks": 4,
-                                    "completed_tasks": 0,
-                                }
-                            ],
-                        },
-                        "aggregation_scope": "execution_realm",
-                        "latest_realm": "windows_native",
-                        "history": [
-                            {
-                                "run_id": "123-windows_native",
-                                "commit": "a" * 40,
-                                "status": "passed",
-                                "execution_realm": "windows_native",
-                                "wall_time_seconds": wall,
-                                "serial_equivalent_seconds": serial,
-                                "saved_seconds": serial - wall,
-                                "speedup_multiplier": serial / wall,
-                            }
-                        ],
-                        "cumulative": {
-                            "run_count": 1,
-                            "parallel_wall_seconds": wall,
-                            "serial_equivalent_seconds": serial,
-                            "saved_seconds": serial - wall,
-                        },
-                    }
-                ),
+                json.dumps(_windows_benchmark_report()),
                 encoding="utf-8",
             )
-            report = json.loads(evidence_path.read_text(encoding="utf-8"))
-            report["realms"] = {
-                "windows_native": {
-                    "latest": report["latest"],
-                    "history": report["history"],
-                    "cumulative": report["cumulative"],
-                }
-            }
-            evidence_path.write_text(json.dumps(report), encoding="utf-8")
             with (
                 mock.patch.object(generate_test_report, "ROOT", root),
                 mock.patch.object(
@@ -728,61 +839,85 @@ class ReportRenderingTests(unittest.TestCase):
                 evidence["latest"]["observed_minimum_task_seconds"], 310.0
             )
 
-            report = json.loads(evidence_path.read_text(encoding="utf-8"))
+    def test_windows_benchmark_rejects_incomplete_or_forged_worker_evidence(self) -> None:
+        def wrong_task_id(report: dict[str, object]) -> None:
+            report["latest"]["tasks"][0]["id"] = "unknown-task"
+
+        def wrong_scenario(report: dict[str, object]) -> None:
+            report["latest"]["tasks"][0]["scenario"] = "other"
+
+        def erase_worker_proof(report: dict[str, object]) -> None:
+            report["latest"]["tasks"][0]["worker_evidence_valid"] = False
+
+        def shorten_target(report: dict[str, object]) -> None:
+            report["latest"]["target_task_seconds"] = 309.0
+
+        def lower_peak(report: dict[str, object]) -> None:
+            report["latest"]["parallel"]["peak_concurrency"] = 2
+
+        def zero_peak(report: dict[str, object]) -> None:
+            report["latest"]["parallel"]["peak_concurrency"] = 0
+
+        def remove_live_savings_gate(report: dict[str, object]) -> None:
+            report["latest"]["progress_samples"][0]["savings_eligible"] = False
+
+        def corrupt_percent(report: dict[str, object]) -> None:
+            report["latest"]["savings"]["percent"] += 1
+
+        def wrong_run_realm(report: dict[str, object]) -> None:
+            report["latest"]["run_id"] = "run-without-realm"
+
+        def mix_history_realm(report: dict[str, object]) -> None:
             report["history"][0]["execution_realm"] = "macos_native"
             report["realms"]["windows_native"]["history"][0][
                 "execution_realm"
             ] = "macos_native"
-            evidence_path.write_text(json.dumps(report), encoding="utf-8")
-            with (
-                mock.patch.object(generate_test_report, "ROOT", root),
-                mock.patch.object(
-                    generate_test_report,
-                    "_windows_evidence_matches_source",
-                    return_value=True,
-                ),
-            ):
-                mixed_realm = generate_test_report.load_windows_benchmark_evidence()
-            self.assertFalse(mixed_realm["available"])
-            self.assertFalse(mixed_realm["history_is_windows_only"])
 
-            report["history"][0]["execution_realm"] = "windows_native"
-            report["realms"]["windows_native"]["history"][0][
-                "execution_realm"
-            ] = "windows_native"
+        def corrupt_cumulative(report: dict[str, object]) -> None:
             report["cumulative"]["saved_seconds"] += 1
-            report["realms"]["windows_native"]["cumulative"]["saved_seconds"] += 1
-            evidence_path.write_text(json.dumps(report), encoding="utf-8")
-            with (
-                mock.patch.object(generate_test_report, "ROOT", root),
-                mock.patch.object(
-                    generate_test_report,
-                    "_windows_evidence_matches_source",
-                    return_value=True,
-                ),
-            ):
-                bad_cumulative = generate_test_report.load_windows_benchmark_evidence()
-            self.assertFalse(bad_cumulative["available"])
-            self.assertFalse(bad_cumulative["cumulative_matches_history"])
+            report["realms"]["windows_native"]["cumulative"][
+                "saved_seconds"
+            ] += 1
 
-            report["cumulative"]["saved_seconds"] -= 1
-            report["realms"]["windows_native"]["cumulative"]["saved_seconds"] -= 1
+        def shorten_worker(report: dict[str, object]) -> None:
             report["latest"]["tasks"][0]["duration_seconds"] = 299.99
             report["latest"]["observed_minimum_task_seconds"] = 299.99
-            report["latest"]["serial_equivalent"]["seconds"] -= 10.01
-            report["latest"]["savings"]["seconds"] -= 10.01
-            evidence_path.write_text(json.dumps(report), encoding="utf-8")
-            with (
-                mock.patch.object(generate_test_report, "ROOT", root),
-                mock.patch.object(
-                    generate_test_report,
-                    "_windows_evidence_matches_source",
-                    return_value=True,
-                ),
-            ):
-                rejected = generate_test_report.load_windows_benchmark_evidence()
-            self.assertFalse(rejected["available"])
-            self.assertEqual(rejected["status"], "native_benchmark_gate_failed")
+
+        mutations = {
+            "wrong task id": wrong_task_id,
+            "wrong scenario": wrong_scenario,
+            "missing worker proof": erase_worker_proof,
+            "wrong target": shorten_target,
+            "partial peak": lower_peak,
+            "zero peak": zero_peak,
+            "no savings eligibility": remove_live_savings_gate,
+            "bad percent": corrupt_percent,
+            "wrong run realm": wrong_run_realm,
+            "mixed history realm": mix_history_realm,
+            "bad cumulative": corrupt_cumulative,
+            "short worker": shorten_worker,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "docs").mkdir()
+            evidence_path = root / "docs" / "windows-benchmark-results.json"
+            for label, mutate in mutations.items():
+                with self.subTest(label=label):
+                    report = json.loads(json.dumps(_windows_benchmark_report()))
+                    mutate(report)
+                    evidence_path.write_text(json.dumps(report), encoding="utf-8")
+                    with (
+                        mock.patch.object(generate_test_report, "ROOT", root),
+                        mock.patch.object(
+                            generate_test_report,
+                            "_windows_evidence_matches_source",
+                            return_value=True,
+                        ),
+                    ):
+                        evidence = (
+                            generate_test_report.load_windows_benchmark_evidence()
+                        )
+                    self.assertFalse(evidence["available"])
 
 
 if __name__ == "__main__":

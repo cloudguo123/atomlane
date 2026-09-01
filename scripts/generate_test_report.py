@@ -1534,7 +1534,7 @@ if(!wp.available){{
   const nt=wp.native_runtime||{{}},all=wp.tests||{{}},gates=wp.release_checks||{{}};
   const windowsMetrics=[['Native runtime',finite(nt.passed)+' / '+finite(nt.total)],['Native skips',finite(nt.skipped)],['Full suite',finite(all.passed)+' / '+finite(all.total)],['Failures / errors',finite(all.failed)+' / '+finite(all.errors)],['Release gates',finite(gates.passed)+' / '+finite(gates.total)],['Python',wp.python]];
   const heading=add(E('div','benchmark-head'),add(E('div'),E('div','eyebrow',String(wp.status)+' · '+String(wp.os)),E('h3','','In-Job execution verified on native Windows'),E('p','','The retained runner evidence covers the client and normally inherited in-Job descendants, with supervisor-plus-target resource budgets, UTF-8 MCP transport, pre-completion lifecycle progress, optional ConPTY, PowerShell file atoms, and startup-injection isolation. Brokers outside the Job—including WSL, Docker, WMI, services, and scheduled tasks—remain separate execution realms.')),E('span','long-pill','Windows Preview '+String(wp.version)));
-  const link=E('a','','Open raw Windows evidence');link.href=String(wp.evidence_url);link.rel='noopener';
+  const link=E('a','','Open raw Windows evidence');link.href='windows-preview-results.json';link.rel='noopener';
   clear('#windows-preview',heading,add(E('div','grid6'),...windowsMetrics.map(item=>valueCard('bench-metric',item[0],item[1]))),add(E('p','note'),'Runner '+String(wp.runner)+' · '+String(wp.architecture)+' · commit '+String(wp.commit).slice(0,10)+' · evidence SHA-256 '+String(wp.evidence_sha256)+'. ',link));
 }}
 
@@ -1547,7 +1547,7 @@ if(!wb.available){{
   const heading=add(E('div','benchmark-head'),add(E('div'),E('div','eyebrow',String(x.status)+' · '+String(p.execution_realm)),E('h3','','Four native Windows workloads met or exceeded five observed minutes'),E('p','','Mac and Windows histories are kept separate. Serial-equivalent time is the sum of observed independent task runtimes; savings subtract actual parallel wall time.')),E('span','long-pill','Observed ≥ '+span(observed)));
   const lanes=E('div','lanes'),target=Math.max(finite(x.target_task_seconds),1);
   tasks.forEach(task=>{{const fill=E('i','lane-fill',String(task.status).toUpperCase());fill.style.width=pct(finite(task.duration_seconds)/target*100);lanes.append(add(E('div','lane'),E('span','',task.label),add(E('div','lane-track'),fill),E('strong','',span(task.duration_seconds))));}});
-  const raw=E('a','','Open raw Windows benchmark');raw.href=String(wb.evidence_url);raw.rel='noopener';
+  const raw=E('a','','Open raw Windows benchmark');raw.href='windows-benchmark-results.json';raw.rel='noopener';
   clear('#windows-benchmark',heading,add(E('div','grid6'),...metrics.map(item=>valueCard('bench-metric',item[0],item[1]))),E('h4','','Concurrent task timeline'),lanes,add(E('p','note'),'Runner '+String(p.runner_name||'unknown')+' · '+String(p.os_version||p.system||'Windows')+' · '+String(p.architecture||'unknown')+' · commit '+String(x.commit).slice(0,10)+' · evidence SHA-256 '+String(wb.evidence_sha256)+'. ',raw));
 }}
 

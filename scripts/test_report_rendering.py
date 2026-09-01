@@ -447,6 +447,10 @@ class ReportRenderingTests(unittest.TestCase):
         )
         self.assertIn("issues/new?template=first-run.yml", rendered)
         self.assertNotIn(".innerHTML", rendered)
+        self.assertIn("link.href='windows-preview-results.json'", rendered)
+        self.assertIn("raw.href='windows-benchmark-results.json'", rendered)
+        self.assertNotIn("href=String(wp.evidence_url)", rendered)
+        self.assertNotIn("href=String(wb.evidence_url)", rendered)
 
         verified = generate_test_report.render_html(
             {

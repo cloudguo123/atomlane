@@ -863,6 +863,20 @@ if os.name == "nt":
 
         def test_progress_arrives_before_parallel_tasks_finish(self) -> None:
             snapshots: list[dict[str, object]] = []
+            real_concurrency_plan = mcp_server.concurrency_plan
+
+            def two_worker_plan(*args: object, **kwargs: object) -> dict[str, object]:
+                plan = real_concurrency_plan(*args, **kwargs)
+                plan["recommended_concurrency"] = max(
+                    2, int(plan["recommended_concurrency"])
+                )
+                plan["chosen_concurrency"] = 2
+                plan["reasons"] = [
+                    *plan["reasons"],
+                    "native progress test fixes the scheduler envelope at two workers",
+                ]
+                return plan
+
             tasks = [
                 {
                     "id": f"live-{index}",
@@ -874,16 +888,19 @@ if os.name == "nt":
             previous = os.environ.get("MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL")
             os.environ["MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL"] = "0.2"
             try:
-                result = asyncio.run(
-                    mcp_server.run_parallel(
-                        {
-                            "tasks": tasks,
-                            "max_concurrency": 2,
-                            "responsiveness": "throughput",
-                        },
-                        snapshots.append,
+                with mock.patch.object(
+                    mcp_server, "concurrency_plan", side_effect=two_worker_plan
+                ):
+                    result = asyncio.run(
+                        mcp_server.run_parallel(
+                            {
+                                "tasks": tasks,
+                                "max_concurrency": 2,
+                                "responsiveness": "throughput",
+                            },
+                            snapshots.append,
+                        )
                     )
-                )
             finally:
                 if previous is None:
                     os.environ.pop("MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL", None)

@@ -2,9 +2,12 @@
 
 **只并行已证明安全的任务。**
 
-AtomLane 是面向 AI 编程代理的安全并行优化系统：既能找出可审查的 Python
-并行改造候选，也能让 Codex 在不破坏任务语义的前提下，更快完成构建、测试、
-Docker 和科研流水线。macOS 为稳定版，原生 Windows 已提供严格拒绝式 Preview。
+**一套通用安全内核，按平台原生执行，按工作负载定制加速。**
+
+AtomLane 是面向 AI 编程代理的跨平台并行编译器与运行时。共享的类型化内核负责
+证明依赖关系并守住任务语义；适配层再根据具体工作负载和执行域，定制发现方式、
+进程约束与资源预算。macOS 为 Stable；原生 Windows 是边界明确、严格拒绝式的
+Preview。
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -19,11 +22,8 @@ Docker 和科研流水线。macOS 为稳定版，原生 Windows 已提供严格�
 
 ```bash
 codex plugin marketplace add cloudguo123/atomlane
-codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
+codex plugin add atomlane@atomlane
 ```
-
-品牌迁移期间继续保留 `mac-parallel-accelerator` 这个技术插件 ID，因此旧安装、
-命令和链接仍然可用。
 
 安装后新建一个 Codex 任务，然后直接说：
 
@@ -39,7 +39,7 @@ codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 或修改目标代码；列出证明义务，并给出绑定源码哈希的改造预览。
 ```
 
-要求：macOS 或限定范围的原生 Windows Preview、支持插件和 MCP 的 Codex、
+要求：macOS Stable 或限定范围的原生 Windows Preview、支持插件和 MCP 的 Codex、
 以及能通过 `PATH` 上的 `python3` 命令启动的 Python 3.10+（`python3 --version`
 必须成功）；当前的 [Python Install Manager](https://docs.python.org/3/using/windows.html#python-install-manager)
 包含这个 Windows 兼容别名。Ruby 只用于 macOS 上的 Compose YAML 分析；Node.js 20+ 只用于
@@ -51,6 +51,29 @@ codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 兼容厂商中立的 [Agent Plugins 1.0.0](https://agent-plugins.org/) 标准；
 Codex 原生客户端仍使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。
 
+## 一套内核，三层定制
+
+这里的“通用”不是声称所有任务、所有平台都能并行，而是所有被接纳的任务都要
+通过同一套类型化安全契约。“定制”则意味着系统会按照真实平台和工作负载，改变
+执行路径、隔离方式和并发预算。
+
+| 层次 | 通用契约 | 针对性适配 |
+| --- | --- | --- |
+| 安全内核 | Atom IR、不可变计划哈希、副作用/冲突检查、授权边界、实时进度与节约时间记账 | 不支持的语义严格拒绝，不做近似翻译 |
+| 平台 | 支持的原生执行域共用规划器与调度器 | macOS 使用 POSIX 进程组和 Apple 芯片探测/后端；原生 Windows Preview 使用 NT 路径规则、Job Object、UTF-8 管道、可选 ConPTY 和完整 PowerShell 文件原子 |
+| 工作负载 | 独立性、顺序、产物与资源都通过同一证明门槛 | 构建/测试优先委托原生并发；Docker 按 daemon/VM 预算；科研保留正式计时围栏；Python 区分 CPU、阻塞 I/O、原生内核、已有线程池和未知副作用 |
+
+WSL、原生 Windows、macOS 和 Docker 是不同执行域。AtomLane 会针对当前执行域
+重新编译计划，不会把一台主机上的证明或资源预算冒充成另一执行域的证据。
+
+| 能力 | macOS Stable | 原生 Windows Preview |
+| --- | --- | --- |
+| 共享内核 | Atom IR、哈希、副作用/冲突检查、调度器、实时进度、节约时间账本 | 使用同一内核和证明规则 |
+| 自动入口 | 支持的 shell、package、Make、Compose、测试与构建前端 | 精确 argv 与声明完整的 `.ps1`；暂不自动拆解 shell/package/Make/Compose/`.cmd`/`.bat` |
+| 进程边界 | POSIX session/process group | 分阶段 kill-on-close Job Object，覆盖 supervisor 与正常继承的目标进程树 |
+| 终端/输出 | 有界管道与 live runner | 独立 UTF-8 管道或仅输出 ConPTY；ConPTY stdin 会被拒绝 |
+| 发布证据 | macOS 14 CI 与保留的五分钟实测 | Windows Server 2025 CI 与独立五分钟实测；不等于 Windows 11 Desktop UI 证明 |
+
 ## 它解决什么问题
 
 普通的“并行执行”经常只是拆分命令文本，容易改写 `&&` / `||` 的控制流，争用 `.next`、JUnit、数据库、Docker 卷或 Git 状态，叠加内部线程池，并且执行过程中只看到空白等待。
@@ -59,14 +82,14 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 ## 典型场景
 
-| 项目场景 | 优化目标 | 关键安全边界 |
-| --- | --- | --- |
-| Web / TypeScript | 质量门禁、包图、浏览器矩阵 | 保留成功条件；隔离 `.next`、coverage、JUnit 和缓存 |
-| Docker / Compose | 多镜像构建、健康检查 DAG、测试矩阵 | 约束 VM CPU/内存、端口、卷、就绪事件和迁移 |
-| 科研 / 论文 | 数据准备、验证、出图、文稿构建 | 推断数据依赖，保护正式计时和来源证据 |
-| 原生构建 / 测试 | Make、编译器、测试运行器 | 优先委托原生并发，统一预算内外层 worker |
-| 媒体 / 数据 / ML 批处理 | 多输入并行、确定性合并 | 要求输出隔离、资源有界、合并语义明确 |
-| 长时间 Python 程序 | 有序 CPU 映射、阻塞读取、原生内核、子进程批次 | 不导入、不执行目标；未知副作用、共享状态、过期哈希和不安全 spawn 路径一律阻断 |
+| 项目场景 | 优化目标 | 平台路径 | 关键安全边界 |
+| --- | --- | --- | --- |
+| Web / TypeScript | 质量门禁、包图、浏览器矩阵 | macOS 自动前端；Windows 使用显式 argv/PowerShell 原子 | 保留成功条件；隔离 `.next`、coverage、JUnit 和缓存 |
+| Docker / Compose | 多镜像构建、健康检查 DAG、测试矩阵 | macOS Compose 前端；Windows Preview 可提供 Linux daemon 资源建议，但不做原生 Compose 拆解 | 约束 VM CPU/内存、端口、卷、就绪事件和迁移 |
+| 科研 / 论文 | 数据准备、验证、出图、文稿构建 | macOS 前端；Windows 使用显式阶段原子 | 推断数据依赖，保护正式计时和来源证据 |
+| 原生构建 / 测试 | Make、编译器、测试运行器 | 使用平台支持的前端或精确原生 argv | 优先委托原生并发，统一预算内外层 worker |
+| 媒体 / 数据 / ML 批处理 | 多输入并行、确定性合并 | 两个原生执行域都支持隔离的精确 argv；Apple 专用后端在非 macOS 上只给建议 | 要求输出隔离、资源有界、合并语义明确 |
+| 长时间 Python 程序 | 有序 CPU 映射、阻塞读取、原生内核、子进程批次 | 静态顾问支持两端；CPU 预览显式使用可移植 `spawn` | 不导入、不执行目标；未知副作用、共享状态、过期哈希和不安全 spawn 路径一律阻断 |
 
 内置场景目录已覆盖 50 多类软件工程、科研、容器、媒体、机器学习、发布、数据库以及底层 CPU/GPU/I/O 优化目标。
 

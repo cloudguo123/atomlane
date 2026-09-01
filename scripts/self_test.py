@@ -22,7 +22,7 @@ def request(request_id: int, method: str, params: dict) -> dict:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="mac-parallel-accelerator-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="atomlane-") as temp_dir:
         project = pathlib.Path(temp_dir)
         (project / "experiments").mkdir()
         (project / "paper").mkdir()
@@ -350,10 +350,10 @@ def main() -> int:
         ]
         payload = "".join(json.dumps(message) + "\n" for message in messages)
         environment = dict(os.environ)
-        environment["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = str(
+        environment["ATOMLANE_STATS_PATH"] = str(
             pathlib.Path(temp_dir) / "stats.json"
         )
-        environment["MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL"] = "0.01"
+        environment["ATOMLANE_PROGRESS_INTERVAL"] = "0.01"
         completed = subprocess.run(
             [sys.executable, str(SERVER)],
             input=payload,
@@ -373,7 +373,7 @@ def main() -> int:
         assert progress
         assert all(item["params"]["progressToken"] == "self-test-progress" for item in progress)
         assert any("当前预计节约" in item["params"]["message"] for item in progress)
-        assert responses[0]["result"]["serverInfo"]["name"] == "mac-parallel-accelerator"
+        assert responses[0]["result"]["serverInfo"]["name"] == "atomlane"
         assert responses[0]["result"]["serverInfo"]["version"] == mcp_server.SERVER_VERSION
         assert "cheaply assess parallel eligibility" in responses[0]["result"]["instructions"]
 

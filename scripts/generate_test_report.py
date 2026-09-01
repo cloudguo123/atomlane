@@ -1840,19 +1840,21 @@ def render_html(report: dict[str, Any]) -> str:
     windows_verified = bool(report.get("windows_preview", {}).get("available"))
     if windows_verified:
         meta_description = (
-            "Verified host regression tests, source-bound native Windows Preview evidence, "
-            "five-minute benchmarks, live progress, and public adoption signals for AtomLane."
+            "Verified evidence for AtomLane's universal safety core, platform-native "
+            "execution, workload-tailored acceleration, live progress, and honest savings."
         )
-        operating_system = "macOS, Windows Preview"
-        hero_platform_claim = "runs proven concurrency on macOS and native Windows Preview"
+        operating_system = "macOS Stable, native Windows Preview"
+        hero_platform_claim = (
+            "uses platform-native routes for macOS Stable and native Windows Preview"
+        )
     else:
         meta_description = (
             "Host regression tests, Windows Preview evidence status, five-minute benchmarks, "
             "live progress, and public adoption signals for AtomLane."
         )
-        operating_system = "macOS"
+        operating_system = "macOS Stable"
         hero_platform_claim = (
-            "runs proven concurrency on macOS while native Windows Preview evidence is pending"
+            "uses a proven macOS Stable route while native Windows Preview evidence is pending"
         )
     structured_data = json.dumps(
         {
@@ -1880,7 +1882,7 @@ def render_html(report: dict[str, Any]) -> str:
   <link rel="canonical" href="https://cloudguo123.github.io/atomlane/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="AtomLane · Verified test report">
-  <meta property="og:description" content="Parallelize only what is proven safe: {verified_test_count} verified tests, Python refactor safety fixtures, and a reproducible five-minute benchmark.">
+  <meta property="og:description" content="One universal safety core, platform-native execution, and workload-tailored acceleration—backed by {verified_test_count} verified tests.">
   <meta property="og:url" content="https://cloudguo123.github.io/atomlane/">
   <meta property="og:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <meta property="og:image:width" content="1280">
@@ -1888,7 +1890,7 @@ def render_html(report: dict[str, Any]) -> str:
   <meta property="og:image:alt" content="{html.escape(og_image_alt)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="AtomLane · Verified test report">
-  <meta name="twitter:description" content="Parallelize only what is proven safe, with live progress and honest savings evidence.">
+  <meta name="twitter:description" content="Universal safety core. Platform-native execution. Workload-tailored acceleration.">
   <meta name="twitter:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <script type="application/ld+json">{structured_data}</script>
   <title>AtomLane · Test Report</title>
@@ -1943,7 +1945,7 @@ def render_html(report: dict[str, Any]) -> str:
 <main class="wrap">
   <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/atomlane">Source</a><a href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/atomlane/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane finds reviewable Python refactors without executing target code, compiles local work into verified atomic plans, and {html.escape(hero_platform_claim)} with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
+    <div><div class="eyebrow">Universal core · tailored execution · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane keeps one typed safety core, {html.escape(hero_platform_claim)}, and tailors each plan to the real workload. Long runs stay visible and savings stay honestly labeled.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>

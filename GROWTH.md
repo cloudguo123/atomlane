@@ -28,7 +28,7 @@ Clones, downloads, and first-run reports indicate intent, not verified installat
 
 ## Measurement
 
-`scripts/collect_github_metrics.py` stores only aggregate GitHub counters and counts of public `first-run` and `benchmark` issues in `docs/metrics.json`; it does not retain issue bodies. A weekly GitHub Actions workflow refreshes public counters. Repository traffic covers GitHub's latest 14-day window and can lag. GitHub's default Actions token cannot read traffic; without the optional fine-grained `MPA_TRAFFIC_TOKEN` (repository Administration: read), the workflow retains the last authenticated traffic sample and marks it stale instead of inventing zeroes.
+`scripts/collect_github_metrics.py` stores only aggregate GitHub counters and counts of public `first-run` and `benchmark` issues in `docs/metrics.json`; it does not retain issue bodies. A weekly GitHub Actions workflow refreshes public counters. Repository traffic covers GitHub's latest 14-day window and can lag. GitHub's default Actions token cannot read traffic; without the optional fine-grained `ATOMLANE_TRAFFIC_TOKEN` (repository Administration: read), the workflow retains the last authenticated traffic sample and marks it stale instead of inventing zeroes.
 
 The most important qualitative signals are:
 

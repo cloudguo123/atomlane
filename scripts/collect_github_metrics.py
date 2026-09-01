@@ -22,7 +22,7 @@ def request_json(path: str, token: str | None) -> Any:
             headers={
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {token}",
-                "User-Agent": "mac-parallel-accelerator-metrics",
+                "User-Agent": "atomlane-metrics",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         )
@@ -155,7 +155,7 @@ def main() -> int:
             "repository": args.repository,
             "metric_notes": {
                 "traffic_window": "GitHub returns repository traffic for the latest 14 days and may delay updates.",
-                "traffic_permission": "Scheduled traffic refresh requires an optional fine-grained MPA_TRAFFIC_TOKEN with repository Administration read access; otherwise the last authenticated sample is retained and marked stale.",
+                "traffic_permission": "Scheduled traffic refresh requires an optional fine-grained ATOMLANE_TRAFFIC_TOKEN with repository Administration read access; otherwise the last authenticated sample is retained and marked stale.",
                 "clone_intent": "Clones and release downloads are interest signals, not verified plugin installations.",
                 "community_reports": "First-run and benchmark counts include public, self-selected issues with the corresponding label; they are not verified installations.",
                 "privacy": "Only aggregate GitHub counters are retained; no visitor identity or tracking cookie is collected.",

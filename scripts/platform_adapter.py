@@ -201,7 +201,7 @@ def windows_process_limit_blocker(
 
 
 def default_stats_path() -> Path:
-    override = os.environ.get("MAC_PARALLEL_ACCELERATOR_STATS_PATH")
+    override = os.environ.get("ATOMLANE_STATS_PATH")
     if override:
         return Path(override).expanduser()
     system = platform.system()
@@ -211,13 +211,12 @@ def default_stats_path() -> Path:
             return Path(base) / "AtomLane" / "stats.json"
         return Path.home() / "AppData" / "Local" / "AtomLane" / "stats.json"
     if system == "Darwin":
-        # Preserve the pre-AtomLane location so existing cumulative savings survive upgrades.
         return (
             Path.home()
             / "Library"
             / "Application Support"
             / "Codex"
-            / "Mac Parallel Accelerator"
+            / "AtomLane"
             / "stats.json"
         )
     state_home = os.environ.get("XDG_STATE_HOME")

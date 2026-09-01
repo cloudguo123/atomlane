@@ -6,27 +6,52 @@
 - **Category:** safe parallel execution for coding agents
 - **Primary line:** Parallelize only what is proven safe.
 - **Chinese line:** 只并行已证明安全的任务。
+- **Positioning line:** Universal safety core. Platform-native execution.
+  Workload-tailored acceleration.
+- **Chinese positioning:** 一套通用安全内核，按平台原生执行，按工作负载定制加速。
 - **One sentence:** AtomLane compiles local work into conflict-checked atomic
-  plans, then executes only the concurrency that preserves control flow,
-  effects, resources, and authorization boundaries.
+  plans, then tailors safe execution to the active platform, workload, and
+  resource envelope.
 
-Use `AtomLane` with a capital `A` and `L`. Do not abbreviate the public brand
-to MPA. The public repository slug is `atomlane`. The plugin ID, MCP server
-key, environment variables, event names, and legacy statistics directory may
-continue to use `mac-parallel-accelerator` during the compatibility window.
+Use `AtomLane` with a capital `A` and `L`. The canonical plugin ID, marketplace
+name, MCP server key, event namespace, storage directory, and repository slug
+are all `atomlane` or `AtomLane`, according to the field's naming convention.
+Previous identifiers belong only to immutable releases, tags, and Git history;
+do not repeat them in current product copy or installation instructions.
 
 ## Message hierarchy
 
 1. Lead with the safety promise: **Parallelize only what is proven safe.**
-2. Explain the mechanism: typed Atom IR, exact hashed plans, conflict and
-   resource checks, and fail-closed execution.
-3. Prove the result: live progress, per-run and cumulative savings, verified
+2. Establish the design: **one universal safety core, platform-native
+   execution, and workload-tailored acceleration.**
+3. Explain the mechanism: typed Atom IR, exact hashed plans, conflict and
+   resource checks, fail-closed execution, and realm-specific containment.
+4. Prove the result: live progress, per-run and cumulative savings, verified
    tests, and reproducible benchmarks.
-4. Name the supported situations: builds, tests, Docker/Compose, research,
-   batch data/media, and native toolchains.
+5. Name the supported situations: builds, tests, Docker/Compose, research,
+   batch data/media, Python refactors, and native toolchains.
 
 Avoid broad claims such as “make every task 4× faster.” Use “4.00× observed in
 the controlled benchmark” and preserve the serial-equivalent methodology note.
+Do not say “Windows fully supported” or imply platform parity. Say **macOS
+Stable** and **native Windows Preview** until the Preview limitations and
+desktop integration gates are closed.
+
+## Universal and tailored: exact meanings
+
+| Term | What it means | What it does not mean |
+| --- | --- | --- |
+| Universal safety core | Shared Atom IR, hashes, effect/conflict/resource checks, authorization boundaries, live telemetry, and savings accounting | Every command, language, platform, or task is supported |
+| Platform-native execution | Plans are bound to their real execution realm and use that platform's path, process, terminal, and resource controls | A plan or resource budget can be replayed across macOS, Windows, WSL, or Docker |
+| Workload-tailored acceleration | Frontends, native delegates, scenario routing, and worker budgets change for builds, tests, containers, research, media/data/ML, and Python | Scenario similarity is proof of independence or permission to execute |
+
+Platform status must always be stated together:
+
+| Platform | Public status | Current promise |
+| --- | --- | --- |
+| macOS native | Stable | Supported shell, package, Make, Compose, test/build, research, batch, Python-advisor, and Apple-silicon paths within documented gates |
+| Native Windows | Preview | Exact argv, declared whole-file PowerShell, Job Object containment, UTF-8 pipes, optional output-only ConPTY, static Python advice, and realm-safe resource planning |
+| WSL / Docker | Separate realms | Explicitly detected and budgeted; never silently presented as native Windows or macOS containment |
 
 ## Visual system
 
@@ -43,19 +68,15 @@ the square logo for plugin listings and avatars, the 1280×640 social preview
 for repository cards, and the live-execution GIF for demonstrations. Source
 SVGs are canonical; PNG and GIF derivatives are generated artifacts.
 
-## Compatibility naming
-
-The v0.10 brand release changes user-visible naming without breaking existing
-installation routes:
+## Canonical naming
 
 ```text
 Brand:          AtomLane
 Skill:          $accelerate-local-work
-Plugin ID:      mac-parallel-accelerator
+Plugin ID:      atomlane
+Marketplace:    atomlane
 Repository:     cloudguo123/atomlane
-MCP server key: mac-parallel-accelerator
+MCP server key: atomlane
+Event namespace: atomlane:*
+Environment:    ATOMLANE_*
 ```
-
-Technical identifiers should change only in a separately announced migration
-with tested aliases or redirects. Public copy may say “AtomLane, formerly Mac
-Parallel Accelerator” when continuity matters.

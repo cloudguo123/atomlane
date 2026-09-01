@@ -48,8 +48,8 @@ def social_svg(data: dict[str, Any]) -> str:
   <text x="184" y="116" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="46" font-weight="850" letter-spacing="-1">AtomLane</text>
   <text x="80" y="205" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="820" letter-spacing="-2">Parallelize only what</text>
   <text x="80" y="270" fill="#ecf8f3" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="820" letter-spacing="-2">is proven safe.</text>
-  <text x="82" y="326" fill="#9bb4ab" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="24">Atomic plans · typed effects · live progress · honest savings</text>
-  <text x="1035" y="105" fill="#65e6b4" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="18" font-weight="700" text-anchor="end" letter-spacing="2">CODEX · MACOS</text>
+  <text x="82" y="326" fill="#9bb4ab" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="24">Universal safety core · tailored execution · honest savings</text>
+  <text x="1200" y="105" fill="#65e6b4" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="17" font-weight="700" text-anchor="end" letter-spacing="1.2">macOS STABLE · WINDOWS PREVIEW</text>
   <rect x="80" y="370" width="1120" height="180" rx="22" fill="#0b1714" stroke="#27433a"/>
   <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
     <text x="112" y="413" fill="#809a90" font-size="17">CONTROLLED 5+ MIN BENCHMARK · 4 VERIFIED LANES</text>

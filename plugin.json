@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "mac-parallel-accelerator",
-  "version": "0.12.0",
-  "description": "AtomLane finds reviewable Python parallelism candidates, compiles semantics-preserving atomic plans, and executes proven-safe concurrency on macOS and Windows Preview.",
+  "name": "atomlane",
+  "version": "0.13.0",
+  "description": "AtomLane combines a universal safety core with platform-native, workload-tailored parallel execution on macOS Stable and native Windows Preview.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"
@@ -16,6 +16,8 @@
     "codex",
     "macos",
     "windows",
+    "cross-platform",
+    "workload-optimization",
     "mcp",
     "parallel",
     "performance",

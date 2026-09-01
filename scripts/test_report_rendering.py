@@ -595,8 +595,10 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn('name="twitter:card" content="summary_large_image"', rendered)
         self.assertIn('rel="canonical"', rendered)
         self.assertIn('"@type":"SoftwareApplication"', rendered)
-        self.assertIn('"operatingSystem":"macOS"', rendered)
-        self.assertNotIn('"operatingSystem":"macOS, Windows Preview"', rendered)
+        self.assertIn('"operatingSystem":"macOS Stable"', rendered)
+        self.assertNotIn(
+            '"operatingSystem":"macOS Stable, native Windows Preview"', rendered
+        )
         self.assertIn("Native Windows Preview evidence", rendered)
         self.assertIn("observedMinimum>=300", rendered)
         self.assertIn("Every observed task ran for at least five minutes", rendered)
@@ -621,8 +623,13 @@ class ReportRenderingTests(unittest.TestCase):
                 "windows_preview": {"available": True},
             }
         )
-        self.assertIn('"operatingSystem":"macOS, Windows Preview"', verified)
-        self.assertIn("source-bound native Windows Preview evidence", verified)
+        self.assertIn(
+            '"operatingSystem":"macOS Stable, native Windows Preview"', verified
+        )
+        self.assertIn("universal safety core", verified)
+        self.assertIn("platform-native execution", verified)
+        self.assertIn("workload-tailored acceleration", verified)
+        self.assertIn("In-Job execution verified on native Windows", verified)
 
     def test_report_domains_cover_every_discovered_regression_module(self) -> None:
         discovered = {

@@ -20,6 +20,199 @@ import platform_adapter
 
 
 class PlatformAdapterTests(unittest.TestCase):
+    def test_scenario_catalog_uses_portable_resource_planner_names(self) -> None:
+        catalog = json.loads(
+            mcp_server.SCENARIO_CATALOG_PATH.read_text(encoding="utf-8")
+        )
+        executors = {
+            scenario["default_execution"]["executor"]
+            for scenario in catalog["scenarios"]
+        }
+
+        self.assertNotIn("mac_resource_plan", executors)
+        self.assertIn("host_resource_plan", executors)
+
+    def test_scenario_execution_keeps_apple_accelerator_on_macos(self) -> None:
+        default = {
+            "executor": "mac_accelerator_plan",
+            "profile": "accelerator",
+        }
+
+        resolved = mcp_server._resolve_scenario_execution(
+            default,
+            {"boundary": "macos_native", "is_macos_native": True},
+        )
+
+        self.assertEqual(resolved["executor"], "mac_accelerator_plan")
+        self.assertEqual(
+            resolved["platform_resolution"],
+            {
+                "execution_realm": "macos_native",
+                "catalog_executor": "mac_accelerator_plan",
+                "selected_executor": "mac_accelerator_plan",
+                "status": "applicable",
+                "reason": "The catalog executor is available in the current execution realm.",
+            },
+        )
+        self.assertEqual(default["executor"], "mac_accelerator_plan")
+
+    def test_scenario_execution_uses_portable_host_resource_name_off_macos(self) -> None:
+        resolved = mcp_server._resolve_scenario_execution(
+            {"executor": "mac_resource_plan", "profile": "cpu"},
+            {"boundary": "windows_native", "is_macos_native": False},
+        )
+
+        self.assertEqual(resolved["executor"], "host_resource_plan")
+        self.assertEqual(resolved["platform_resolution"]["status"], "adapted")
+        self.assertEqual(
+            resolved["platform_resolution"]["catalog_executor"],
+            "mac_resource_plan",
+        )
+        self.assertEqual(
+            resolved["platform_resolution"]["selected_executor"],
+            "host_resource_plan",
+        )
+
+    def test_scenario_execution_keeps_apple_acceleration_advisory_off_macos(
+        self,
+    ) -> None:
+        resolved = mcp_server._resolve_scenario_execution(
+            {"executor": "mac_accelerator_plan", "profile": "accelerator"},
+            {"boundary": "windows_native", "is_macos_native": False},
+        )
+
+        self.assertIsNone(resolved["executor"])
+        self.assertEqual(
+            resolved["platform_resolution"]["status"], "advisory_only"
+        )
+        self.assertIn(
+            "Apple-specific accelerator routing is unavailable",
+            resolved["platform_resolution"]["reason"],
+        )
+
+    def test_windows_scenario_plan_does_not_emit_apple_accelerator_executor(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary).resolve()
+            (project / "kernel.metal").write_text(
+                "kernel void transform() {}\n", encoding="utf-8"
+            )
+            with mock.patch.object(
+                mcp_server,
+                "execution_environment",
+                return_value={
+                    "system": "Windows",
+                    "boundary": "windows_native",
+                    "is_windows_native": True,
+                    "is_macos_native": False,
+                    "is_wsl": False,
+                    "is_container": False,
+                },
+            ):
+                result = mcp_server.scenario_plan(
+                    {
+                        "project_path": str(project),
+                        "task_hint": "Optimize this Metal operator",
+                        "minimum_confidence": 0.1,
+                        "max_scenarios": 20,
+                    }
+                )
+
+        scenario = next(
+            item
+            for item in result["matched_scenarios"]
+            if item["id"] == "metal-mps-operator"
+        )
+        self.assertIsNone(scenario["default_execution"]["executor"])
+        self.assertEqual(
+            scenario["default_execution"]["platform_resolution"]["status"],
+            "advisory_only",
+        )
+        targets = [
+            item
+            for item in result["optimization_targets"]
+            if item["scenario_id"] == "metal-mps-operator"
+        ]
+        self.assertTrue(targets)
+        self.assertTrue(all(item["executor"] is None for item in targets))
+        self.assertTrue(
+            all(item["execution_status"] == "advisory_only" for item in targets)
+        )
+        self.assertIn(
+            "metal-mps-operator",
+            result["decision_summary"]["advisory_only_scenario_ids"],
+        )
+        self.assertTrue(
+            {
+                "gpu-operator-eligibility",
+                "gpu-batch-fusion",
+                "unified-memory-residency",
+            }.isdisjoint(result["decision_summary"]["high_value_target_ids"])
+        )
+
+    def test_windows_scenario_plan_uses_portable_host_resource_executor(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary).resolve()
+            (project / "threads.py").write_text(
+                "import numpy\nOMP_NUM_THREADS = 2\n", encoding="utf-8"
+            )
+            with mock.patch.object(
+                mcp_server,
+                "execution_environment",
+                return_value={
+                    "system": "Windows",
+                    "boundary": "windows_native",
+                    "is_windows_native": True,
+                    "is_macos_native": False,
+                    "is_wsl": False,
+                    "is_container": False,
+                },
+            ):
+                result = mcp_server.scenario_plan(
+                    {
+                        "project_path": str(project),
+                        "task_hint": "Prevent nested parallelism and thread-pool oversubscription",
+                        "minimum_confidence": 0.1,
+                        "max_scenarios": 20,
+                    }
+                )
+
+        scenario = next(
+            item
+            for item in result["matched_scenarios"]
+            if item["id"] == "native-thread-oversubscription"
+        )
+        self.assertEqual(
+            scenario["default_execution"]["executor"], "host_resource_plan"
+        )
+        self.assertEqual(
+            scenario["default_execution"]["platform_resolution"]["status"],
+            "applicable",
+        )
+        self.assertEqual(
+            scenario["default_execution"]["platform_resolution"]["catalog_executor"],
+            "host_resource_plan",
+        )
+        self.assertEqual(
+            scenario["default_execution"]["platform_resolution"]["selected_executor"],
+            "host_resource_plan",
+        )
+        targets = [
+            item
+            for item in result["optimization_targets"]
+            if item["scenario_id"] == "native-thread-oversubscription"
+        ]
+        self.assertTrue(targets)
+        self.assertTrue(
+            all(item["executor"] == "host_resource_plan" for item in targets)
+        )
+        self.assertTrue(
+            all(item["execution_status"] == "applicable" for item in targets)
+        )
+
     def test_windows_hardware_snapshot_never_exposes_computer_name(self) -> None:
         original_cache = mcp_server._STATIC_HARDWARE_CACHE
         try:
@@ -64,7 +257,7 @@ class PlatformAdapterTests(unittest.TestCase):
             )
         )
 
-    def test_stats_path_uses_native_conventions_and_preserves_macos_history(self) -> None:
+    def test_stats_path_uses_native_atomlane_directories(self) -> None:
         with (
             mock.patch.object(platform_adapter.platform, "system", return_value="Windows"),
             mock.patch.dict(
@@ -91,7 +284,7 @@ class PlatformAdapterTests(unittest.TestCase):
             mock.patch.dict(os.environ, {}, clear=True),
         ):
             path = platform_adapter.default_stats_path()
-        self.assertIn("Mac Parallel Accelerator", str(path))
+        self.assertIn("AtomLane", str(path))
 
     def test_conpty_process_limit_policy_is_fail_closed(self) -> None:
         self.assertIsNone(platform_adapter.windows_process_limit_blocker("pipes", 4))
@@ -180,7 +373,7 @@ class PlatformAdapterTests(unittest.TestCase):
                         errors.append(exc)
 
             with mock.patch.dict(
-                os.environ, {"MAC_PARALLEL_ACCELERATOR_STATS_PATH": str(stats)}
+                os.environ, {"ATOMLANE_STATS_PATH": str(stats)}
             ):
                 threads = [
                     threading.Thread(target=record, daemon=True)

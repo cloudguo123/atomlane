@@ -17,7 +17,7 @@ AtomLane
 
 ## One-line description
 
-Parallelize only what is proven safe. AtomLane proves independent local work, keeps long runs visibly live, suggests spawn-safe Python refactors, and reports verified time savings on macOS and Windows Preview.
+Parallelize only what is proven safe. AtomLane combines one universal safety core with platform-native, workload-tailored execution, visible long runs, spawn-safe Python advice, and honest savings on macOS Stable and native Windows Preview.
 
 ## Form payload
 
@@ -38,7 +38,7 @@ Built iteratively with Codex, from live parallel commands to typed Atom and Pyth
 
 - Repository: https://github.com/cloudguo123/atomlane
 - Hosted evidence: https://cloudguo123.github.io/atomlane/
-- Setup: macOS stable, or the scoped native Windows Preview, with Python 3.10+ exposed as `python3`. Run `codex plugin marketplace add cloudguo123/atomlane`, then `codex plugin add mac-parallel-accelerator@mac-parallel-accelerator`. Open a new Codex task and ask it to inspect a build, test, Docker, research workflow, or long-running Python entrypoint for safe parallelism. Full boundaries and verification steps are in the README and Windows Preview guide.
+- Setup: macOS Stable, or the scoped native Windows Preview, with Python 3.10+ exposed as `python3`. Run `codex plugin marketplace add cloudguo123/atomlane`, then `codex plugin add atomlane@atomlane`. Open a new Codex task and ask it to inspect a build, test, Docker, research workflow, or long-running Python entrypoint for safe parallelism. Full boundaries and verification steps are in the README and Windows Preview guide.
 - Display title: AtomLane — Safe Parallel Workflows
 - Tagline: Parallelize only what is proven safe.
 - Display author: cloudguo123
@@ -46,7 +46,7 @@ Built iteratively with Codex, from live parallel commands to typed Atom and Pyth
 
 ### Project description
 
-AtomLane helps Codex accelerate local workflows only when independence is provable. macOS stable supports selected shell, build, test, Docker/Compose, Make, paper, and batch work; native Windows Preview supports exact argv and declared PowerShell files, with WSL and Docker treated as separate realms. Its bounded Python advisor never imports or executes target modules. It propagates effects, checks GIL/native ownership and explicit-spawn safety, and emits source-hash-bound review previews only for a narrow ordered-map subset. Other workflows compile to a typed Atom IR covering control flow, artifacts, effects, lifecycles, and CPU/memory capacity; unknown semantics fail closed. Long runs show live progress plus per-run and cumulative savings. The public dashboard reports regression results, safety fixtures, and source-bound five-minute evidence for macOS and native Windows. Local-first and MIT licensed.
+AtomLane accelerates local Codex workflows only when independence is provable. One typed core preserves control flow, artifacts, effects, resources, plan hashes, and authorization. Platform and workload adapters tailor the safe route: macOS Stable supports selected shell, build, test, Docker/Compose, Make, paper, and batch work; native Windows Preview supports exact argv and declared PowerShell files, with Job Object containment and WSL/Docker kept as separate realms. The bounded Python advisor never imports or executes target modules. It propagates effects, checks GIL/native ownership and explicit-spawn safety, and emits source-hash-bound review previews only for a narrow ordered-map subset. Unknown semantics fail closed. Long runs show live progress plus per-run and cumulative savings. The public dashboard reports safety fixtures and separate source-bound five-minute evidence for macOS and native Windows. Local-first and MIT licensed.
 
 ## What problem does it solve?
 
@@ -64,7 +64,7 @@ The public test dashboard retains a controlled five-minute run: four independent
 
 ## Open-source status
 
-MIT licensed. macOS stable plus a scoped native Windows Preview, Python 3.10+, and no third-party Python runtime dependency. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
+MIT licensed. macOS Stable plus a scoped native Windows Preview, Python 3.10+, and no third-party Python runtime dependency. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
 
 ## Submission boundary
 

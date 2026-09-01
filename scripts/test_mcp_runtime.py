@@ -19,9 +19,9 @@ from live_runner import ConsoleProgress
 
 class RuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="mac-parallel-runtime-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="atomlane-runtime-")
         self.project = Path(self.temporary.name)
-        os.environ["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = str(self.project / "stats.json")
+        os.environ["ATOMLANE_STATS_PATH"] = str(self.project / "stats.json")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

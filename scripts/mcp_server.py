@@ -3134,6 +3134,24 @@ async def _settle_process_io(
     return not pending
 
 
+async def _wait_for_process_exit(
+    process: asyncio.subprocess.Process,
+    windows_job: WindowsJobController | None,
+    timeout_seconds: float,
+) -> None:
+    """Wait for process exit independently from Windows pipe lifetime."""
+
+    if windows_job is None:
+        await asyncio.wait_for(process.wait(), timeout=timeout_seconds)
+        return
+    deadline = time.monotonic() + timeout_seconds
+    while not windows_job.assigned_process_has_exited():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        await asyncio.sleep(min(0.02, remaining))
+
+
 def _windows_job_process_slot_reservations(
     terminal_mode: str, max_processes: int | None
 ) -> tuple[str, ...]:
@@ -3396,7 +3414,9 @@ async def execute_task(
         try:
             # stdin delivery runs concurrently; the wall timeout starts as soon
             # as the process is spawned even if the child never reads its pipe.
-            await asyncio.wait_for(process.wait(), timeout=task["timeout_seconds"])
+            await _wait_for_process_exit(
+                process, windows_job, task["timeout_seconds"]
+            )
         except asyncio.TimeoutError:
             result["status"] = "timed_out"
             result["outcome"] = "unknown" if task.get("side_effect") else "not_completed"
@@ -3418,7 +3438,9 @@ async def execute_task(
                     result["process_tree_termination"] = await asyncio.to_thread(
                         windows_job.terminate_and_wait_empty, 0, 3.0
                     )
-                except WindowsJobError as exc:
+                    if process.returncode is None:
+                        await asyncio.wait_for(process.wait(), timeout=3.0)
+                except (WindowsJobError, asyncio.TimeoutError) as exc:
                     result["status"] = "failed"
                     result["failure_kind"] = "process_tree_containment"
                     result["outcome"] = "unknown"

@@ -25,6 +25,7 @@ import atom_engine
 import atom_frontends
 import mcp_server
 import windows_job_runner
+import windows_runtime
 
 
 def _task(cwd: Path, argv: list[str], **overrides: object) -> dict[str, object]:
@@ -33,7 +34,66 @@ def _task(cwd: Path, argv: list[str], **overrides: object) -> dict[str, object]:
     return mcp_server.normalize_task(raw, 0, None)
 
 
+def _failure_summary(result: dict[str, object]) -> str:
+    return json.dumps(
+        {
+            "status": result.get("status"),
+            "returncode": result.get("returncode"),
+            "failure_kind": result.get("failure_kind"),
+            "stdout_tail": str(result.get("stdout", ""))[-1000:],
+            "stderr_tail": str(result.get("stderr", ""))[-1000:],
+            "process_tree_termination": result.get("process_tree_termination"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 class WindowsPortableContractTests(unittest.TestCase):
+    def test_windows_process_exit_poll_is_independent_from_pipe_eof(self) -> None:
+        class Kernel:
+            result = windows_runtime.WAIT_TIMEOUT
+
+            def WaitForSingleObject(self, _handle: object, timeout: int) -> int:
+                self.timeout = timeout
+                return self.result
+
+        controller = object.__new__(windows_runtime.WindowsJobController)
+        controller._kernel32 = Kernel()
+        controller._assigned_process_handle = object()
+        self.assertFalse(controller.assigned_process_has_exited())
+        self.assertEqual(controller._kernel32.timeout, 0)
+        controller._kernel32.result = windows_runtime.WAIT_OBJECT_0
+        self.assertTrue(controller.assigned_process_has_exited())
+
+    def test_windows_job_assignment_retains_a_synchronize_handle(self) -> None:
+        class Kernel:
+            def __init__(self) -> None:
+                self.closed: list[object] = []
+
+            def OpenProcess(self, access: int, inherit: bool, process_id: int) -> object:
+                self.access = access
+                self.inherit = inherit
+                self.process_id = process_id
+                return "supervisor-handle"
+
+            @staticmethod
+            def AssignProcessToJobObject(_job: object, _process: object) -> bool:
+                return True
+
+            def CloseHandle(self, handle: object) -> bool:
+                self.closed.append(handle)
+                return True
+
+        controller = object.__new__(windows_runtime.WindowsJobController)
+        controller._kernel32 = Kernel()
+        controller.handle = "job-handle"
+        controller._assigned_process_handle = None
+        controller.assign(42)
+        self.assertEqual(controller._assigned_process_handle, "supervisor-handle")
+        self.assertTrue(controller._kernel32.access & windows_runtime.PROCESS_SYNCHRONIZE)
+        self.assertEqual(controller._kernel32.closed, [])
+
     @unittest.skipIf(jsonschema is None, "jsonschema is unavailable")
     def test_task_schema_exposes_only_provable_process_limit_combinations(self) -> None:
         validator = jsonschema.Draft202012Validator(mcp_server.TASK_SCHEMA)
@@ -211,6 +271,20 @@ class WindowsPortableContractTests(unittest.TestCase):
         )
         self.assertTrue(any("zero progress" in message for message in errors), errors)
 
+    def test_conpty_null_stdin_is_not_collapsed_into_explicit_eof(self) -> None:
+        handle = windows_job_runner.wintypes.HANDLE(123)
+        stopping = threading.Event()
+        self.assertIsNone(
+            windows_job_runner._conpty_input_thread(
+                object(), handle, None, [], stopping
+            )
+        )
+        explicit_empty = windows_job_runner._conpty_input_thread(
+            object(), handle, b"", [], stopping
+        )
+        self.assertIsNotNone(explicit_empty)
+        self.assertEqual(explicit_empty[0].name, "conpty-input")
+
     def test_conpty_reader_marshals_output_sink_failure(self) -> None:
         class OneReadKernel:
             calls = 0
@@ -362,7 +436,7 @@ if os.name == "nt":
                 },
             )
             result = asyncio.run(mcp_server.execute_task(task, 8192))
-            self.assertEqual(result["status"], "succeeded", result["stderr"])
+            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
             self.assertIn("实时 中文", result["stdout"])
             self.assertEqual(result["process_tree_backend"], "windows_job_object")
             self.assertEqual(result["applied_resource_controls"]["cpu_rate_percent"], 50.0)
@@ -531,13 +605,19 @@ if os.name == "nt":
 
         def test_completed_parent_cannot_leave_a_pipe_holding_descendant(self) -> None:
             marker = self.project / "detached-descendant-survived.txt"
+            started_marker = self.project / "detached-descendant-started.txt"
             child = (
-                "import pathlib,time;time.sleep(1.2);"
+                "import pathlib,time;"
+                f"pathlib.Path({str(started_marker)!r}).write_text('started',encoding='utf-8');"
+                "time.sleep(3);"
                 f"pathlib.Path({str(marker)!r}).write_text('escaped',encoding='utf-8')"
             )
             parent = (
-                "import subprocess,sys;"
+                "import pathlib,subprocess,sys,time;"
                 f"subprocess.Popen([sys.executable,'-c',{child!r}],close_fds=False);"
+                "deadline=time.time()+2;"
+                f"started=pathlib.Path({str(started_marker)!r});"
+                "\nwhile not started.exists() and time.time()<deadline: time.sleep(0.02)\n"
                 "print('parent-complete',flush=True)"
             )
             task = _task(
@@ -549,8 +629,12 @@ if os.name == "nt":
             result = asyncio.run(mcp_server.execute_task(task, 8192))
             self.assertLess(time.monotonic() - started, 5.0)
             self.assertEqual(result["status"], "succeeded", result["stderr"])
+            self.assertTrue(started_marker.exists(), "descendant never reached the Job test")
             self.assertTrue(result["process_tree_termination"]["verified_empty"])
-            time.sleep(1.5)
+            self.assertGreaterEqual(
+                result["process_tree_termination"]["active_before"], 1
+            )
+            time.sleep(3.5)
             self.assertFalse(marker.exists(), "a completed target left a Job descendant")
 
         def test_conpty_captures_combined_vt_output(self) -> None:
@@ -560,12 +644,16 @@ if os.name == "nt":
             )
             task = _task(
                 self.project,
-                [sys.executable, "-c", "print('conpty-live-✓', flush=True)"],
+                [
+                    sys.executable,
+                    "-c",
+                    "import time;time.sleep(0.25);print('conpty-live-✓', flush=True)",
+                ],
                 terminal_mode="conpty",
                 resources={"cpu_rate_percent": 50, "memory_limit_mb": 512},
             )
             result = asyncio.run(mcp_server.execute_task(task, 8192))
-            self.assertEqual(result["status"], "succeeded", result["stderr"])
+            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
             self.assertTrue(result["output_combined"])
             self.assertIn("conpty-live-✓", result["stdout"])
             self.assertIsNone(
@@ -601,6 +689,24 @@ if os.name == "nt":
                 result["containment_scope"],
                 "supervisor_and_inherited_windows_tree",
             )
+
+        def test_conpty_round_trips_explicit_bounded_stdin(self) -> None:
+            payload = "conpty-input-✓\n"
+            payload_bytes = payload.encode("utf-8")
+            program = (
+                "import sys;"
+                f"data=sys.stdin.buffer.read({len(payload_bytes)});"
+                "print('received:'+data.decode('utf-8'),end='',flush=True)"
+            )
+            task = _task(
+                self.project,
+                [sys.executable, "-c", program],
+                terminal_mode="conpty",
+                stdin=payload,
+            )
+            result = asyncio.run(mcp_server.execute_task(task, 8192))
+            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
+            self.assertIn("received:conpty-input-✓", result["stdout"])
 
         def test_conpty_rejects_an_unverifiable_active_process_limit(self) -> None:
             with self.assertRaisesRegex(mcp_server.InputError, "cannot be combined"):
@@ -639,7 +745,7 @@ if os.name == "nt":
                 terminal_mode="conpty",
             )
             result = asyncio.run(mcp_server.execute_task(task, 65_536))
-            self.assertEqual(result["status"], "succeeded", result["stderr"])
+            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
             self.assertGreaterEqual(result["stdout_bytes"], stream_size)
             self.assertTrue(result["stdout_truncated"])
             self.assertIn("BEGIN", result["stdout"])

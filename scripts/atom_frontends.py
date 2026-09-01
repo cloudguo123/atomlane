@@ -1480,7 +1480,12 @@ end
 
 data = STDIN.read
 reject_duplicate_yaml_keys(Psych.parse_stream(data))
-doc = YAML.safe_load(data, [], [], false) || {}
+doc = YAML.safe_load(
+  data,
+  permitted_classes: [],
+  permitted_symbols: [],
+  aliases: false
+) || {}
 raise "top-level YAML must be a mapping" unless doc.is_a?(Hash)
 raise "top-level name must be a string" unless doc["name"].nil? || doc["name"].is_a?(String)
 raise "Compose include is not supported by the bounded frontend" if doc.key?("include")

@@ -387,6 +387,29 @@ def _write_handle(
         kernel32.CloseHandle(handle)
 
 
+def _conpty_input_thread(
+    kernel32: Any,
+    handle: Any,
+    stdin_data: bytes | None,
+    errors: list[str],
+    stopping: threading.Event,
+) -> tuple[threading.Thread, Any] | None:
+    """Transfer an explicit stdin payload without collapsing null into EOF."""
+
+    if stdin_data is None:
+        return None
+    writer_handle = wintypes.HANDLE(handle.value)
+    return (
+        threading.Thread(
+            target=_write_handle,
+            args=(kernel32, writer_handle, stdin_data, errors, stopping),
+            name="conpty-input",
+            daemon=True,
+        ),
+        writer_handle,
+    )
+
+
 def _read_handle(
     kernel32: Any,
     handle: Any,
@@ -607,17 +630,16 @@ def _run_conpty(
             daemon=True,
         )
         output_read = wintypes.HANDLE()
-        writer_handle = wintypes.HANDLE(input_write.value)
-        writer = threading.Thread(
-            target=_write_handle,
-            args=(kernel32, writer_handle, stdin_data or b"", io_errors, stopping),
-            name="conpty-input",
-            daemon=True,
+        io_bindings = [(reader, reader_handle)]
+        input_binding = _conpty_input_thread(
+            kernel32, input_write, stdin_data, io_errors, stopping
         )
-        input_write = wintypes.HANDLE()
-        io_bindings = [(reader, reader_handle), (writer, writer_handle)]
         reader.start()
-        writer.start()
+        if input_binding is not None:
+            writer, writer_handle = input_binding
+            input_write = wintypes.HANDLE()
+            io_bindings.append((writer, writer_handle))
+            writer.start()
         while True:
             wait_result = kernel32.WaitForSingleObject(process_info.hProcess, 100)
             if wait_result == WAIT_OBJECT_0:

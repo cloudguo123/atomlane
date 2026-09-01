@@ -20,6 +20,10 @@ JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION_CLASS = 1
 PROCESS_TERMINATE = 0x0001
 PROCESS_SET_QUOTA = 0x0100
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+PROCESS_SYNCHRONIZE = 0x00100000
+WAIT_OBJECT_0 = 0x00000000
+WAIT_TIMEOUT = 0x00000102
+WAIT_FAILED = 0xFFFFFFFF
 
 
 class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
@@ -98,6 +102,7 @@ class WindowsJobController:
             raise WindowsJobError("Windows Job Objects are available only on native Windows")
         self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         self._configure_signatures()
+        self._assigned_process_handle: Any = None
         self.handle = self._kernel32.CreateJobObjectW(None, None)
         if not self.handle:
             raise _last_error("CreateJobObjectW")
@@ -132,6 +137,8 @@ class WindowsJobController:
         kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
         kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
         kernel32.TerminateJobObject.restype = wintypes.BOOL
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel32.CloseHandle.restype = wintypes.BOOL
 
@@ -248,15 +255,42 @@ class WindowsJobController:
         }
 
     def assign(self, process_id: int) -> None:
-        access = PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION
+        if self._assigned_process_handle:
+            raise WindowsJobError("the Job Object already has an assigned supervisor handle")
+        access = (
+            PROCESS_SET_QUOTA
+            | PROCESS_TERMINATE
+            | PROCESS_QUERY_LIMITED_INFORMATION
+            | PROCESS_SYNCHRONIZE
+        )
         process = self._kernel32.OpenProcess(access, False, int(process_id))
         if not process:
             raise _last_error("OpenProcess")
         try:
             if not self._kernel32.AssignProcessToJobObject(self.handle, process):
                 raise _last_error("AssignProcessToJobObject")
-        finally:
+        except Exception:
             self._kernel32.CloseHandle(process)
+            raise
+        self._assigned_process_handle = process
+
+    def assigned_process_has_exited(self) -> bool:
+        """Poll the supervisor kernel handle without depending on pipe EOF."""
+
+        if not self._assigned_process_handle:
+            raise WindowsJobError("the Job Object has no assigned supervisor handle")
+        result = int(
+            self._kernel32.WaitForSingleObject(self._assigned_process_handle, 0)
+        )
+        if result == WAIT_OBJECT_0:
+            return True
+        if result == WAIT_TIMEOUT:
+            return False
+        if result == WAIT_FAILED:
+            raise _last_error("WaitForSingleObject(supervisor)")
+        raise WindowsJobError(
+            f"WaitForSingleObject(supervisor) returned unexpected status {result}"
+        )
 
     def terminate(self, exit_code: int = 1) -> None:
         if self.handle and not self._kernel32.TerminateJobObject(self.handle, int(exit_code)):
@@ -290,10 +324,20 @@ class WindowsJobController:
             time.sleep(0.02)
 
     def close(self) -> None:
+        failure: WindowsJobError | None = None
         if getattr(self, "handle", None):
             if not self._kernel32.CloseHandle(self.handle):
-                raise _last_error("CloseHandle(Job Object)")
+                failure = _last_error("CloseHandle(Job Object)")
             self.handle = None
+        if getattr(self, "_assigned_process_handle", None):
+            if (
+                not self._kernel32.CloseHandle(self._assigned_process_handle)
+                and failure is None
+            ):
+                failure = _last_error("CloseHandle(supervisor process)")
+            self._assigned_process_handle = None
+        if failure is not None:
+            raise failure
 
     def description(self) -> dict[str, Any]:
         return {

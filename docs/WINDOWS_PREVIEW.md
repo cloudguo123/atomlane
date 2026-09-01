@@ -7,7 +7,7 @@ It is a platform adapter, not a second planner or a compatibility fork.
 
 Preview means that the supported boundary below is release-gated, while wider
 Windows shell and filesystem semantics still fail closed. The current CI gate
-runs on GitHub's `windows-2025` image with CPython 3.10, 3.11, and 3.13.
+runs on GitHub's `windows-2025` image with CPython 3.10, 3.11, 3.12, and 3.13.
 
 ## Supported boundary
 
@@ -202,7 +202,7 @@ automatic proof boundary. A frozen application needs its own reviewed
 ## Known Preview limitations
 
 - Release evidence currently covers GitHub `windows-2025` with CPython 3.10,
-  3.11, and 3.13; other Windows versions, Python versions, architectures, enterprise
+  3.11, 3.12, and 3.13; other Windows versions, Python versions, architectures, enterprise
   policies, nested-Job configurations, and Windows Desktop UI integration are
   not release-gated. In particular, this is not Windows 11 Desktop UI proof.
 - Target creation is staged after supervisor assignment, not atomic; the
@@ -213,6 +213,8 @@ automatic proof boundary. A frozen application needs its own reviewed
   entrypoints have no native automatic lowering.
 - ConPTY combines stdout and stderr and is unsuitable when their separation is
   part of the task contract.
+- ConPTY accepts bounded launch input, but callers that require portable,
+  observable stdin EOF semantics should use `terminal_mode: "pipes"`.
 - Interactive prompts, UAC elevation, GUI automation, Windows services, and
   detached processes that require escape from the Job Object are not covered.
 - The 128 MiB minimum is a Job-wide floor, not 128 MiB exclusively available

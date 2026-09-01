@@ -38,8 +38,10 @@ requirements and must not be used to imply remote hosting.
 ## Long description
 
 AtomLane helps Codex find safe program-level Python refactors and execute safe
-concurrency in local macOS builds, tests, Docker/Compose graphs, Make targets,
-paper workflows, and batch jobs. Its Python advisor performs bounded AST and
+concurrency in local workflows. macOS is the stable target for shell,
+Docker/Compose, Make, tests, paper pipelines, and batch jobs; native Windows is
+a scoped Preview for exact argv and declared PowerShell files, with WSL and
+Docker kept as separate execution realms. Its Python advisor performs bounded AST and
 effect analysis without importing, executing, or modifying target code, and
 binds any review preview to the exact source hash. It compiles supported entrypoints into a typed Atom IR that keeps
 control flow, artifacts, effects, lifecycle events, source snapshots, and
@@ -48,7 +50,7 @@ closed instead of being guessed safe.
 
 The executor consumes the exact immutable plan and matching hash. It releases
 ready successors without wave barriers, preserves failure propagation, adapts
-to the current Mac, and delegates concurrency to native owners when safer. Long
+to the current host, and delegates concurrency to native owners when safer. Long
 runs show live running, ready, completed, and failed counts together with
 per-run and cumulative estimated time saved. The project is MIT licensed,
 local-first, and backed by public tests and reproducible benchmark evidence.
@@ -98,14 +100,14 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 
 - Prompt: Run four independent 15-second fixtures and show progress throughout.
 - Fixture: Four isolated commands with declared read-only inputs and distinct outputs.
-- Expected behavior: Compile once, execute the exact plan through the PTY live runner, and update elapsed/running/ready/completed/failed values during execution.
+- Expected behavior: Compile once, execute the exact plan through the live runner, and update elapsed/running/ready/completed/failed values during execution.
 - Expected result: Final atom results, observed peak concurrency, per-run time saved, and cumulative time saved.
 
 ### 6. Review a Python ordered CPU map
 
 - Prompt: Inspect a long-running pure Python list-comprehension map and suggest a safe process-pool refactor without running it.
 - Fixture: A module-level pure worker called through a guarded `main`, plus measured serial hotspot metadata.
-- Expected behavior: Parse but never import or execute the target; propagate local effects; require the macOS spawn guard; distinguish the measured serial observation from the modeled parallel projection.
+- Expected behavior: Parse but never import or execute the target; propagate local effects; require a portable guarded entrypoint and explicit `spawn` context; distinguish the measured serial observation from the modeled parallel projection.
 - Expected result: `reviewable_rewrite`, complete proof obligations, resource ceiling, source hash, and syntax-checked unified diff that is not applied automatically.
 
 ## Negative review cases
@@ -130,9 +132,11 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 
 ## Current release notes
 
-Version 0.11 adds a non-executing Python Candidate IR, fail-closed effect and
-spawn gates, GIL-aware executor routing, source-hash-bound review previews, and
-public safety-fixture evidence to the existing typed atomic planner, exact
-plan-hash execution, Apple-silicon resource awareness, native delegation, live
-progress, and honest savings reporting. No test credentials or network account
-are required for local use.
+Version 0.12 introduces a fail-closed native Windows Preview while preserving
+the macOS stable path and shared typed core. It adds Windows resource probes,
+staged Job Object process-tree containment, optional ConPTY capture, NT path
+conflict rules, whole-file PowerShell planning, explicit native/WSL/Docker
+realms, and portable `spawn` proof obligations for Python previews. Public CI,
+native evidence, and separate five-minute macOS and Windows benchmark artifacts
+are linked from the live report. No test credentials or network account are
+required for local use.

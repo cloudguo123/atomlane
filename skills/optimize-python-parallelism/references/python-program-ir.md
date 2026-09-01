@@ -67,10 +67,12 @@ read-only I/O remain conditional advice rather than automatic rewrites.
 
 - Threads do not normally accelerate pure Python CPU bytecode because of the
   GIL. They can help blocking I/O and some native calls that release the GIL.
-- CPU-bound Python workers normally require processes. On macOS, spawned
-  workers must be import-safe; the callable must be module-level and its
+- CPU-bound Python workers normally require processes. On every supported
+  target, spawned workers must be import-safe; the callable must be module-level and its
   arguments/results pickleable, and process creation must sit behind a safe
-  main-entry boundary.
+  main-entry boundary. Generated previews explicitly request the `spawn`
+  context so Linux validation exercises the same import contract. Windows
+  `ProcessPoolExecutor` plans must not exceed 61 workers.
 - NumPy/BLAS/OpenMP, PyTorch, JAX, image/video codecs, and similar libraries may
   already own threads or devices. Do not multiply their pools by outer process
   concurrency without one CPU/memory/GPU budget.
@@ -89,7 +91,8 @@ A `rewrite_preview`:
 
 - is text for review, never an instruction to apply automatically;
 - is valid only while `source_sha256` matches exactly;
-- inserts a collision-resistant executor alias and a bounded worker ceiling;
+- inserts collision-resistant executor and multiprocessing aliases, an
+  explicit spawn context, and a bounded worker ceiling;
 - must compile before it is surfaced;
 - owns complete physical source lines and preserves comments, encoding/shebang
   placement, and final-newline state;

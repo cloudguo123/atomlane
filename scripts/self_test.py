@@ -345,7 +345,7 @@ def main() -> int:
             request(
                 14,
                 "resources/read",
-                {"uri": "ui://widget/mac-parallel-indicator-0.11.0.html"},
+                {"uri": mcp_server.INDICATOR_RESOURCE_URI},
             ),
         ]
         payload = "".join(json.dumps(message) + "\n" for message in messages)
@@ -359,6 +359,7 @@ def main() -> int:
             input=payload,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=15,
             env=environment,
@@ -373,7 +374,7 @@ def main() -> int:
         assert all(item["params"]["progressToken"] == "self-test-progress" for item in progress)
         assert any("当前预计节约" in item["params"]["message"] for item in progress)
         assert responses[0]["result"]["serverInfo"]["name"] == "mac-parallel-accelerator"
-        assert responses[0]["result"]["serverInfo"]["version"] == "0.11.0"
+        assert responses[0]["result"]["serverInfo"]["version"] == mcp_server.SERVER_VERSION
         assert "cheaply assess parallel eligibility" in responses[0]["result"]["instructions"]
 
         parallel = responses[1]["result"]["structuredContent"]
@@ -389,7 +390,7 @@ def main() -> int:
         assert responses[1]["result"]["_meta"]["ui/resourceUri"].startswith("ui://widget/")
         assert parallel["resource_plan"]["responsiveness"] == "interactive"
         assert parallel["resource_plan"]["reserve_cores_source"] == "adaptive"
-        assert parallel["resource_plan"]["nice_adjustment"] == 10
+        assert parallel["resource_plan"]["nice_adjustment"] == (0 if os.name == "nt" else 10)
         assert {item["stdout"].strip() for item in parallel["results"]} == {"one", "two"}
 
         mapped = responses[2]["result"]["structuredContent"]
@@ -403,6 +404,7 @@ def main() -> int:
         assert by_id["child"]["status"] == "succeeded"
         assert by_id["blocked"]["status"] == "skipped"
         assert dag["indicator"]["parallel"] is (dag["indicator"]["peak_concurrency"] > 1)
+        assert dag["indicator"]["savings_eligible"] is False
 
         serial = responses[4]["result"]["structuredContent"]
         assert serial["indicator"]["parallel"] is False
@@ -419,11 +421,15 @@ def main() -> int:
         }
 
         accelerator = responses[6]["result"]["structuredContent"]
-        assert accelerator["selected_backend"] in {
-            "core_ml_all_compute_units", "parallel_cpu"
-        }
-        assert accelerator["transparent_offload"] is False
-        assert "inventory" in accelerator
+        if os.name == "nt":
+            assert accelerator["status"] == "unavailable_on_this_platform"
+            assert accelerator["selected_backend"] is None
+        else:
+            assert accelerator["selected_backend"] in {
+                "core_ml_all_compute_units", "parallel_cpu"
+            }
+            assert accelerator["transparent_offload"] is False
+            assert "inventory" in accelerator
 
         scenario = responses[7]["result"]["structuredContent"]
         assert scenario["catalog"]["scenario_count"] >= 63
@@ -494,6 +500,7 @@ def main() -> int:
         assert "task_parallel_scan" in tools
         assert "atomic_task_plan" in tools
         assert "atomic_exec" in tools
+        assert "host_resource_plan" in tools
         assert "container_resource_plan" in tools
         for name in ("atomic_exec", "parallel_exec", "parallel_map", "parallel_dag"):
             assert tools[name]["_meta"]["openai/outputTemplate"].startswith("ui://widget/")
@@ -529,6 +536,7 @@ def main() -> int:
             [sys.executable, str(LIVE_RUNNER), "--mode", "exec", "--input", str(live_input)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=5,
             env=environment,
@@ -601,6 +609,7 @@ def main() -> int:
             [sys.executable, str(LIVE_RUNNER), "--mode", "atomic", "--input", str(atomic_input)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=5,
             env=environment,
@@ -616,7 +625,11 @@ def main() -> int:
         assert len(atomic_result["event_journal"]) == 4
 
         stats = json.loads((pathlib.Path(temp_dir) / "stats.json").read_text(encoding="utf-8"))
-        assert stats["run_count"] == 6
+        completed_runs = [parallel, mapped, dag, serial, live_result, atomic_result]
+        expected_credited_runs = sum(
+            item["indicator"]["savings_eligible"] is True for item in completed_runs
+        )
+        assert stats["run_count"] == expected_credited_runs == 5
 
     print("Self-test passed: in-task scanning, scenario routing, adaptive resources, live execution, map, and DAG")
     return 0

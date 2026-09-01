@@ -2,7 +2,7 @@
   "mcpServers": {
     "mac-parallel-accelerator": {
       "title": "AtomLane",
-      "description": "Proven-safe, scenario-aware, resource-adaptive local parallel execution for coding agents on macOS.",
+      "description": "Proven-safe, scenario-aware local parallel execution for macOS and native Windows Preview.",
       "command": "python3",
       "args": [
         "./scripts/mcp_server.py"

@@ -6,7 +6,7 @@ with that license for the software itself, the MIT License controls.
 
 ## Local software, not a hosted service
 
-AtomLane runs on the user's Mac. The maintainers do not
+AtomLane runs locally on the user's supported macOS or Windows host. The maintainers do not
 operate a hosted execution service, user account system, or paid plan for this
 project. The software does not automatically upload project files, commands,
 Codex conversations, traces, or benchmark results.

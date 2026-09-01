@@ -81,6 +81,31 @@ class RuntimeTests(unittest.TestCase):
         self.assertLess(len(result["stdout"].encode()), 1200)
         self.assertLess(len(result["stderr"].encode()), 1200)
 
+    def test_non_utf8_output_reports_replacement_instead_of_claiming_utf8(self) -> None:
+        result = asyncio.run(
+            mcp_server.execute_task(
+                {
+                    "id": "opaque-output-bytes",
+                    "argv": [
+                        sys.executable,
+                        "-c",
+                        "import sys;sys.stdout.buffer.write(b'valid\\n\\x80invalid')",
+                    ],
+                    "cwd": str(self.project),
+                    "env": {},
+                    "stdin": None,
+                    "timeout_seconds": 10.0,
+                    "depends_on": [],
+                    "side_effect": False,
+                },
+                1024,
+            )
+        )
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(result["output_decoding"], "utf-8_with_replacement")
+        self.assertTrue(result["stdout_decode_replacement"])
+        self.assertIn("�invalid", result["stdout"])
+
     def test_side_effect_timeout_has_unknown_outcome(self) -> None:
         result = asyncio.run(
             mcp_server.execute_task(
@@ -119,6 +144,79 @@ class RuntimeTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "timed_out")
         self.assertEqual(result["outcome"], "not_completed")
+
+    def test_raw_task_stdin_rejects_invalid_utf8_text(self) -> None:
+        with self.assertRaisesRegex(mcp_server.InputError, "valid UTF-8"):
+            mcp_server.normalize_task(
+                {
+                    "id": "invalid-stdin",
+                    "argv": [sys.executable, "-c", "pass"],
+                    "cwd": str(self.project),
+                    "stdin": "\ud800",
+                },
+                0,
+                None,
+            )
+
+    def test_atomic_pipe_stdin_round_trips_unicode_and_eof(self) -> None:
+        expected = "atomic-input-✓"
+        atom = {
+            "id": "pipe-stdin",
+            "operation": {
+                "kind": "read",
+                "argv": [
+                    sys.executable,
+                    "-c",
+                    "import sys;print(sys.stdin.buffer.read().hex(),flush=True)",
+                ],
+                "cwd": str(self.project),
+                "stdin": expected,
+                "terminal_mode": "pipes",
+                "completion": "process_exit",
+                "internal_parallelism": {"kind": "none", "tokens": None},
+            },
+            "dependencies": [],
+            "accesses": [],
+            "effects": [],
+            "claims": [],
+            "side_effect": False,
+            "semantics": {
+                "idempotent": True,
+                "retryable": False,
+                "deterministic": True,
+                "cacheable": False,
+                "commutative": False,
+                "cancel_safe": True,
+                "splittable": False,
+                "reorderable": "explicit",
+            },
+            "cost": {"duration_seconds": 0.01, "startup_seconds": 0.0},
+            "batch": None,
+            "assurance": {
+                "parse": "exact",
+                "control": "exact",
+                "effects": "complete_declared",
+                "codegen": "exact_argv",
+                "rank": 1.0,
+                "blockers": [],
+            },
+        }
+        plan = mcp_server.atomic_task_plan(
+            {"project_path": str(self.project), "atoms": [atom], "max_concurrency": 1}
+        )
+        self.assertEqual(plan["atoms"][0]["operation"]["stdin"], expected)
+        result = asyncio.run(
+            asyncio.wait_for(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                ),
+                timeout=10,
+            )
+        )
+        self.assertEqual(result["results"][0]["status"], "succeeded")
+        self.assertEqual(
+            result["results"][0]["stdout"].strip(), expected.encode("utf-8").hex()
+        )
 
     def test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor(self) -> None:
         def atom(atom_id: str, dependencies: list[dict[str, str]] | None = None) -> dict:
@@ -292,6 +390,62 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertTrue(all("运行中 2" in line and "就绪 1" in line for line in lines))
         self.assertTrue(all("当前预计节约 0.2s" in line for line in lines))
+
+    def test_failed_or_empty_run_never_credits_savings(self) -> None:
+        credited = mcp_server._record_time_saved(5.0)
+        self.assertEqual(credited["run_count"], 1)
+        indicator = mcp_server._execution_indicator(
+            [{"id": "failed", "status": "failed", "duration_seconds": 10.0}],
+            elapsed=2.0,
+            peak_concurrency=2,
+            serial_baseline_seconds=20.0,
+        )
+        self.assertFalse(indicator["savings_eligible"])
+        self.assertEqual(indicator["time_saved_seconds"], 0.0)
+        self.assertEqual(indicator["speedup_multiplier"], 0.0)
+        self.assertEqual(indicator["cumulative_saved_seconds"], 5.0)
+        self.assertEqual(indicator["cumulative_run_count"], 1)
+        self.assertIn("未计入", indicator["display"])
+
+        empty = mcp_server._execution_indicator(
+            [{"id": "skipped", "status": "skipped", "duration_seconds": 0.0}],
+            elapsed=1.0,
+            peak_concurrency=0,
+            serial_baseline_seconds=None,
+        )
+        self.assertFalse(empty["savings_eligible"])
+        self.assertEqual(empty["cumulative_run_count"], 1)
+
+    def test_successful_overhead_keeps_cumulative_savings_monotonic(self) -> None:
+        indicator = mcp_server._execution_indicator(
+            [{"id": "serial", "status": "succeeded", "duration_seconds": 1.0}],
+            elapsed=1.5,
+            peak_concurrency=1,
+            serial_baseline_seconds=None,
+        )
+        self.assertTrue(indicator["savings_eligible"])
+        self.assertEqual(indicator["time_saved_seconds"], 0.0)
+        self.assertEqual(indicator["overhead_seconds"], 0.5)
+        self.assertEqual(indicator["cumulative_saved_seconds"], 0.0)
+        self.assertEqual(indicator["cumulative_run_count"], 1)
+        with self.assertRaisesRegex(ValueError, "finite non-negative"):
+            mcp_server._record_time_saved(-0.1)
+        with self.assertRaisesRegex(ValueError, "finite non-negative"):
+            mcp_server._record_time_saved(float("nan"))
+
+    def test_progress_marks_savings_ineligible_after_failure(self) -> None:
+        reporter = mcp_server.ProgressReporter(
+            2,
+            callback=None,
+            started=mcp_server.time.monotonic() - 2.0,
+        )
+        reporter.completed.append(
+            {"id": "failed", "status": "failed", "duration_seconds": 10.0}
+        )
+        snapshot = reporter.snapshot()
+        self.assertFalse(snapshot["savings_eligible_so_far"])
+        self.assertEqual(snapshot["estimated_saved_so_far_seconds"], 0.0)
+        self.assertIn("failed", snapshot["savings_ineligible_reason"])
 
 
 if __name__ == "__main__":

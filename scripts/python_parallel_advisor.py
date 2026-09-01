@@ -7,7 +7,7 @@ conservative intra-module effect summary, and emits source-hash-bound rewrite
 previews only when every hard gate is satisfied.
 
 This is not a general Python optimizer.  Unknown calls, dynamic behavior,
-observable effects, missing macOS spawn guards, and loop-carried control flow
+observable effects, missing portable spawn guards, and loop-carried control flow
 fail closed.
 """
 
@@ -21,6 +21,7 @@ import io
 import json
 import math
 import os
+import platform
 import re
 import stat
 import tokenize
@@ -29,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-ANALYSIS_VERSION = "python-parallel/1"
+ANALYSIS_VERSION = "python-parallel/2"
 MAX_SOURCE_BYTES = 2_000_000
 MAX_TOTAL_SOURCE_BYTES = 16_000_000
 MAX_AST_NODES = 80_000
@@ -1793,11 +1794,15 @@ def _rewrite_preview(module: SourceModule, shape: dict[str, Any], workers: int) 
     indent_match = re.match(r"[ \t]*", lines[start])
     indent = indent_match.group(0) if indent_match else ""
     alias = _unique_bound_name(module.tree, "_AtomLaneProcessPoolExecutor")
+    multiprocessing_alias = _unique_bound_name(module.tree, "_atomlane_multiprocessing")
     iterable = _source_segment(module, shape["iterable"])
     worker = shape["worker"]
     result = shape["result_name"]
     pool_name = _unique_bound_name(module.tree, "_atomlane_pool")
-    with_line = f"{indent}with {alias}(max_workers={workers}) as {pool_name}:{newline}"
+    with_line = (
+        f"{indent}with {alias}(max_workers={workers}, "
+        f"mp_context={multiprocessing_alias}.get_context(\"spawn\")) as {pool_name}:{newline}"
+    )
     if shape["pattern"] == "ordered_list_comprehension_map":
         work_line = f"{indent}    {result} = list({pool_name}.map({worker}, {iterable})){newline}"
     elif shape["pattern"] == "ordered_return_list_comprehension_map":
@@ -1808,7 +1813,8 @@ def _rewrite_preview(module: SourceModule, shape: dict[str, Any], workers: int) 
     transformed[start:end] = [with_line, work_line]
     insert_at = _import_insert_line(module)
     import_line = f"from concurrent.futures import ProcessPoolExecutor as {alias}{newline}"
-    insertion = [import_line]
+    multiprocessing_import = f"import multiprocessing as {multiprocessing_alias}{newline}"
+    insertion = [import_line, multiprocessing_import]
     if insert_at < len(transformed) and transformed[insert_at].strip():
         insertion.append(newline)
     transformed[insert_at:insert_at] = insertion
@@ -1838,7 +1844,7 @@ def _rewrite_preview(module: SourceModule, shape: dict[str, Any], workers: int) 
         "preconditions": [
             "source_sha256 still matches",
             "worker arguments and return values are pickleable",
-            "the invoking entrypoint retains a macOS-safe __main__ guard",
+            "the invoking entrypoint retains a spawn-safe __main__ guard",
             "outer and native worker budgets are coordinated",
             "serial/parallel differential validation passes",
         ],
@@ -2038,7 +2044,7 @@ def _candidate(
         blockers.append(
             {
                 "code": "PROCESS_POOL_REQUIRES_MAIN_GUARD",
-                "message": "macOS spawn safety is not proven by an enclosing or caller __main__ guard",
+                "message": "spawn import safety is not proven by an enclosing or caller __main__ guard",
             }
         )
     if workload == "pure_python_cpu" and module.module_import_effects:
@@ -2183,7 +2189,7 @@ def _candidate(
     )
     proof.append(
         {
-            "id": "macos_spawn",
+            "id": "spawn_import_safety",
             "status": "satisfied" if spawn_safe else "unknown",
             "evidence": "enclosing/caller __main__ guard found" if spawn_safe else "no statically linked __main__ guard found",
         }
@@ -2293,7 +2299,7 @@ def _candidate(
         "validation_requirements": [
             "compile the transformed source without importing it",
             "compare serial and parallel return values, output order, exceptions, and produced files",
-            "repeat deterministic fixtures under the macOS spawn start method",
+            "repeat deterministic fixtures under the explicit spawn start method",
             "measure p50/p90 only for safe repeatable workloads and report peak memory",
             "discard the rewrite if correctness fails or measured performance regresses",
         ],
@@ -2356,6 +2362,7 @@ def analyze_python_parallelism(
     minimum_hotspot_seconds: float = 10.0,
     execution_context: str = "standalone",
     include_rewrite_previews: bool = True,
+    target_platform: str = "auto",
 ) -> dict[str, Any]:
     """Analyze project-local Python source and return deterministic advice."""
     try:
@@ -2370,6 +2377,12 @@ def analyze_python_parallelism(
         raise AdvisorError(f"max_candidates must be between 1 and {MAX_CANDIDATES}")
     if isinstance(max_workers, bool) or not isinstance(max_workers, int) or not 1 <= max_workers <= 64:
         raise AdvisorError("max_workers must be between 1 and 64")
+    if target_platform not in {"auto", "windows", "darwin", "linux"}:
+        raise AdvisorError("target_platform must be auto, windows, darwin, or linux")
+    resolved_platform = (
+        platform.system().lower() if target_platform == "auto" else target_platform
+    )
+    effective_max_workers = min(max_workers, 61) if resolved_platform == "windows" else max_workers
     if (
         isinstance(minimum_hotspot_seconds, bool)
         or not isinstance(minimum_hotspot_seconds, (int, float))
@@ -2399,6 +2412,13 @@ def analyze_python_parallelism(
     normalized_hotspots = _normalize_hotspots(project, hotspots)
     source_paths, discovery_truncated = _resolve_sources(project, paths, max_files)
     diagnostics: list[dict[str, Any]] = []
+    if effective_max_workers < max_workers:
+        diagnostics.append(
+            _diagnostic(
+                "WINDOWS_PROCESS_POOL_LIMIT",
+                "ProcessPoolExecutor is capped at 61 workers on Windows; the rewrite ceiling was reduced",
+            )
+        )
     modules: list[SourceModule] = []
     total_bytes = 0
     total_ast_nodes = 0
@@ -2460,7 +2480,7 @@ def analyze_python_parallelism(
                     shape,
                     parents,
                     normalized_hotspots,
-                    max_workers,
+                    effective_max_workers,
                     minimum_hotspot_seconds,
                     execution_context,
                     include_rewrite_previews,
@@ -2511,6 +2531,8 @@ def analyze_python_parallelism(
             "max_files": max_files,
             "max_candidates": max_candidates,
             "max_workers": max_workers,
+            "effective_max_workers": effective_max_workers,
+            "target_platform": resolved_platform,
             "minimum_hotspot_seconds": minimum_hotspot_seconds,
             "execution_context": execution_context,
             "include_rewrite_previews": include_rewrite_previews,

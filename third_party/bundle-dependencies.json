@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "bundle": "assets/parallel-indicator-host.bundle.js",
+  "dependencies": [
+    {
+      "name": "@modelcontextprotocol/ext-apps",
+      "version": "1.7.5",
+      "license": "Apache-2.0 and MIT (per contribution)",
+      "documentation_license": "CC-BY-4.0",
+      "license_file": "third_party/licenses/ext-apps-1.7.5-LICENSE.txt"
+    },
+    {
+      "name": "@modelcontextprotocol/sdk",
+      "version": "1.30.0",
+      "license": "MIT",
+      "license_file": "third_party/licenses/mcp-sdk-1.30.0-LICENSE.txt"
+    },
+    {
+      "name": "zod",
+      "version": "4.4.3",
+      "license": "MIT",
+      "license_file": "third_party/licenses/zod-4.4.3-LICENSE.txt"
+    },
+    {
+      "name": "zod-to-json-schema",
+      "version": "3.25.2",
+      "license": "ISC",
+      "license_file": "third_party/licenses/zod-to-json-schema-3.25.2-LICENSE.txt"
+    }
+  ]
+}

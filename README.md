@@ -4,7 +4,8 @@
 
 Safe parallel optimization for coding agents: AtomLane finds reviewable Python
 refactors and makes Codex finish builds, tests, Docker, and research pipelines
-faster on macOS without breaking task semantics.
+faster without breaking task semantics. macOS is stable; native Windows support
+is available as a fail-closed Preview.
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -41,7 +42,15 @@ Use $optimize-python-parallelism to inspect scripts/job.py. Do not run or modify
 the target while analyzing it; show proof obligations and a hash-bound preview.
 ```
 
-Requirements: macOS, Codex with plugin and MCP support, and Python 3.10+. Ruby is only needed for Compose YAML analysis; Node.js 20+ is only needed to rebuild the browser indicator.
+Requirements: macOS, or the scoped native Windows Preview, Codex with plugin
+and MCP support, and Python 3.10+ available as the `python3` command on `PATH`
+(`python3 --version` must succeed). The current
+[Python Install Manager](https://docs.python.org/3/using/windows.html#python-install-manager)
+includes this compatibility alias on Windows. Ruby is only needed for Compose YAML analysis
+on macOS; Node.js 20+ is only needed to rebuild the browser indicator. Windows
+release evidence currently comes from the `windows-2025` CI image; it does not
+establish Windows 11 Desktop UI integration. See the
+[Windows Preview guide](docs/WINDOWS_PREVIEW.md) before using Windows workflows.
 
 The repository also conforms to the vendor-neutral
 [Agent Plugins 1.0.0](https://agent-plugins.org/) package layout through its
@@ -91,7 +100,8 @@ The first supported rewrite shape is deliberately narrow: same-module,
 ordered `worker(item)` maps expressed as a list comprehension, returned list
 comprehension, or append loop. For each candidate AtomLane propagates effects
 through the local call graph, checks loop control and observable ordering,
-requires a macOS-safe `__main__` spawn path for CPU process pools, detects
+requires a portable `__main__` import path and an explicit `spawn` context for
+CPU process pools, detects
 existing/native parallelism, budgets nested workers, and returns one of:
 
 - `reviewable_rewrite`: pure CPU candidate with a syntax-checked unified diff;
@@ -103,7 +113,7 @@ existing/native parallelism, budgets nested workers, and returns one of:
 Every preview is bound to the exact source SHA-256 and is never applied
 automatically. A measured serial hotspot may produce a modeled projection,
 clearly labeled as not being a benchmark. Acceptance still requires serial vs
-parallel differential tests, deterministic fixtures under macOS `spawn`,
+parallel differential tests, deterministic fixtures under explicit `spawn`,
 exception/output checks, memory measurement, and a repeatable performance win.
 See the [Python Candidate IR and proof gates](skills/optimize-python-parallelism/references/python-program-ir.md).
 
@@ -111,7 +121,7 @@ See the [Python Candidate IR and proof gates](skills/optimize-python-parallelism
 
 ![Twenty-second live execution demo showing running, ready, completed, failed, and estimated savings](assets/growth/demo.gif)
 
-Long runs use a PTY-backed runner and continuously show:
+Long runs use the live runner and continuously show:
 
 ```text
 elapsed 2m 15s · running 4 · ready 2 · completed 7 · failed 0
@@ -120,9 +130,51 @@ estimated saved this run 4m 31s · cumulative saved 19m 52s
 
 At completion, every atom's status, return code, timeout, skip reason, output truncation, peak concurrency, per-run savings, and cumulative savings are checked.
 
-## Five-minute benchmark
+On Windows, the live surface shows scheduler lifecycle counts and savings;
+captured task stdout/stderr is returned with the completed result. Ordinary
+commands drain through separate byte pipes, while commands needing
+terminal-shaped output may opt into ConPTY and one combined VT stream. A
+waiting supervisor is added
+to the Job Object by PID before it receives the launch record and creates the
+target. This is staged supervision, not atomic target creation. Job CPU and
+memory budgets include the supervisor plus the normally inherited target tree.
+Work created through WSL, Docker, WMI, services, scheduled tasks, or another
+broker is explicitly outside that Job boundary.
 
-The retained public run executed four isolated low-load workloads through the real parallel executor. Every task ran for at least five minutes.
+## Windows Preview contract
+
+The Preview shares the same Atom IR, immutable plan hash, effect checks,
+scheduler, live progress, and savings ledger as macOS. The platform adapter
+adds Windows-native CPU/memory/power probes, NT path conflict rules, staged Job
+Object supervision, optional ConPTY, and a conservative `pwsh` file frontend.
+
+- Native Windows, WSL, and Docker's Linux VM are distinct execution realms;
+  plans cannot cross or be replayed between them.
+- Exact argv tasks and declared `.ps1` files are supported. PowerShell files
+  remain one opaque atom and require complete declared effects.
+- POSIX shell, package-script, Make, Compose, `.cmd`, and `.bat` lowering fail
+  closed on native Windows in this Preview. Run POSIX workflows inside WSL, or
+  declare exact native atoms instead of relying on shell-text translation.
+- Job-wide CPU rate and memory controls cover the supervisor and normally
+  inherited target tree; the memory limit is at least 128 MiB. In pipe mode,
+  `max_processes` is the exact active-member ceiling for the entire Job and is
+  at least 2; the verified supervisor consumes one slot while it is alive.
+  ConPTY with `max_processes` fails before target code starts because
+  console-host Job membership is not yet proven; CPU and memory limits remain
+  available. None of these limits constrain brokered work. Windows process-pool
+  advice never exceeds the platform's 61-worker wait limit.
+- ConPTY is output-only in this Preview. Explicit ConPTY `stdin` fails before
+  target creation because a verified terminal-input and EOF contract is not
+  implemented; use pipes for bounded stdin and observable EOF.
+
+The complete boundary and troubleshooting notes are in
+[Windows Preview](docs/WINDOWS_PREVIEW.md).
+
+## Retained macOS five-minute benchmark
+
+The retained public macOS run executed four isolated low-load workloads through
+the real parallel executor. Every task ran for at least five minutes. Native
+Windows Preview evidence is reported separately on the live dashboard.
 
 | Evidence | Result |
 | --- | ---: |
@@ -153,14 +205,15 @@ Plans are not translated back into hand-written waves or generic DAG calls. Type
 - Trace analysis returns aggregate routing signals—not prompts, reasoning, command bodies, or tool outputs.
 - Parallelism changes timing, never permission. Planning does not authorize new commands, remote mutations, destructive cleanup, or retries.
 - No run result is uploaded automatically. Sharing is explicit and reviewable.
-- Timeouts terminate process groups; timed-out side effects are treated as unknown and are not automatically retried.
+- Timeouts terminate the contained POSIX process group or Windows Job Object;
+  timed-out side effects are treated as unknown and are not automatically retried.
 
 Read [SECURITY.md](SECURITY.md) for the threat model and reporting process.
 
 ## Development
 
 ```bash
-python3 -m py_compile scripts/*.py
+python3 -m compileall -q scripts
 python3 -m unittest discover -s scripts -p 'test*.py' -v
 python3 scripts/self_test.py
 uvx ruff check scripts
@@ -179,6 +232,7 @@ Useful references:
 
 - [Architecture and safety invariants](DESIGN.md)
 - [Atom IR reference](skills/accelerate-local-work/references/atom-ir.md)
+- [Windows Preview contract](docs/WINDOWS_PREVIEW.md)
 - [Benchmark and external-result protocol](BENCHMARKING.md)
 - [Brand and compatibility guide](BRAND.md)
 - [Contributing](CONTRIBUTING.md)

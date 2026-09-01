@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented here.
 
+## 0.12.0 - 2026-09-01
+
+- Added native Windows Preview behind the same immutable Atom IR and scheduler,
+  with realm-bound platform contracts that prevent replay across native
+  Windows, WSL, Docker, macOS, or another architecture.
+- Added Windows-native CPU, memory, power, topology, and capability probes;
+  portable locked cumulative statistics; and Docker daemon/VM boundary facts.
+- Added staged Job Object supervision: a waiting supervisor is assigned by PID
+  before it receives the target launch record. This is not atomic target
+  creation. Job-wide CPU and memory limits include the supervisor and normally
+  inherited target tree, use a 128 MiB memory minimum, and exclude brokered work.
+- Added concurrently drained UTF-8-decoded pipe capture and optional ConPTY with
+  an explicit combined-output contract. Explicit ConPTY stdin fails closed because
+  a verified terminal-input and EOF contract is not implemented. Live UI updates cover lifecycle
+  counts and savings; captured task stdout/stderr is returned at completion.
+- Added Windows path alias, case, UNC, extended-prefix, reserved-device, and
+  alternate-data-stream safety rules plus conservative whole-file `pwsh` atoms.
+- Upgraded Python rewrite previews to use an explicit `spawn` context and a
+  platform-aware Windows worker ceiling.
+- Added a macOS/Windows and Python 3.10/3.11/3.12/3.13 CI matrix, native
+  Windows runtime canaries, public evidence artifacts, bilingual documentation,
+  and Windows Preview report coverage. The `windows-2025` runner is not
+  presented as proof of Windows 11 Desktop UI integration.
+- Made browser-bundle dependency versions explicit, retained exact upstream
+  third-party license payloads in release archives, and added drift gates for
+  bundle provenance and dynamic-code-evaluation removal.
+
 ## 0.11.0 - 2026-09-01
 
 - Added `python_parallel_advisor`, a bounded AST and local-call-graph analyzer
@@ -102,4 +129,5 @@ All notable changes to this project are documented here.
 - Added live running/ready/completed/failed progress and per-run plus cumulative
   savings reporting.
 - Added regression coverage for failure propagation, output bounds, timeout
-  semantics, filesystem aliases, lifecycle execution gates, and live output.
+  semantics, filesystem aliases, lifecycle execution gates, and live scheduler
+  progress with bounded completion output.

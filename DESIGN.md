@@ -1,10 +1,19 @@
-# AtomLane 0.11
+# AtomLane 0.12
 
 AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
-the current Mac's resource envelope. It combines conservative effect analysis,
-typed dependencies, native concurrency delegation, Apple-silicon routing,
-bounded scheduling, live progress, and savings accounting.
+the current platform realm and resource envelope. It combines conservative
+effect analysis, typed dependencies, native concurrency delegation,
+platform-specific supervision, bounded scheduling, live progress, and savings
+accounting.
+
+Version 0.12 adds the native Windows Preview platform adapter while retaining a
+single compiler and scheduler core. Windows plans are bound to their realm,
+use NT path semantics, and run through staged Job Object supervision with
+separate pipe capture or optional ConPTY. The user-visible live surface reports
+lifecycle counts and savings; task stdout/stderr is returned at completion.
+The Python Candidate IR now proves a portable, explicit `spawn` contract rather
+than a macOS-only assumption.
 
 Version 0.11 adds a separate, non-executing Python Candidate IR. It identifies
 small program-level parallelism candidates and emits source-hash-bound review
@@ -32,9 +41,10 @@ repairing it.
 - Fail closed when independence cannot be established.
 - Prefer a semantic owner's native worker pool or jobserver when it provides a
   safer execution boundary than external process fan-out.
-- Match concurrency to the current Mac, Docker VM, nested worker demand, memory
-  pressure, power mode, load, and thermal conditions.
-- Keep long execution visibly live and report per-run and cumulative savings.
+- Match concurrency to the current native host or Docker VM, nested worker
+  demand, memory pressure, power mode, load, and thermal conditions.
+- Keep long execution visibly live through lifecycle counts and savings, while
+  returning bounded task stdout/stderr with the completed result.
 - Find high-confidence Python ordered-map candidates without importing or
   executing the target, and make every missing proof or modeled assumption
   explicit before a source refactor is reviewed.
@@ -79,7 +89,7 @@ atomic_task_plan
    +-- typed control, data, event, and resource edges
    +-- effect and lifecycle classification
    +-- conflict, policy, and nested-parallelism analysis
-   +-- Mac resource plan and benefit forecast
+   +-- realm-bound host resource plan and benefit forecast
    +-- deterministic validation and canonical plan hash
    |
    v
@@ -91,9 +101,9 @@ atomic_exec
    +-- version/hash/precondition verification
    +-- dynamic ready-node scheduling
    +-- capacity and exclusive lease enforcement
-   +-- process-group timeout and failure propagation
+   +-- process-group or Job Object timeout and failure propagation
    +-- exact process-atom or supported native-delegate execution
-   +-- live events and bounded output capture
+   +-- live scheduler events and bounded final output capture
    |
    v
 atom results + indicator + elapsed/speedup/savings
@@ -158,8 +168,8 @@ functions. Unknown is a hard effect—not an invitation to guess. Import-time
 work, unstable or late worker/helper bindings, reflective namespace access,
 effectful iterable evaluation, complex enclosing control, repeated pool
 creation, loop-target live-out, fewer than two known items, and uncoordinated
-outer/native pools also block a CPU rewrite. The sole supported macOS spawn
-path must be a statically linked top-level `__main__` guard. Review previews
+outer/native pools also block a CPU rewrite. The supported portable spawn path
+must be a statically linked top-level `__main__` guard. Review previews
 must own complete physical lines, preserve comments and final-newline state,
 and avoid binding collisions.
 
@@ -167,7 +177,7 @@ Classification and executor selection are distinct:
 
 - pure Python CPU work may become `reviewable_rewrite` with an ordered
   `ProcessPoolExecutor.map` preview, but only with a statically linked
-  `if __name__ == "__main__"` path suitable for macOS spawn;
+  `if __name__ == "__main__"` path suitable for explicit spawn;
 - blocking reads receive thread-pool advice but no patch;
 - network and subprocess batches remain advisory because rate limits,
   idempotence, external effects, and cancellation are not statically proven;
@@ -264,14 +274,18 @@ leases allow. It does not impose an unrelated stage-wide barrier. Failed
 dependencies block their descendants; independent branches may continue unless
 the compiled failure policy says otherwise.
 
-Every invocation observes the current chip and Mac model, active logical and
-physical CPU count, performance/efficiency topology, GPU count, load average,
-memory pressure, thermal state, power source, and Low Power Mode. Interactive
-mode is the default and retains CPU and memory headroom. Balanced and throughput
-modes expose progressively more capacity while preserving a reserve. A caller's
+Every invocation observes the current host's logical and physical CPU count,
+memory, load, power state, architecture, and execution realm. macOS additionally
+reports the Mac model, performance/efficiency topology, GPU count, thermal
+state, and Low Power Mode. Native Windows uses kernel APIs for memory, CPU load,
+power, physical topology, and capability probes. Interactive mode is the
+default and retains CPU and memory headroom. Balanced and throughput modes
+expose progressively more capacity while preserving a reserve. A caller's
 maximum concurrency is a ceiling, not an override of adaptive safety limits.
 
-Container budgets derive from the Docker Desktop Linux VM envelope. CPU quota,
+Container budgets derive from the Docker daemon's own envelope. Native Windows,
+WSL Linux, and Docker's Linux VM are different realms and never share one
+capacity claim or immutable plan. CPU quota,
 shares, optional VM-vCPU cpuset, memory, PID, and BuildKit budgets may differ by
 service, but the planner retains fixed ports, container names, volumes,
 migration authority, and Compose project lifecycle as semantic resources.
@@ -293,6 +307,59 @@ The invoked implementation must expose the backend. Accelerator-driving atoms
 normally use low concurrency because GPU, ANE, media engines, unified memory,
 and memory bandwidth are shared.
 
+## Windows Preview platform adapter
+
+The portable core never emulates POSIX behavior on native Windows. Each plan
+records the operating system, architecture, path flavor, argv transport,
+process-tree mechanism, execution realm, and required terminal capability in
+its immutable envelope. Execution rejects a plan compiled for another realm.
+
+Windows path conflict analysis canonicalizes drive, UNC, slash, case, and
+extended-prefix aliases before ancestry checks. Drive-relative paths, alternate
+data streams, and reserved device names fail closed. Exact argv is transported
+without a shell. `.cmd` and `.bat` are not accepted as exact argv because
+CreateProcess routes them through `cmd.exe` semantics.
+
+Native execution starts an isolated trusted waiting supervisor from a trusted
+directory and sanitized environment. The parent opens that supervisor by PID,
+assigns it to a Job Object, and only then sends the target specification and
+task environment; the supervisor immediately creates the target and normally
+created Windows descendants inherit the Job. This is a staged sequence, not an
+atomic target-creation guarantee: the current Preview does not use
+`CREATE_SUSPENDED` or `PROC_THREAD_ATTRIBUTE_JOB_LIST` for the target.
+
+The Job can enforce kill-on-close, CPU rate, memory, and active-process limits.
+CPU and memory limits are Job-wide and therefore include the supervisor plus
+the normally inherited target tree; the minimum accepted memory limit is
+128 MiB. In pipe mode, `max_processes` is the exact Job-wide active-member
+ceiling and includes the supervisor; it is never inflated into an unprovable
+target-tree allowance. The minimum is two so the supervisor can create one
+target. ConPTY with `max_processes` fails before target code starts because the
+console host's Job membership is not proven; CPU and memory controls remain
+available. Reported containment and resource scope remain the supervisor and
+normally inherited target tree. Separate byte pipes are the
+default concurrently drained capture transport; retained bytes are decoded as
+UTF-8 with an explicit replacement flag. The live surface reports scheduler
+lifecycle counts and savings while the task runs, and returns captured
+stdout/stderr at completion. ConPTY is opt-in for programs needing
+terminal-shaped output and intentionally reports a combined VT stream. Explicit
+ConPTY stdin fails before target creation because a verified terminal-input and
+EOF contract is not implemented; bounded stdin remains available through pipes.
+
+The Job boundary does not contain work created by another authority. WSL,
+Docker/container daemons, WMI, services, scheduled tasks, and remote-execution
+clients are marked as brokers; Job resource limits are rejected for their
+brokered workloads and the result reports client-only containment. Querying an
+empty Job after termination proves only that no process remains in that Job,
+not that an external broker stopped its work.
+
+The PowerShell frontend accepts an existing `.ps1` file only through `pwsh`
+with `-NoLogo -NoProfile -NonInteractive -File`. It never splits statements or
+claims command-level independence inside the script; the whole file remains an
+opaque atom whose effects must be completely declared. POSIX shell, package,
+Make, and Compose lowering remain unavailable on native Windows Preview. WSL
+uses the Linux contract and Docker uses the daemon/VM contract.
+
 ## Tool surfaces
 
 - `atomic_task_plan`: compile and validate an immutable atomic execution plan,
@@ -306,7 +373,10 @@ and memory bandwidth are shared.
   GIL-aware executor advice, benefit labels, and optional hash-bound previews.
 - `task_parallel_scan`: compatibility advisory scan for caller-declared coarse
   units.
-- `mac_resource_plan`: return observed Mac resources and a concurrency plan.
+- `host_resource_plan`: return observed native host resources, realm, platform
+  capabilities, and a concurrency plan.
+- `mac_resource_plan`: compatibility alias for `host_resource_plan`; on macOS
+  it also returns Apple-specific topology and accelerator facts.
 - `mac_accelerator_plan`: recommend an implemented Apple-silicon backend.
 - `container_resource_plan`: recommend Docker VM and per-service budgets without
   creating containers or changing Docker Desktop settings.
@@ -316,7 +386,8 @@ and memory bandwidth are shared.
 
 Commands are argv arrays and run without a shell unless the compiled operation
 explicitly requires one. Task count, argv, stdin, concurrency, timeout, and
-captured output are bounded. Timeouts terminate the whole process group.
+captured output are bounded. Timeouts terminate the contained POSIX process
+group or Windows Job Object; the Windows claim ends at that Job boundary.
 
 ## Live execution and user-visible progress
 
@@ -331,7 +402,9 @@ python3 scripts/live_runner.py --mode atomic --input /absolute/path/to/input.jso
 in a PTY. It polls about every five seconds and surfaces elapsed time,
 running/ready/completed/failed counts, and current estimated savings. The live
 runner and direct `atomic_exec` share the same plan verifier, scheduler, result
-schema, and cumulative savings store.
+schema, and cumulative savings store. This live channel does not stream each
+task's stdout/stderr; bounded captured output is returned in the completion
+result. ConPTY remains an optional target terminal transport, not a UI stream.
 
 Completion reports:
 
@@ -339,15 +412,20 @@ Completion reports:
 - elapsed time and atom status;
 - speedup multiplier and whether it is measured or estimated;
 - parallel efficiency;
-- `time_saved_seconds` for the invocation;
-- `cumulative_saved_seconds` across completed invocations.
+- `time_saved_seconds` for an eligible successful invocation, clamped at zero;
+- `overhead_seconds` when an eligible invocation is slower than its comparison;
+- `savings_eligible` plus an explicit reason when a failed, timed-out, or empty
+  invocation is excluded; and
+- `cumulative_saved_seconds` across successful eligible invocations only.
 
 A supplied `serial_baseline_seconds` supports a measured comparison. Otherwise
-the estimate uses observed non-skipped atom durations and never reruns commands
-merely to benchmark them. Completed invocations atomically update
-the legacy-compatible path
+the estimate uses observed successful atom durations and never reruns commands
+merely to benchmark them. Failed, timed-out, and all-skipped invocations do not
+change the ledger; successful negative deltas are reported as overhead and
+credit zero savings. Eligible invocations atomically update a locked statistics
+file, whose saved-seconds total is monotonic. macOS keeps the legacy-compatible path
 `~/Library/Application Support/Codex/Mac Parallel Accelerator/stats.json`;
-tests override this path.
+Windows uses `%LOCALAPPDATA%\AtomLane\stats.json`. Tests override this path.
 
 ## Scenario catalog
 
@@ -375,8 +453,8 @@ the execution authority.
 
 ## Validation and installation
 
-The plugin has no third-party runtime dependency and uses the macOS system
-`python3`.
+The plugin has no third-party runtime dependency and uses Python 3.10+ as
+`python3` on supported macOS and Windows hosts.
 
 ```bash
 python3 scripts/self_test.py
@@ -403,3 +481,8 @@ growth evidence, and a real-project benchmark contribution protocol.
 Version 0.11.0 adds the non-executing Python Candidate IR, effect and spawn
 proof gates, GIL-aware routing, source-hash-bound review previews, modeled-vs-
 measured benefit labels, a dedicated skill, and public safety-fixture evidence.
+
+Version 0.12.0 adds native Windows Preview resource probes, NT path semantics,
+staged Job Object supervision, optional ConPTY, `pwsh` file atoms, realm-bound
+plans, Windows CI, and portable explicit-spawn Python previews. The CI evidence
+comes from `windows-2025` and is not evidence of Windows 11 Desktop UI support.

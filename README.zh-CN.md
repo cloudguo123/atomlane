@@ -3,8 +3,8 @@
 **只并行已证明安全的任务。**
 
 AtomLane 是面向 AI 编程代理的安全并行优化系统：既能找出可审查的 Python
-并行改造候选，也能让 Codex 在不破坏任务语义的前提下，更快完成 Mac 上的
-构建、测试、Docker 和科研流水线。
+并行改造候选，也能让 Codex 在不破坏任务语义的前提下，更快完成构建、测试、
+Docker 和科研流水线。macOS 为稳定版，原生 Windows 已提供严格拒绝式 Preview。
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -39,7 +39,13 @@ codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 或修改目标代码；列出证明义务，并给出绑定源码哈希的改造预览。
 ```
 
-要求：macOS、支持插件和 MCP 的 Codex、Python 3.10+。只有分析 Compose YAML 时需要 Ruby；只有重新构建浏览器指示器时需要 Node.js 20+。
+要求：macOS 或限定范围的原生 Windows Preview、支持插件和 MCP 的 Codex、
+以及能通过 `PATH` 上的 `python3` 命令启动的 Python 3.10+（`python3 --version`
+必须成功）；当前的 [Python Install Manager](https://docs.python.org/3/using/windows.html#python-install-manager)
+包含这个 Windows 兼容别名。Ruby 只用于 macOS 上的 Compose YAML 分析；Node.js 20+ 只用于
+重新构建浏览器指示器。Windows 发布证据目前来自 `windows-2025` CI 镜像，
+不等同于已证明 Windows 11 Desktop UI 集成。Windows 用户请先阅读
+[Windows Preview 说明](docs/WINDOWS_PREVIEW.md)。
 
 仓库还通过根目录的 `plugin.json`、`skills/` 与本地 stdio `mcp.json`
 兼容厂商中立的 [Agent Plugins 1.0.0](https://agent-plugins.org/) 标准；
@@ -72,8 +78,8 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 首版只为非常窄、可证明的形态生成改造预览：同模块 `worker(item)` 的有序
 列表推导、直接返回列表推导，以及 `append` 循环。系统会沿本地调用图传播
-副作用，检查循环控制和输出顺序；纯 Python CPU 任务还必须证明 macOS
-`spawn` 所需的 `__main__` 入口安全。最终分类为：
+副作用，检查循环控制和输出顺序；纯 Python CPU 任务还必须证明可移植的
+`__main__` 导入路径，并显式使用 `spawn` 上下文。最终分类为：
 
 - `reviewable_rewrite`：纯 CPU 候选，附带已通过语法检查的统一 diff；
 - `advisory_only`：I/O 或受外部约束的工作，需要进一步人工设计；
@@ -83,14 +89,14 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 改造预览绑定精确源码 SHA-256，永远不会自动应用。即使提供了串行热点耗时，
 收益也只标注为“实测串行 + 建模并行”，不能冒充基准结果。真正采用前仍需做
-串并行差分测试、macOS `spawn` 确定性测试、异常/顺序/产物核对、内存测量和
+串并行差分测试、显式 `spawn` 确定性测试、异常/顺序/产物核对、内存测量和
 重复性能验证。详见 [Python Candidate IR 与证明门槛](skills/optimize-python-parallelism/references/python-program-ir.md)。
 
 ## 真正实时显示
 
 ![20 秒实时执行演示，显示运行中、就绪、完成、失败和预计节约时间](assets/growth/demo.gif)
 
-超过十秒的任务通过 PTY runner 运行，持续显示：
+超过十秒的任务通过实时 runner 运行，持续显示：
 
 ```text
 已运行 2分15秒 · 运行中 4 · 就绪 2 · 已完成 7 · 失败 0
@@ -99,9 +105,38 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 结束后还会核对每个原子任务的状态、返回码、超时、跳过原因、输出截断、峰值并发、本次节约和累计节约。
 
-## 五分钟以上公开基准
+Windows 的实时界面在运行期间显示任务生命周期计数与节约时间；捕获的任务
+stdout/stderr 在任务完成后随结果返回。普通任务通过独立字节管道并发排空；
+需要终端输出语义的任务可选择 ConPTY，此时两路输出合并为一条 VT 流。父进程先按
+PID 把等待中的 supervisor 加入 Job Object，再发送启动记录，由 supervisor
+创建目标进程。这是分阶段监管，不是原子创建目标进程。Job 的 CPU 与内存预算
+包括 supervisor 和正常继承的目标进程树；WSL、Docker、WMI、服务、计划任务或
+其他 broker 创建的工作明确不属于该 Job 边界。
 
-保留的公开实测通过真实并行执行器运行四个隔离的低负载任务，每个任务都超过五分钟：
+## Windows Preview 契约
+
+Preview 与 macOS 共用 Atom IR、不可变计划哈希、副作用检查、调度器、实时进度
+和节约时间账本；平台适配层增加 Windows 原生 CPU/内存/电源探测、NT 路径冲突
+规则、分阶段 Job Object 监管、可选 ConPTY 与保守的 `pwsh` 文件前端。
+
+- 原生 Windows、WSL 和 Docker Linux VM 是三个独立执行域；计划不能跨域执行或重放。
+- 支持精确 argv 任务和已声明的 `.ps1` 文件。PowerShell 文件整体视为一个不透明原子，必须完整声明副作用。
+- 原生 Windows Preview 对 POSIX shell、package script、Make、Compose、`.cmd`、`.bat` 的自动拆解一律拒绝；POSIX 工作流应放在 WSL 中运行，或改为显式原子任务。
+- Job 范围的 CPU 比例和内存限制覆盖 supervisor 与正常继承的目标进程树，
+  内存下限为 128 MiB。管道模式下，`max_processes` 是整个 Job 的精确活动
+  成员总上限（2–4096），supervisor 存活时占用其中一个槽位；它不是目标树的
+  额外配额。ConPTY 与 `max_processes` 的组合会在启动目标代码前拒绝，但 CPU
+  和内存限制仍可使用。broker 外部工作不受这些限制。Windows 进程池建议
+  不会超过 61 个 worker。
+- 本 Preview 的 ConPTY 只承诺输出端终端语义。由于尚未实现并验证终端输入与 EOF
+  语义，显式 ConPTY `stdin` 会在目标创建前拒绝；有界 stdin 请使用管道模式。
+
+完整边界和排障说明见 [Windows Preview](docs/WINDOWS_PREVIEW.md)。
+
+## 保留的 macOS 五分钟以上公开基准
+
+保留的 macOS 公开实测通过真实并行执行器运行四个隔离的低负载任务，每个任务
+都至少运行五分钟。原生 Windows Preview 证据在在线报告中单独展示：
 
 | 指标 | 结果 |
 | --- | ---: |

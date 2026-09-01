@@ -14,7 +14,7 @@
       --line: color-mix(in srgb, CanvasText 14%, transparent);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 10px; background: transparent; color: CanvasText; font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    body { margin: 0; padding: 10px; background: transparent; color: CanvasText; font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text", sans-serif; }
     .card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: color-mix(in srgb, Canvas 96%, var(--accent) 4%); }
     .top { display: flex; align-items: center; }
     .top { justify-content: space-between; gap: 16px; }
@@ -52,7 +52,7 @@
       <div class="metric"><div class="label">累计节约</div><div id="cumulative-saved" class="value">—</div></div>
     </div>
     <div class="track" aria-hidden="true"><div id="fill" class="fill"></div></div>
-    <div id="note" class="note">会根据本机负载、温度、内存和电源状态自动限制并发。</div>
+    <div id="note" class="note">会根据本机可用 CPU、负载、内存和电源状态自动限制并发。</div>
   </main>
   <script>
     const byId = (id) => document.getElementById(id);
@@ -86,19 +86,22 @@
       const skipped = Number(counts.skipped || 0);
       const speedup = Number(indicator.speedup_multiplier || 0);
       const efficiency = Math.max(0, Math.min(1, Number(indicator.parallel_efficiency || 0)));
+      const savingsEligible = indicator.savings_eligible !== false && summary.savings_eligible !== false;
 
       byId("dot").className = `dot${failed ? " failed" : ""}`;
-      byId("state").textContent = parallel ? "并行加速已完成" : "串行执行已完成";
+      byId("state").textContent = failed ? "执行完成，含失败" : parallel ? "并行加速已完成" : "串行执行已完成";
       byId("speed").textContent = `${number(speedup)}×`;
-      byId("qualifier").textContent = indicator.speedup_kind === "measured_serial_baseline" ? "实测" : "估算";
+      byId("qualifier").textContent = savingsEligible ? (indicator.speedup_kind === "measured_serial_baseline" ? "实测" : "估算") : "未计入";
       byId("peak").textContent = `${indicator.peak_concurrency ?? summary.peak_concurrency ?? "—"} 路`;
       byId("tasks").textContent = String(summary.task_count ?? "—");
       byId("elapsed").textContent = `${number(summary.elapsed_seconds ?? indicator.wall_time_seconds, 3)} 秒`;
       byId("result").textContent = failed ? `${failed} 失败 · ${succeeded} 成功` : `${succeeded} 成功${skipped ? ` · ${skipped} 跳过` : ""}`;
-      byId("current-saved").textContent = savedText(summary.time_saved_seconds ?? indicator.time_saved_seconds);
+      byId("current-saved").textContent = savingsEligible ? savedText(summary.time_saved_seconds ?? indicator.time_saved_seconds) : "未计入";
       byId("cumulative-saved").textContent = savedText(summary.cumulative_saved_seconds ?? indicator.cumulative_saved_seconds);
       byId("fill").style.width = `${Math.round(efficiency * 100)}%`;
-      byId("note").textContent = `策略 ${plan.responsiveness || "adaptive"} · 计划 ${plan.chosen_concurrency ?? "—"} 路 · 并行效率 ${Math.round(efficiency * 100)}%`;
+      byId("note").textContent = savingsEligible
+        ? `策略 ${plan.responsiveness || "adaptive"} · 计划 ${plan.chosen_concurrency ?? "—"} 路 · 并行效率 ${Math.round(efficiency * 100)}%`
+        : `本次节约未进入累计账本：${indicator.savings_ineligible_reason || summary.savings_ineligible_reason || "任务未全部成功"}`;
     }
 
     function renderRunning(argumentsValue) {
@@ -114,7 +117,7 @@
       byId("result").textContent = "运行中";
       byId("current-saved").textContent = "实时计算中";
       byId("cumulative-saved").textContent = "完成后更新";
-      byId("note").textContent = "正在按本机负载、温度、内存和电源状态限制并发。";
+      byId("note").textContent = "正在按本机可用 CPU、负载、内存和电源状态限制并发。";
       if (liveStartedAt == null) liveStartedAt = performance.now();
       if (liveTimer == null) {
         const tick = () => {
@@ -134,11 +137,13 @@
       const running = message.match(/运行中\s+(\d+)/);
       const completed = message.match(/已完成\s+(\d+\/\d+)/);
       const saved = message.match(/当前预计节约\s+(-?[0-9.]+)s/);
+      const savingsIneligible = message.includes("本次节约不计入");
       if (elapsed) byId("elapsed").textContent = `${elapsed[1]} 秒`;
       if (running || completed) {
         byId("result").textContent = `${running ? `${running[1]} 运行` : ""}${running && completed ? " · " : ""}${completed ? `${completed[1]} 完成` : ""}`;
       }
-      if (saved) byId("current-saved").textContent = `${saved[1]} 秒（实时估算）`;
+      if (savingsIneligible) byId("current-saved").textContent = "未计入";
+      else if (saved) byId("current-saved").textContent = `${saved[1]} 秒（实时估算）`;
       byId("note").textContent = message;
     }
 

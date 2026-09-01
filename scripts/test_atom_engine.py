@@ -6,11 +6,18 @@ from __future__ import annotations
 import copy
 import hashlib
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from atom_engine import (
+    MAX_STDIN_BYTES,
+    AtomError,
+    _normalize_resource,
+    _normalize_windows_path,
+    _resource_overlap,
     compile_atomic_plan,
     finalize_atomic_plan,
     lower_exact_data_edges,
@@ -100,6 +107,109 @@ class AtomEngineTests(unittest.TestCase):
         lowered, diagnostics = lower_exact_data_edges(normalized)
         self.assertIn("BIDIRECTIONAL_DATA_FLOW", {item["code"] for item in diagnostics})
         self.assertTrue(all(not atom["dependencies"] for atom in lowered))
+
+    def test_file_roots_overlap_descendants_on_every_path_flavor(self) -> None:
+        self.assertTrue(_resource_overlap("file:/", "file:/tmp/atomlane/result.json"))
+        self.assertTrue(
+            _resource_overlap("file:C:\\", "file:C:\\work\\result.json")
+        )
+        self.assertTrue(
+            _resource_overlap(
+                "file:\\\\server\\share\\",
+                "file:\\\\server\\share\\work\\result.json",
+            )
+        )
+        self.assertFalse(
+            _resource_overlap("file:C:\\", "file:D:\\work\\result.json")
+        )
+
+    def test_windows_relative_and_absolute_paths_share_lexical_rules(self) -> None:
+        cwd = r"C:\Work\Project"
+        equivalent_paths = [
+            ("artifact. ", r"C:\Work\Project\artifact"),
+            ("artifact. :stream. ", r"C:\Work\Project\artifact:stream"),
+            (r"future\..\artifact", r"C:\Work\Project\artifact"),
+        ]
+        for relative, absolute in equivalent_paths:
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    _normalize_windows_path(relative, cwd=cwd),
+                    _normalize_windows_path(absolute),
+                )
+
+        rejected_paths = [
+            "NUL.txt",
+            r"nested\COM1.log",
+            "nested\\LPT¹.txt",
+            r"NUL\..\output.txt",
+            r"future\.. \artifact",
+            r"directory:stream\output.txt",
+            r"artifact.txt:stream:$INDEX_ALLOCATION",
+        ]
+        for relative in rejected_paths:
+            with self.subTest(rejected=relative), self.assertRaises(AtomError):
+                _normalize_windows_path(relative, cwd=cwd)
+
+    def test_windows_unc_and_extended_namespaces_normalize_or_fail_closed(self) -> None:
+        self.assertEqual(
+            _normalize_windows_path(r"\\?\C:\Work\Artifact. "),
+            _normalize_windows_path(r"C:\Work\Artifact"),
+        )
+        self.assertEqual(
+            _normalize_windows_path(r"\\?\UNC\server\share\Output. "),
+            _normalize_windows_path(r"\\server\share\Output"),
+        )
+        rejected_paths = [
+            r"\\server",
+            r"\\.\C:\device-path",
+            r"\\?\GLOBALROOT\Device\HarddiskVolume1",
+            r"C:drive-relative",
+        ]
+        for path in rejected_paths:
+            with self.subTest(path=path), self.assertRaises(AtomError):
+                _normalize_windows_path(path, cwd=r"C:\Work")
+
+    def test_atom_stdin_is_bounded_preserved_and_hash_bound(self) -> None:
+        omitted = self.atom("stdin", argv=[sys.executable, "-c", "pass"])
+        empty = copy.deepcopy(omitted)
+        empty["operation"]["stdin"] = ""
+        populated = copy.deepcopy(omitted)
+        populated["operation"]["stdin"] = "atomic-input-✓"
+        normalized = [
+            validate_atoms([candidate], self.project)[0]
+            for candidate in (omitted, empty, populated)
+        ]
+        self.assertIsNone(normalized[0]["operation"]["stdin"])
+        self.assertEqual(normalized[1]["operation"]["stdin"], "")
+        self.assertEqual(normalized[2]["operation"]["stdin"], "atomic-input-✓")
+
+        hashes = {
+            compile_atomic_plan([candidate], self.project)["plan_hash"]
+            for candidate in (omitted, empty, populated)
+        }
+        self.assertEqual(len(hashes), 3)
+
+        invalid_cases = [
+            (b"bytes", "must be a string"),
+            ("界" * (MAX_STDIN_BYTES // 3 + 1), "exceeds"),
+            ("\ud800", "valid UTF-8"),
+        ]
+        for value, message in invalid_cases:
+            invalid = copy.deepcopy(omitted)
+            invalid["operation"]["stdin"] = value
+            with self.subTest(message=message), self.assertRaisesRegex(AtomError, message):
+                validate_atoms([invalid], self.project)
+
+    def test_atom_conpty_stdin_fails_closed_even_when_empty(self) -> None:
+        for explicit_input in ("", "terminal input"):
+            raw = self.atom("conpty-input", argv=[sys.executable, "-c", "pass"])
+            raw["operation"]["terminal_mode"] = "conpty"
+            raw["operation"]["stdin"] = explicit_input
+            with (
+                self.subTest(explicit_input=explicit_input),
+                self.assertRaisesRegex(AtomError, "terminal-input"),
+            ):
+                validate_atoms([raw], self.project)
 
     def test_lower_exact_data_edges_combines_same_direction_resources(self) -> None:
         raw = [
@@ -382,6 +492,127 @@ class AtomEngineTests(unittest.TestCase):
             self.project,
         )
         self.assertFalse(hardlink_plan["execution_eligible"])
+
+    def test_windows_drive_unc_and_extended_paths_cannot_bypass_conflicts(self) -> None:
+        aliases = [
+            (r"C:\Work\Artifact", r"c:/work/artifact/child.bin"),
+            (r"\\server\share\Output", r"//SERVER/share/output/result.json"),
+            (r"\\?\C:\Work\Artifact", r"c:\work\artifact"),
+            (r"C:\Work\file.txt", r"c:\work\FILE.TXT:stream"),
+        ]
+        for index, (first, second) in enumerate(aliases):
+            with self.subTest(index=index):
+                lexical_first = _normalize_windows_path(first)
+                lexical_second = _normalize_windows_path(second)
+                self.assertTrue(
+                    _resource_overlap(
+                        f"file:{lexical_first}", f"file:{lexical_second}"
+                    )
+                )
+                if os.name == "nt" and index == 1:
+                    with self.assertRaisesRegex(
+                        AtomError, "no accessible existing ancestor"
+                    ):
+                        compile_atomic_plan(
+                            [
+                                self.atom(
+                                    "unreachable-unc",
+                                    accesses=[
+                                        {"resource": first, "mode": "overwrite"}
+                                    ],
+                                    side_effect=True,
+                                )
+                            ],
+                            self.project,
+                        )
+                    continue
+                plan = compile_atomic_plan(
+                    [
+                        self.atom(
+                            "writer",
+                            accesses=[{"resource": first, "mode": "overwrite"}],
+                            side_effect=True,
+                        ),
+                        self.atom(
+                            "reader",
+                            accesses=[{"resource": second, "mode": "read"}],
+                        ),
+                    ],
+                    self.project,
+                )
+                self.assertFalse(plan["execution_eligible"])
+
+        with self.assertRaisesRegex(AtomError, "drive-relative"):
+            compile_atomic_plan(
+                [
+                    self.atom(
+                        "ambiguous",
+                        accesses=[{"resource": r"C:relative\result.txt", "mode": "read"}],
+                    )
+                ],
+                self.project,
+            )
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows path semantics")
+    def test_native_windows_relative_file_resources_use_the_same_canonicalizer(self) -> None:
+        relative = _normalize_resource("file:future\\artifact. ", self.project)
+        absolute = _normalize_resource(
+            "file:" + str(self.project / "future" / "artifact"),
+            self.project,
+        )
+        self.assertEqual(relative.casefold(), absolute.casefold())
+
+        base = _normalize_resource("file:future\\artifact.txt", self.project)
+        stream = _normalize_resource("file:future\\artifact.txt:stream. ", self.project)
+        self.assertTrue(_resource_overlap(base, stream))
+        with self.assertRaisesRegex(AtomError, "reserved device"):
+            _normalize_resource("file:future\\NUL.txt", self.project)
+
+        existing_file = self.project / "not-a-directory"
+        existing_file.write_bytes(b"x")
+        with self.assertRaisesRegex(AtomError, "descends from a non-directory"):
+            _normalize_resource("file:not-a-directory\\future.bin", self.project)
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows reparse points")
+    def test_native_windows_future_outputs_resolve_existing_reparse_ancestor(self) -> None:
+        real = self.project / "real-output-root"
+        real.mkdir()
+        alias = self.project / "output-root-alias"
+        junction = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(alias), str(real)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if junction.returncode != 0:
+            try:
+                alias.symlink_to(real, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"cannot create a Windows junction or symlink: {exc}")
+
+        through_alias = _normalize_resource(
+            "file:output-root-alias\\future\\result.bin",
+            self.project,
+        )
+        through_target = _normalize_resource(
+            "file:real-output-root\\future\\result.bin",
+            self.project,
+        )
+        self.assertEqual(through_alias.casefold(), through_target.casefold())
+
+        broken_alias = self.project / "broken-output-alias"
+        try:
+            broken_alias.symlink_to(
+                self.project / "missing-output-root",
+                target_is_directory=True,
+            )
+        except OSError as exc:
+            self.skipTest(f"cannot create a broken Windows symlink: {exc}")
+        with self.assertRaisesRegex(AtomError, "cannot resolve Windows file resource ancestor"):
+            _normalize_resource(
+                "file:broken-output-alias\\future\\result.bin",
+                self.project,
+            )
 
     def test_nested_parallelism_is_budgeted_or_outer_serialized(self) -> None:
         bounded = self.atom("bounded")

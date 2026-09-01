@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
+import sys
 import tempfile
 import threading
+import time
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -162,20 +166,121 @@ class PlatformAdapterTests(unittest.TestCase):
     def test_exclusive_stats_lock_never_loses_threaded_updates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             stats = Path(temporary) / "stats.json"
+            errors: list[BaseException] = []
+            errors_lock = threading.Lock()
+            start = threading.Barrier(12, timeout=5)
+
+            def record() -> None:
+                try:
+                    start.wait()
+                    mcp_server._record_time_saved(1.25)
+                except BaseException as exc:  # noqa: BLE001 - retain thread failures.
+                    with errors_lock:
+                        errors.append(exc)
+
             with mock.patch.dict(
                 os.environ, {"MAC_PARALLEL_ACCELERATOR_STATS_PATH": str(stats)}
             ):
                 threads = [
-                    threading.Thread(target=mcp_server._record_time_saved, args=(1.25,))
+                    threading.Thread(target=record, daemon=True)
                     for _ in range(12)
                 ]
                 for thread in threads:
                     thread.start()
+                deadline = time.monotonic() + 20
                 for thread in threads:
-                    thread.join()
+                    thread.join(timeout=max(0.0, deadline - time.monotonic()))
+                self.assertFalse(
+                    any(thread.is_alive() for thread in threads),
+                    "stats workers did not finish before the bounded deadline",
+                )
+                self.assertEqual(errors, [])
                 result = json.loads(stats.read_text(encoding="utf-8"))
                 self.assertEqual(result["run_count"], 12)
                 self.assertEqual(result["cumulative_saved_seconds"], 15.0)
+
+    def test_windows_stats_lock_retries_expected_contention(self) -> None:
+        acquire_attempts = 0
+        operations: list[int] = []
+
+        def locking(_fd: int, mode: int, _length: int) -> None:
+            nonlocal acquire_attempts
+            operations.append(mode)
+            if mode == 1:
+                acquire_attempts += 1
+                if acquire_attempts < 3:
+                    raise OSError(errno.EDEADLK, "simulated contention")
+
+        fake_msvcrt = types.SimpleNamespace(
+            LK_NBLCK=1,
+            LK_UNLCK=2,
+            locking=locking,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "stats.lock"
+            with (
+                mock.patch.object(
+                    platform_adapter.platform, "system", return_value="Windows"
+                ),
+                mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                mock.patch.object(platform_adapter.time, "sleep") as sleep,
+                platform_adapter.exclusive_file_lock(lock_path),
+            ):
+                pass
+        self.assertEqual(operations, [1, 1, 1, 2])
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_windows_stats_lock_propagates_non_contention_errors(self) -> None:
+        def locking(_fd: int, mode: int, _length: int) -> None:
+            if mode == 1:
+                raise OSError(errno.EBADF, "simulated invalid handle")
+
+        fake_msvcrt = types.SimpleNamespace(
+            LK_NBLCK=1,
+            LK_UNLCK=2,
+            locking=locking,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "stats.lock"
+            with (
+                mock.patch.object(
+                    platform_adapter.platform, "system", return_value="Windows"
+                ),
+                mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                mock.patch.object(platform_adapter.time, "sleep") as sleep,
+                self.assertRaisesRegex(OSError, "simulated invalid handle"),
+                platform_adapter.exclusive_file_lock(lock_path),
+            ):
+                self.fail("non-contention lock error unexpectedly yielded")
+            sleep.assert_not_called()
+
+    def test_windows_stats_lock_has_a_bounded_contention_deadline(self) -> None:
+        def locking(_fd: int, mode: int, _length: int) -> None:
+            if mode == 1:
+                raise OSError(errno.EACCES, "simulated persistent contention")
+
+        fake_msvcrt = types.SimpleNamespace(
+            LK_NBLCK=1,
+            LK_UNLCK=2,
+            locking=locking,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "stats.lock"
+            with (
+                mock.patch.object(
+                    platform_adapter.platform, "system", return_value="Windows"
+                ),
+                mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                mock.patch.object(
+                    platform_adapter, "WINDOWS_FILE_LOCK_TIMEOUT_SECONDS", 0.0
+                ),
+                self.assertRaisesRegex(
+                    TimeoutError, "timed out acquiring Windows stats lock"
+                ),
+                platform_adapter.exclusive_file_lock(lock_path),
+            ):
+                self.fail("expired lock deadline unexpectedly yielded")
+            lock_path.unlink()
 
     def test_platform_contract_is_bound_into_immutable_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

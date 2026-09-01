@@ -359,6 +359,8 @@ def _write_handle(
     data: bytes,
     errors: list[str],
     stopping: threading.Event | None = None,
+    *,
+    close_handle: bool = True,
 ) -> None:
     stopping = stopping or threading.Event()
     try:
@@ -384,7 +386,8 @@ def _write_handle(
     except Exception as exc:  # noqa: BLE001 - marshal thread failure to the supervisor.
         errors.append(f"ConPTY input thread failed: {type(exc).__name__}: {exc}")
     finally:
-        kernel32.CloseHandle(handle)
+        if close_handle:
+            kernel32.CloseHandle(handle)
 
 
 def _conpty_input_thread(
@@ -394,15 +397,19 @@ def _conpty_input_thread(
     errors: list[str],
     stopping: threading.Event,
 ) -> tuple[threading.Thread, Any] | None:
-    """Transfer an explicit stdin payload without collapsing null into EOF."""
+    """Transfer bounded input while leaving ConPTY handle ownership with the runner."""
 
     if stdin_data is None:
         return None
+    # Closing the ConPTY input side after a bounded write can interrupt the
+    # target instead of providing portable EOF semantics. The runner retains
+    # this borrowed handle until target exit and teardown.
     writer_handle = wintypes.HANDLE(handle.value)
     return (
         threading.Thread(
             target=_write_handle,
             args=(kernel32, writer_handle, stdin_data, errors, stopping),
+            kwargs={"close_handle": False},
             name="conpty-input",
             daemon=True,
         ),
@@ -637,7 +644,6 @@ def _run_conpty(
         reader.start()
         if input_binding is not None:
             writer, writer_handle = input_binding
-            input_write = wintypes.HANDLE()
             io_bindings.append((writer, writer_handle))
             writer.start()
         while True:

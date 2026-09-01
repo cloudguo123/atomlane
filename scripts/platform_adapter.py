@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import errno
 import ntpath
 import os
 import platform
@@ -14,6 +15,9 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, BinaryIO
+
+WINDOWS_FILE_LOCK_TIMEOUT_SECONDS = 10.0
+WINDOWS_FILE_LOCK_POLL_SECONDS = 0.01
 
 WINDOWS_BROKER_EXECUTABLES = {
     "docker": "docker_daemon",
@@ -233,8 +237,24 @@ def exclusive_file_lock(path: Path) -> Iterator[BinaryIO]:
             if handle.seek(0, os.SEEK_END) == 0:
                 handle.write(b"\0")
                 handle.flush()
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            # CRT LK_LOCK performs its own coarse retry loop and can surface
+            # EDEADLK under same-process contention. Keep retry policy bounded
+            # and scheduler-friendly in Python instead.
+            deadline = time.monotonic() + WINDOWS_FILE_LOCK_TIMEOUT_SECONDS
+            while True:
+                handle.seek(0)
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
+                        raise
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError(
+                            "timed out acquiring Windows stats lock"
+                        ) from exc
+                    time.sleep(min(WINDOWS_FILE_LOCK_POLL_SECONDS, remaining))
             try:
                 yield handle
             finally:

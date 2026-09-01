@@ -271,19 +271,32 @@ class WindowsPortableContractTests(unittest.TestCase):
         )
         self.assertTrue(any("zero progress" in message for message in errors), errors)
 
-    def test_conpty_null_stdin_is_not_collapsed_into_explicit_eof(self) -> None:
+    def test_conpty_input_writer_borrows_handle_and_preserves_absence(self) -> None:
+        class TrackingKernel:
+            def __init__(self) -> None:
+                self.closed: list[int] = []
+
+            def CloseHandle(self, candidate: object) -> bool:
+                self.closed.append(int(candidate.value))  # type: ignore[attr-defined]
+                return True
+
+        kernel = TrackingKernel()
         handle = windows_job_runner.wintypes.HANDLE(123)
         stopping = threading.Event()
         self.assertIsNone(
             windows_job_runner._conpty_input_thread(
-                object(), handle, None, [], stopping
+                kernel, handle, None, [], stopping
             )
         )
         explicit_empty = windows_job_runner._conpty_input_thread(
-            object(), handle, b"", [], stopping
+            kernel, handle, b"", [], stopping
         )
         self.assertIsNotNone(explicit_empty)
         self.assertEqual(explicit_empty[0].name, "conpty-input")
+        explicit_empty[0].start()
+        explicit_empty[0].join(timeout=1)
+        self.assertFalse(explicit_empty[0].is_alive())
+        self.assertEqual(kernel.closed, [])
 
     def test_conpty_reader_marshals_output_sink_failure(self) -> None:
         class OneReadKernel:
@@ -424,6 +437,43 @@ if os.name == "nt":
 
         def tearDown(self) -> None:
             self.temporary.cleanup()
+
+        def test_stats_lock_preserves_updates_across_native_processes(self) -> None:
+            stats = self.project / "stats.json"
+            scripts = Path(__file__).resolve().parent
+            program = (
+                "import sys;"
+                f"sys.path.insert(0,{str(scripts)!r});"
+                "import mcp_server;"
+                "[mcp_server._record_time_saved(0.5) for _ in range(8)]"
+            )
+            environment = os.environ.copy()
+            environment["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = str(stats)
+            processes = [
+                subprocess.Popen(
+                    [sys.executable, "-c", program],
+                    cwd=self.project,
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                for _ in range(4)
+            ]
+            outputs: list[tuple[int, str, str]] = []
+            try:
+                for process in processes:
+                    stdout, stderr = process.communicate(timeout=30)
+                    outputs.append((process.returncode, stdout, stderr))
+            finally:
+                for process in processes:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=5)
+            self.assertEqual(outputs, [(0, "", "")] * 4)
+            result = json.loads(stats.read_text(encoding="utf-8"))
+            self.assertEqual(result["run_count"], 32)
+            self.assertEqual(result["cumulative_saved_seconds"], 16.0)
 
         def test_job_object_executes_utf8_and_applies_tree_limits(self) -> None:
             task = _task(
@@ -707,6 +757,21 @@ if os.name == "nt":
             result = asyncio.run(mcp_server.execute_task(task, 8192))
             self.assertEqual(result["status"], "succeeded", _failure_summary(result))
             self.assertIn("received:conpty-input-✓", result["stdout"])
+
+        def test_conpty_explicit_empty_input_does_not_interrupt_target(self) -> None:
+            task = _task(
+                self.project,
+                [
+                    sys.executable,
+                    "-c",
+                    "import time;time.sleep(0.25);print('empty-input-ok',flush=True)",
+                ],
+                terminal_mode="conpty",
+                stdin="",
+            )
+            result = asyncio.run(mcp_server.execute_task(task, 8192))
+            self.assertEqual(result["status"], "succeeded", _failure_summary(result))
+            self.assertIn("empty-input-ok", result["stdout"])
 
         def test_conpty_rejects_an_unverifiable_active_process_limit(self) -> None:
             with self.assertRaisesRegex(mcp_server.InputError, "cannot be combined"):

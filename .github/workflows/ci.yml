@@ -76,7 +76,21 @@ jobs:
         if: matrix.os == 'windows-2025' && matrix.python == '3.13'
         shell: pwsh
         run: |
-          python scripts/generate_test_report.py --output windows-report/index.html --json-output windows-report/windows-preview-results.json
+          python scripts/generate_test_report.py --report-role native_windows_ci_evidence --output windows-report/index.html --json-output windows-report/windows-preview-results.json
+          $evidencePath = "windows-report/windows-preview-results.json"
+          $evidenceBytes = [System.IO.File]::ReadAllBytes($evidencePath)
+          if ($evidenceBytes -contains 13) { throw "Windows evidence is not canonical LF JSON" }
+          $report = Get-Content $evidencePath -Raw | ConvertFrom-Json
+          if ($report.report_role -ne "native_windows_ci_evidence") { throw "wrong report role" }
+          if ($report.windows_preview.relation -ne "self") { throw "wrong self-evidence relation" }
+          $selfFields = $report.windows_preview.PSObject.Properties.Name
+          if ($selfFields -contains "evidence_sha256" -or $selfFields -contains "evidence_url") {
+            throw "self evidence must not contain a recursive hash or URL"
+          }
+          if ($env:GITHUB_REF -eq "refs/heads/main" -and (
+            $report.windows_preview.available -ne $true -or
+            $report.windows_preview.source_match -ne $true
+          )) { throw "main did not produce source-bound native Windows self evidence" }
           Copy-Item windows-report/windows-preview-results.json windows-report/test-results.json
 
       - name: Upload Windows Preview evidence

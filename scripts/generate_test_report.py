@@ -97,6 +97,11 @@ DOMAIN_META = {
         "description": "Observed task runtimes, duration gates, and cumulative savings history",
         "accent": "#9ae7ff",
     },
+    "test_pages_evidence_selector": {
+        "label": "Pages evidence selection",
+        "description": "Bounded artifact discovery, trust fields, and fail-closed publication inputs",
+        "accent": "#73d6c8",
+    },
     "test_python_parallel_advisor": {
         "label": "Python parallel refactor safety",
         "description": "Non-executing AST analysis, effect gates, spawn semantics, and hash-bound previews",
@@ -1370,6 +1375,32 @@ def render_html(report: dict[str, Any]) -> str:
     verified_test_count = html.escape(
         str(summary.get("passed", summary.get("total", "verified")))
     )
+    og_image_alt = "AtomLane controlled five-minute parallel benchmark"
+    benchmark = report.get("benchmark")
+    if isinstance(benchmark, dict) and benchmark.get("available") is True:
+        latest = benchmark.get("latest")
+        if isinstance(latest, dict):
+            try:
+                serial_seconds = round(
+                    _evidence_number(latest["serial_equivalent"]["seconds"])
+                )
+                wall_seconds = round(
+                    _evidence_number(latest["parallel"]["wall_time_seconds"])
+                )
+                saved_seconds = round(_evidence_number(latest["savings"]["seconds"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                def duration_words(total_seconds: int) -> str:
+                    minutes, seconds = divmod(max(0, total_seconds), 60)
+                    return f"{minutes} minutes {seconds} seconds"
+
+                og_image_alt = (
+                    "AtomLane benchmark: "
+                    f"{duration_words(serial_seconds)} serial equivalent, "
+                    f"{duration_words(wall_seconds)} parallel wall time, "
+                    f"{duration_words(saved_seconds)} saved"
+                )
     windows_verified = bool(report.get("windows_preview", {}).get("available"))
     if windows_verified:
         meta_description = (
@@ -1418,7 +1449,7 @@ def render_html(report: dict[str, Any]) -> str:
   <meta property="og:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="AtomLane benchmark: 20 minutes 41 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 31 seconds saved">
+  <meta property="og:image:alt" content="{html.escape(og_image_alt)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="AtomLane · Verified test report">
   <meta name="twitter:description" content="Parallelize only what is proven safe, with live progress and honest savings evidence.">

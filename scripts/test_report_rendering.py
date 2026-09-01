@@ -495,6 +495,36 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn('"operatingSystem":"macOS, Windows Preview"', verified)
         self.assertIn("source-bound native Windows Preview evidence", verified)
 
+    def test_report_domains_cover_every_discovered_regression_module(self) -> None:
+        discovered = {
+            path.stem
+            for path in (generate_test_report.ROOT / "scripts").glob("test*.py")
+        }
+        self.assertEqual(discovered, set(generate_test_report.DOMAIN_META))
+
+    def test_social_preview_alt_uses_current_benchmark_metrics(self) -> None:
+        report = {
+            "overall": "passed",
+            "generated_at": "2026-09-01T00:00:00+00:00",
+            "version": "0.12.0",
+            "summary": {"total": 1, "passed": 1},
+            "windows_preview": {"available": True},
+            "benchmark": {
+                "available": True,
+                "latest": {
+                    "serial_equivalent": {"seconds": 1240.256626},
+                    "parallel": {"wall_time_seconds": 310.337817},
+                    "savings": {"seconds": 929.918809},
+                },
+            },
+        }
+        rendered = generate_test_report.render_html(report)
+        self.assertIn(
+            "20 minutes 40 seconds serial equivalent, 5 minutes 10 seconds "
+            "parallel wall time, 15 minutes 30 seconds saved",
+            rendered,
+        )
+
     def test_public_report_renders_python_advisor_integrity_evidence(self) -> None:
         rendered = generate_test_report.render_html(
             {

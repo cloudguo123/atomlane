@@ -12,7 +12,7 @@ The main idea is to treat concurrency planning as compilation instead of splitti
 
 It delegates parallelism to Make, test runners, compiler drivers, Compose, or BuildKit when those tools own the semantics, and budgets native inner workers together with outer concurrency. Long executions stream live counters and estimated savings.
 
-The retained controlled test runs four independent workloads for at least five minutes each. Observed result: 20m41s serial equivalent, 5m10s parallel wall, 15m31s saved, 4.00×. This is evidence for the controlled workload and reporting path, not a universal speedup claim.
+The retained controlled test runs four independent workloads for at least five minutes each. Observed result: 20m40s serial equivalent, 5m10s parallel wall, 15m30s saved, 4.00×. This is evidence for the controlled workload and reporting path, not a universal speedup claim.
 
 Source: https://github.com/cloudguo123/atomlane
 

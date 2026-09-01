@@ -20,6 +20,18 @@ from atom_frontends import Compilation, compile_entrypoints, compile_shell
 
 
 class ShellFrontendTests(unittest.TestCase):
+    def test_native_windows_gate_is_separate_from_portable_parser_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            with self.assertRaisesRegex(AtomError, "Windows Preview"):
+                compile_entrypoints(
+                    project,
+                    [{"adapter": "shell", "command": "printf safe"}],
+                    target_os="nt",
+                )
+            with self.assertRaisesRegex(AtomError, "target_os"):
+                compile_entrypoints(project, [], target_os="windows")
+
     def test_exact_success_and_order_edges(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
@@ -85,6 +97,7 @@ class ShellFrontendTests(unittest.TestCase):
             result = compile_entrypoints(
                 project,
                 [{"adapter": "shell", "id": "tests", "command": "pytest -n 4 tests"}],
+                target_os="posix",
             )
             self.assertEqual(
                 result["atoms"][0]["operation"]["internal_parallelism"],
@@ -123,6 +136,7 @@ class PackageFrontendTests(unittest.TestCase):
             result = compile_entrypoints(
                 project,
                 [{"adapter": "package_script", "package_json": str(package), "script": "ci"}],
+                target_os="posix",
             )
             symbols = [atom["provenance"]["symbol"] for atom in result["atoms"]]
             self.assertEqual(
@@ -141,6 +155,7 @@ class PackageFrontendTests(unittest.TestCase):
             forwarded = compile_entrypoints(
                 project,
                 [{"adapter": "package_script", "package_json": str(package), "script": "ci-with-args"}],
+                target_os="posix",
             )
             test_atom = next(
                 atom for atom in forwarded["atoms"]
@@ -161,6 +176,7 @@ class PackageFrontendTests(unittest.TestCase):
             result = compile_entrypoints(
                 project,
                 [{"adapter": "package_script", "package_json": str(package), "script": "cycle:a"}],
+                target_os="posix",
             )
             self.assertEqual(len(result["atoms"]), 1)
             atom = result["atoms"][0]
@@ -195,6 +211,7 @@ class MakeFrontendTests(unittest.TestCase):
                 result = compile_entrypoints(
                     project,
                     [{"adapter": "make_target", "makefile": str(makefile), "target": "all"}],
+                    target_os="posix",
                 )
             self.assertFalse(marker.exists())
             by_symbol = {atom["provenance"]["symbol"]: atom for atom in result["atoms"]}
@@ -242,6 +259,7 @@ class MakeFrontendTests(unittest.TestCase):
             result = compile_entrypoints(
                 project,
                 [{"adapter": "make_target", "makefile": "Makefile", "target": "all"}],
+                target_os="posix",
             )
             by_symbol = {atom["provenance"]["symbol"]: atom for atom in result["atoms"]}
             self.assertIn(
@@ -309,6 +327,7 @@ class ComposeFrontendTests(unittest.TestCase):
                         "profiles": ["app"],
                     }
                 ],
+                target_os="posix",
             )
             by_symbol = {atom["provenance"]["symbol"]: atom for atom in result["atoms"]}
             self.assertEqual(set(by_symbol), {"db", "migrate", "api"})
@@ -361,6 +380,7 @@ class ComposeFrontendTests(unittest.TestCase):
                             "profiles": [],
                         }
                     ],
+                    target_os="posix",
                 )
             with self.assertRaisesRegex(AtomError, "no enabled healthcheck"):
                 compile_entrypoints(
@@ -373,6 +393,7 @@ class ComposeFrontendTests(unittest.TestCase):
                             "profiles": ["db"],
                         }
                     ],
+                    target_os="posix",
                 )
 
 

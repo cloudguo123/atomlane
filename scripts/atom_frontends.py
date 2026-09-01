@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -26,6 +27,7 @@ from atom_engine import (
     MAX_SOURCE_BYTES,
     AtomError,
     _bounded_text,
+    _normalize_resource,
     _slug,
 )
 from python_static_effects import infer_python_cli_accesses
@@ -1159,12 +1161,7 @@ class MakefileCompiler:
         by_id = {atom["id"]: atom for atom in self.compilation.atoms if atom["id"] in atom_ids}
 
         def resource_key(atom: dict[str, Any], resource: str) -> str:
-            if re.match(r"^[A-Za-z][A-Za-z0-9_.-]*:", resource):
-                return resource
-            path = Path(resource).expanduser()
-            if not path.is_absolute():
-                path = Path(atom["operation"]["cwd"]) / path
-            return "file:" + str(path.resolve(strict=False))
+            return _normalize_resource(resource, Path(atom["operation"]["cwd"]))
 
         writers: dict[str, set[str]] = {}
         readers: dict[str, set[str]] = {}
@@ -1838,7 +1835,21 @@ def _compose_host_port(value: Any) -> str | None:
     return f"{protocol}://{host}:{candidate}"
 
 
-def compile_entrypoints(project: Path, raw_entrypoints: Any) -> dict[str, Any]:
+def compile_entrypoints(
+    project: Path,
+    raw_entrypoints: Any,
+    *,
+    target_os: str | None = None,
+) -> dict[str, Any]:
+    """Compile host entrypoints, with an explicit OS seam for parser tests.
+
+    Production callers omit ``target_os`` and are always bound to ``os.name``;
+    the override exists so portable parser contracts can be regression-tested
+    on Windows without weakening the native-Windows frontend gate.
+    """
+    effective_os = os.name if target_os is None else target_os
+    if effective_os not in {"nt", "posix"}:
+        raise AtomError("target_os must be 'nt' or 'posix'")
     if raw_entrypoints is None:
         raw_entrypoints = []
     if not isinstance(raw_entrypoints, list) or len(raw_entrypoints) > 64:
@@ -1851,6 +1862,16 @@ def compile_entrypoints(project: Path, raw_entrypoints: Any) -> dict[str, Any]:
             raise AtomError(f"entrypoint {index} must be an object")
         adapter = entrypoint.get("adapter")
         entry_id = _slug(entrypoint.get("id", f"entry-{index}"))
+        if effective_os == "nt" and adapter in {
+            "shell",
+            "package_script",
+            "make_target",
+            "compose_services",
+        }:
+            raise AtomError(
+                f"entrypoint {entry_id} adapter {adapter} has POSIX shell semantics; "
+                "Windows Preview requires an explicit argv atom or powershell_file"
+            )
         if adapter == "shell":
             cwd_raw = entrypoint.get("cwd", str(project))
             cwd = Path(cwd_raw).expanduser()
@@ -1910,6 +1931,108 @@ def compile_entrypoints(project: Path, raw_entrypoints: Any) -> dict[str, Any]:
                 raise AtomError(f"entrypoint {entry_id} profiles must be a string array")
             compiler = ComposeCompiler(compilation, compose_file)
             fragment = compiler.compile(services, set(profiles_raw))
+        elif adapter == "powershell_file":
+            if effective_os != "nt":
+                raise AtomError(
+                    f"entrypoint {entry_id} powershell_file requires native Windows"
+                )
+            script_raw = _bounded_text(
+                entrypoint.get("script_path"), f"entrypoint {entry_id} script_path", 4096
+            )
+            script = Path(script_raw).expanduser()
+            if not script.is_absolute():
+                script = project / script
+            script = script.resolve(strict=True)
+            if not script.is_file() or script.suffix.casefold() != ".ps1":
+                raise AtomError(f"entrypoint {entry_id} script_path must be an existing .ps1 file")
+            cwd_raw = entrypoint.get("cwd", str(script.parent))
+            cwd = Path(cwd_raw).expanduser()
+            if not cwd.is_absolute():
+                cwd = project / cwd
+            cwd = cwd.resolve(strict=True)
+            if not cwd.is_dir():
+                raise AtomError(f"entrypoint {entry_id} cwd does not exist: {cwd}")
+            arguments = entrypoint.get("arguments", [])
+            if (
+                not isinstance(arguments, list)
+                or len(arguments) > 128
+                or not all(isinstance(item, str) for item in arguments)
+            ):
+                raise AtomError(f"entrypoint {entry_id} arguments must be a bounded string array")
+            accesses = entrypoint.get("declared_accesses", [])
+            effects = entrypoint.get("declared_effects", [])
+            if not isinstance(accesses, list) or not isinstance(effects, list):
+                raise AtomError(
+                    f"entrypoint {entry_id} declared_accesses and declared_effects must be arrays"
+                )
+            complete = entrypoint.get("effects_declared_complete", False)
+            if not isinstance(complete, bool):
+                raise AtomError(f"entrypoint {entry_id} effects_declared_complete must be boolean")
+            side_effect = entrypoint.get("side_effect", True)
+            if not isinstance(side_effect, bool):
+                raise AtomError(f"entrypoint {entry_id} side_effect must be boolean")
+            profile = entrypoint.get("profile", "mixed")
+            if profile not in {"cpu", "io", "mixed", "accelerator"}:
+                raise AtomError(f"entrypoint {entry_id} profile is unsupported")
+            pwsh = shutil.which("pwsh")
+            blockers = [] if pwsh else ["POWERSHELL_7_UNAVAILABLE"]
+            snapshot = compilation.snapshot(script)
+            script_access = {"resource": str(script), "mode": "snapshot"}
+            atom_id = compilation.emit(
+                {
+                    "id": entry_id,
+                    "operation": {
+                        "kind": "shell",
+                        "argv": [
+                            pwsh or "pwsh",
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-File",
+                            str(script),
+                            *[
+                                _bounded_text(
+                                    value, f"entrypoint {entry_id} argument", 32_768
+                                )
+                                for value in arguments
+                            ],
+                        ],
+                        "cwd": str(cwd),
+                        "env": {},
+                        "completion": "process_exit",
+                        "internal_parallelism": {"kind": "unknown", "tokens": None},
+                    },
+                    "accesses": [script_access, *accesses],
+                    "effects": effects,
+                    "profile": profile,
+                    "side_effect": side_effect,
+                    "semantics": {
+                        "idempotent": None,
+                        "retryable": None,
+                        "deterministic": None,
+                        "cacheable": False,
+                        "commutative": False,
+                        "cancel_safe": None,
+                        "splittable": False,
+                        "reorderable": "unknown",
+                    },
+                    "assurance": {
+                        "parse": "exact",
+                        "control": "exact",
+                        "effects": "complete_declared" if complete else "unknown",
+                        "codegen": "exact_argv",
+                        "rank": 1.0 if complete and not blockers else 0.5,
+                        "blockers": blockers + ([] if complete else ["INCOMPLETE_EFFECT_MODEL"]),
+                    },
+                    "provenance": {
+                        "adapter": "powershell_file",
+                        "source": snapshot["path"],
+                        "symbol": entry_id,
+                        "confidence": 1.0,
+                    },
+                }
+            )
+            fragment = Fragment([atom_id], [atom_id], [atom_id])
         else:
             raise AtomError(f"entrypoint {entry_id} has unsupported adapter: {adapter}")
         roots.extend(fragment.roots)

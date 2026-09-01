@@ -47,6 +47,11 @@ class ConsoleProgress:
             return
         self.last_elapsed = elapsed
         self.last_signature = signature
+        savings_text = (
+            f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
+            if snapshot.get("savings_eligible_so_far", True)
+            else "本次节约不计入（已有失败或超时）"
+        )
         print(
             "⏱️ 实时"
             f"｜已运行 {elapsed:.1f}s"
@@ -54,7 +59,7 @@ class ConsoleProgress:
             f"｜就绪 {snapshot.get('ready_tasks', 0)}"
             f"｜已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}"
             f"｜失败 {snapshot['failed_tasks']}"
-            f"｜当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s",
+            f"｜{savings_text}",
             flush=True,
         )
 

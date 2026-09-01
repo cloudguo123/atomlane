@@ -4,7 +4,7 @@ title: AtomLane
 type: software
 authors:
   - family-names: cloudguo123
-version: 0.11.0
+version: 0.12.0
 date-released: 2026-09-01
 license: MIT
 repository-code: https://github.com/cloudguo123/atomlane
@@ -13,6 +13,7 @@ keywords:
   - Codex
   - parallel computing
   - macOS
+  - Windows
   - Apple silicon
   - task scheduling
   - build acceleration

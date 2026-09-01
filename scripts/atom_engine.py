@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import math
+import ntpath
 import os
 import re
 import unicodedata
@@ -20,7 +21,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-IR_VERSION = "1.0"
+from platform_adapter import brokered_execution_boundary
+from windows_job_runner import RunnerError, validate_windows_executable_contract
+
+IR_VERSION = "2.0"
 MAX_ATOMS = 512
 MAX_EDGES = 4096
 MAX_COMMAND_CHARS = 32_768
@@ -28,6 +32,20 @@ MAX_SOURCE_BYTES = 2_000_000
 MAX_RECURSION = 64
 ATOM_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 RESOURCE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*:")
+WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
+WINDOWS_DRIVE_RELATIVE_RE = re.compile(r"^[A-Za-z]:(?![\\/])")
+WINDOWS_RESERVED_NAMES = {
+    "AUX",
+    "CON",
+    "CONIN$",
+    "CONOUT$",
+    "NUL",
+    "PRN",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+    *(f"COM{digit}" for digit in "¹²³"),
+    *(f"LPT{digit}" for digit in "¹²³"),
+}
 
 ACCESS_MODES = {
     "read",
@@ -135,41 +153,256 @@ def _normalize_cwd(value: Any, project: Path, name: str) -> Path:
     return path
 
 
+def _looks_like_windows_absolute_path(text: str) -> bool:
+    value = text.replace("/", "\\")
+    return bool(WINDOWS_ABSOLUTE_RE.match(value)) or value.startswith("\\\\")
+
+
+def _canonicalize_windows_component(component: str, *, allow_ads: bool) -> str:
+    if component in {".", ".."}:
+        return component
+    if any(ord(character) < 32 for character in component):
+        raise AtomError("Windows path components cannot contain control characters")
+
+    fields = component.split(":")
+    if len(fields) > 1 and not allow_ads:
+        raise AtomError("Windows alternate data streams are allowed only on the final component")
+    if len(fields) > 3:
+        raise AtomError(f"unsupported Windows alternate data stream syntax: {component}")
+
+    base = fields[0].rstrip(" .")
+    if not base:
+        raise AtomError("Windows path components cannot consist only of spaces or dots")
+    if base in {".", ".."}:
+        if len(fields) > 1:
+            raise AtomError("Windows alternate data streams require a filename")
+        return base
+    device_name = base.split(".", 1)[0].upper()
+    if device_name in WINDOWS_RESERVED_NAMES:
+        raise AtomError(f"Windows reserved device path is unsupported: {component}")
+
+    if len(fields) == 1:
+        return base
+    stream = fields[1].rstrip(" .")
+    if not stream:
+        if len(fields) == 2:
+            return base
+        raise AtomError(f"unsupported Windows alternate data stream syntax: {component}")
+    if len(fields) == 2:
+        return f"{base}:{stream}"
+    stream_type = fields[2].rstrip(" .")
+    if stream_type.casefold() != "$data":
+        raise AtomError(f"unsupported Windows alternate data stream type: {component}")
+    return f"{base}:{stream}:$DATA"
+
+
+def _normalize_windows_path(text: str, *, cwd: str | None = None) -> str:
+    """Return one conservative Win32 spelling without touching the filesystem."""
+
+    value = text.replace("/", "\\")
+    if not value:
+        raise AtomError("Windows file resources cannot be empty")
+    lowered = value.casefold()
+    if lowered.startswith("\\\\.\\"):
+        raise AtomError("Windows device namespace paths are not supported")
+    if lowered.startswith(("\\??\\", "\\\\??\\")):
+        raise AtomError("Windows NT namespace paths are not supported")
+    if lowered.startswith("\\\\?\\"):
+        payload = value[4:]
+        if payload.casefold().startswith("unc\\"):
+            value = "\\\\" + payload[4:]
+        elif WINDOWS_ABSOLUTE_RE.match(payload):
+            value = payload
+        else:
+            raise AtomError("unsupported Windows extended path namespace")
+    if WINDOWS_DRIVE_RELATIVE_RE.match(value):
+        raise AtomError("Windows drive-relative paths are ambiguous and are not supported")
+
+    if not _looks_like_windows_absolute_path(value):
+        if cwd is None:
+            raise AtomError("Windows file resources must be absolute after cwd resolution")
+        canonical_cwd = _normalize_windows_path(cwd)
+        value = ntpath.join(canonical_cwd, value)
+        return _normalize_windows_path(value)
+
+    if WINDOWS_ABSOLUTE_RE.match(value):
+        anchor = value[:2].upper() + "\\"
+        components = [component for component in value[3:].split("\\") if component]
+    elif value.startswith("\\\\"):
+        if value.startswith("\\\\\\"):
+            raise AtomError("malformed Windows UNC path")
+        unc_components = [component for component in value[2:].split("\\") if component]
+        if len(unc_components) < 2:
+            raise AtomError("Windows UNC paths require both a server and share")
+        server = _canonicalize_windows_component(unc_components[0], allow_ads=False)
+        share = _canonicalize_windows_component(unc_components[1], allow_ads=False)
+        if server in {".", ".."} or share in {".", ".."}:
+            raise AtomError("Windows UNC server and share names cannot be relative")
+        anchor = f"\\\\{server}\\{share}"
+        components = unc_components[2:]
+    else:  # Defensive: the absolute-path classifier and parser must agree.
+        raise AtomError("unsupported Windows absolute path")
+
+    canonical_components = [
+        _canonicalize_windows_component(
+            component,
+            allow_ads=index == len(components) - 1,
+        )
+        for index, component in enumerate(components)
+    ]
+    if anchor.endswith("\\"):
+        combined = anchor + "\\".join(canonical_components)
+    elif canonical_components:
+        combined = anchor + "\\" + "\\".join(canonical_components)
+    else:
+        combined = anchor
+    return unicodedata.normalize("NFC", ntpath.normpath(combined))
+
+
+def _windows_base_path_and_stream(path: str) -> tuple[str, str]:
+    directory, filename = ntpath.split(path)
+    base_name, separator, stream = filename.partition(":")
+    if not separator:
+        return path, ""
+    return ntpath.join(directory, base_name), ":" + stream
+
+
+def _resolve_windows_existing_ancestor(path: str) -> str:
+    """Resolve reparse aliases for the longest existing prefix of a native path."""
+
+    base_path, stream = _windows_base_path_and_stream(path)
+    probe = Path(base_path)
+    missing_components: list[str] = []
+    while True:
+        try:
+            probe.lstat()
+        except FileNotFoundError:
+            parent = probe.parent
+            if parent == probe:
+                raise AtomError(
+                    f"Windows file resource has no accessible existing ancestor: {path}"
+                ) from None
+            missing_components.append(probe.name)
+            probe = parent
+            continue
+        except OSError as exc:
+            raise AtomError(
+                f"cannot inspect Windows file resource ancestor {probe}: {exc}"
+            ) from exc
+        try:
+            resolved_ancestor = probe.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise AtomError(
+                f"cannot resolve Windows file resource ancestor {probe}: {exc}"
+            ) from exc
+        if missing_components:
+            try:
+                ancestor_is_directory = resolved_ancestor.is_dir()
+            except OSError as exc:
+                raise AtomError(
+                    f"cannot inspect resolved Windows file resource ancestor "
+                    f"{resolved_ancestor}: {exc}"
+                ) from exc
+            if not ancestor_is_directory:
+                raise AtomError(
+                    f"future Windows file resource descends from a non-directory: "
+                    f"{resolved_ancestor}"
+                )
+        resolved = resolved_ancestor.joinpath(*reversed(missing_components))
+        return _normalize_windows_path(str(resolved) + stream)
+
+
+def _normalize_host_path(raw_path: str, cwd: Path) -> str:
+    if os.name == "nt":
+        expanded = os.path.expanduser(raw_path)
+        lexical = _normalize_windows_path(expanded, cwd=str(cwd))
+        return _resolve_windows_existing_ancestor(lexical)
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = cwd / path
+    try:
+        return str(path.resolve(strict=False))
+    except (OSError, RuntimeError) as exc:
+        raise AtomError(f"cannot resolve file resource {path}: {exc}") from exc
+
+
 def _normalize_resource(value: Any, cwd: Path) -> str:
     text = _bounded_text(value, "resource", 4096).strip()
     if not text:
         raise AtomError("resource cannot be empty")
-    if text.startswith("file:"):
-        raw_path = text.removeprefix("file:")
-        path = Path(raw_path).expanduser()
-        if not path.is_absolute():
-            path = cwd / path
-        return "file:" + str(path.resolve(strict=False))
+    explicit_file = text.startswith("file:")
+    raw_path = text.removeprefix("file:") if explicit_file else text
+    if WINDOWS_DRIVE_RELATIVE_RE.match(raw_path):
+        raise AtomError("Windows drive-relative resource paths are ambiguous")
+    if _looks_like_windows_absolute_path(raw_path):
+        lexical = _normalize_windows_path(raw_path)
+        if os.name == "nt":
+            lexical = _resolve_windows_existing_ancestor(lexical)
+        return "file:" + lexical
+    if explicit_file:
+        return "file:" + _normalize_host_path(raw_path, cwd)
+    if os.name == "nt" and ":" in text:
+        prefix = text.split(":", 1)[0]
+        if "." in prefix or "\\" in prefix or "/" in prefix:
+            raise AtomError(
+                "ambiguous relative Windows path or alternate data stream; "
+                "prefix file resources with 'file:'"
+            )
     if RESOURCE_RE.match(text):
         return text
-    path = Path(text).expanduser()
-    if not path.is_absolute():
-        path = cwd / path
-    return "file:" + str(path.resolve(strict=False))
+    return "file:" + _normalize_host_path(text, cwd)
 
 
 def _resource_overlap(first: str, second: str) -> bool:
     if first.startswith("file:") and second.startswith("file:"):
         one = first.removeprefix("file:")
         two = second.removeprefix("file:")
-        try:
-            if os.path.exists(one) and os.path.exists(two) and os.path.samefile(one, two):
+        one_is_windows = _looks_like_windows_absolute_path(one)
+        two_is_windows = _looks_like_windows_absolute_path(two)
+        if one_is_windows or two_is_windows:
+            if not (one_is_windows and two_is_windows):
+                return False
+            try:
+                one = _normalize_windows_path(one)
+                two = _normalize_windows_path(two)
+            except AtomError:
                 return True
-        except OSError:
+            if os.name == "nt":
+                one_base, _ = _windows_base_path_and_stream(one)
+                two_base, _ = _windows_base_path_and_stream(two)
+                try:
+                    if os.path.samefile(one_base, two_base):
+                        return True
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    return True
+            one_key = unicodedata.normalize("NFC", ntpath.normpath(one)).casefold()
+            two_key = unicodedata.normalize("NFC", ntpath.normpath(two)).casefold()
+            one_boundary = one_key.rstrip("\\")
+            two_boundary = two_key.rstrip("\\")
+            return (
+                one_key == two_key
+                or one_key.startswith((two_boundary + "\\", two_boundary + ":"))
+                or two_key.startswith((one_boundary + "\\", one_boundary + ":"))
+            )
+        try:
+            if os.path.samefile(one, two):
+                return True
+        except FileNotFoundError:
             pass
+        except OSError:
+            return True
         # macOS volumes commonly casefold and normalize Unicode names. A false
         # conflict on a case-sensitive volume is safer than a missed alias.
         one_key = unicodedata.normalize("NFC", os.path.normpath(one)).casefold()
         two_key = unicodedata.normalize("NFC", os.path.normpath(two)).casefold()
+        one_boundary = one_key.rstrip(os.sep)
+        two_boundary = two_key.rstrip(os.sep)
         return (
             one_key == two_key
-            or one_key.startswith(two_key + os.sep)
-            or two_key.startswith(one_key + os.sep)
+            or one_key.startswith(two_boundary + os.sep)
+            or two_key.startswith(one_boundary + os.sep)
         )
     return first == second
 
@@ -574,6 +807,71 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
         _bounded_text(key, f"atom {atom_id} env key", 512): _bounded_text(val, f"atom {atom_id} env value")
         for key, val in environment_raw.items()
     }
+    if os.name == "nt":
+        if any(
+            re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is None
+            for key in environment
+        ):
+            raise AtomError(
+                f"atom {atom_id} Windows Preview env names must use ASCII identifier syntax"
+            )
+        folded_keys = [key.casefold() for key in environment]
+        if len(folded_keys) != len(set(folded_keys)):
+            raise AtomError(f"atom {atom_id} env keys collide under Windows semantics")
+        if argv:
+            try:
+                validate_windows_executable_contract(argv[0])
+            except RunnerError as exc:
+                raise AtomError(f"atom {atom_id} {exc}") from exc
+    terminal_mode = operation_raw.get("terminal_mode", "pipes")
+    if terminal_mode not in {"pipes", "conpty"}:
+        raise AtomError(f"atom {atom_id} terminal_mode must be pipes or conpty")
+    if terminal_mode == "conpty" and os.name != "nt":
+        raise AtomError(f"atom {atom_id} ConPTY requires native Windows")
+    resource_limits_raw = operation_raw.get("resource_limits", {})
+    if not isinstance(resource_limits_raw, dict):
+        raise AtomError(f"atom {atom_id} resource_limits must be an object")
+    unknown_limits = set(resource_limits_raw) - {
+        "cpu_rate_percent",
+        "memory_limit_mb",
+        "max_processes",
+    }
+    if unknown_limits:
+        raise AtomError(f"atom {atom_id} has unsupported resource limits: {sorted(unknown_limits)}")
+    cpu_rate_percent = _bounded_number(
+        resource_limits_raw.get("cpu_rate_percent"),
+        f"atom {atom_id} resource_limits.cpu_rate_percent",
+        minimum=0.01,
+        maximum=100,
+    )
+    memory_limit_mb = _bounded_number(
+        resource_limits_raw.get("memory_limit_mb"),
+        f"atom {atom_id} resource_limits.memory_limit_mb",
+        minimum=128,
+        maximum=1_048_576,
+    )
+    max_processes_raw = resource_limits_raw.get("max_processes")
+    if max_processes_raw is not None and (
+        isinstance(max_processes_raw, bool)
+        or not isinstance(max_processes_raw, int)
+        or not 1 <= max_processes_raw <= 4096
+    ):
+        raise AtomError(f"atom {atom_id} resource_limits.max_processes must be 1..4096")
+    resource_limits = {
+        "cpu_rate_percent": cpu_rate_percent,
+        "memory_limit_mb": memory_limit_mb,
+        "max_processes": max_processes_raw,
+    }
+    if any(value is not None for value in resource_limits.values()) and os.name != "nt":
+        raise AtomError(f"atom {atom_id} Job Object resource limits require native Windows")
+    broker_boundary = brokered_execution_boundary(argv[0]) if argv else None
+    if broker_boundary is not None and any(
+        value is not None for value in resource_limits.values()
+    ):
+        raise AtomError(
+            f"atom {atom_id} launches the {broker_boundary['target_realm']} broker; "
+            "Job Object resource limits cannot constrain the brokered workload"
+        )
     side_effect = raw.get("side_effect", kind in {"mutation", "compose_service"})
     if not isinstance(side_effect, bool):
         raise AtomError(f"atom {atom_id} side_effect must be boolean")
@@ -640,6 +938,9 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
     }
     if not 0 <= assurance["rank"] <= 1:
         raise AtomError(f"atom {atom_id} assurance.rank must be between 0 and 1")
+    if broker_boundary is not None and assurance["effects"] != "complete_declared":
+        assurance["effects"] = "unknown"
+        assurance["blockers"].append("BROKERED_REALM_EFFECTS_INCOMPLETE")
     if side_effect and not accesses and not effects:
         effects.append({"domain": "unknown", "key": "host", "mode": "write"})
         assurance["effects"] = "unknown"
@@ -721,6 +1022,9 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
             "env": environment,
             "completion": completion,
             "internal_parallelism": {"kind": internal_kind, "tokens": internal_tokens},
+            "terminal_mode": terminal_mode,
+            "resource_limits": resource_limits,
+            "broker_boundary": broker_boundary,
         },
         "dependencies": _normalize_dependencies(raw.get("dependencies"), atom_id),
         "accesses": accesses,
@@ -1622,7 +1926,7 @@ def compile_atomic_plan(
     )
 
     provisional = {
-        "schema": "mac-parallel-accelerator/atomic-plan/v1",
+        "schema": "atomlane/atomic-plan/v2",
         "ir_version": IR_VERSION,
         "project_root": str(project_root),
         "atoms": canonical_atoms,

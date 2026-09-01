@@ -4,6 +4,14 @@ This roadmap favors evidence and semantics over raw process count.
 
 ## Now
 
+- Harden the native Windows Preview with real-project results across `pwsh`,
+  exact argv, optional ConPTY, in-Job descendant cancellation, staged (not
+  atomic) target startup, broker boundaries, and Job budgets that include the
+  supervisor with a 128 MiB memory minimum.
+- Collect explicit Windows Desktop integration evidence; do not infer Windows
+  11 Desktop UI support from the headless `windows-2025` CI runner.
+- Collect separate native Windows, WSL, and Docker VM resource evidence; never
+  merge their execution envelopes or performance claims.
 - Collect reproducible Web, Docker, research, native-build, and batch-workload results.
 - Collect opt-in Python refactor certificates with semantic equivalence, memory,
   p50/p90, and negative-result evidence across CPU, I/O, and native workloads.
@@ -24,6 +32,8 @@ This roadmap favors evidence and semantics over raw process count.
   serialization, and memory can be represented and tested fail-closed.
 - Generate an opt-in differential-test harness from an approved preview while
   keeping code application and execution as separate user-authorized steps.
+- Add semantically owned Windows frontends only where control flow, quoting,
+  artifacts, and cancellation can be represented without shell-text guessing.
 
 ## Later
 
@@ -31,7 +41,8 @@ This roadmap favors evidence and semantics over raw process count.
 - Program-level advisors for JavaScript/TypeScript workers, Rust iterators/Rayon,
   Go goroutines, and native kernels, each backed by language-specific semantics
   rather than text-pattern substitution.
-- A portable execution core beyond macOS while retaining platform-specific resource adapters.
+- Linux-native release support after the WSL/Linux realm contract earns its own
+  containment, resource, terminal, and CI evidence.
 - Privacy-preserving local trend summaries and opt-in community benchmark aggregation.
 
 Votes and design evidence are welcome in [GitHub Discussions](https://github.com/cloudguo123/atomlane/discussions).

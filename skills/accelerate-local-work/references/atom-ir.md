@@ -1,6 +1,6 @@
 # Atomic Plan Contract
 
-This reference defines the safety and semantic contract for the 0.9 atomic
+This reference defines the safety and semantic contract for the v2 atomic
 planner and executor. Read it when a task contains a composite shell command,
 package script, Make target, Compose application, test suite, build pipeline,
 long-running service, or a proposed split/fusion transformation.
@@ -46,6 +46,11 @@ The hash is a time-of-check/time-of-use boundary. A missing hash, mismatch,
 unsupported plan version, changed project evidence, or failed execution
 precondition must stop execution rather than fall back to an unverified plan.
 
+The v2 hash also binds a platform contract: OS family, native/WSL/container
+realm, architecture, path flavor, argv transport, process-tree backend, and
+required terminal modes. A plan compiled for macOS, native Windows, WSL, or a
+different architecture must be recompiled in its execution realm.
+
 ## Atom model
 
 An atom is the smallest operation for which the planner can state a complete
@@ -56,7 +61,7 @@ Each executable atom needs enough information to establish these dimensions:
 
 | Dimension | Required meaning |
 | --- | --- |
-| Operation | Exact argv, cwd, environment delta, stdin policy, and operation kind |
+| Operation | Exact argv transport, cwd, environment delta, stdin/terminal policy, process-tree resource limits, and operation kind |
 | Control | Conditions under which it may start: hard/success/failure/order/data/stream, finally, or a lifecycle event |
 | Artifacts | Inputs and outputs, including access mode and relevant sidecars |
 | Resources | Capacity or exclusivity requirements such as CPU, memory, ports, database scope, volume, lock, device, or host timing |
@@ -111,8 +116,9 @@ Resources may be mutexes, reader/writer locks, or capacity constraints:
 - native test-runner worker pool
 - formal benchmark host and timing-validity fence
 
-Do not treat Docker `cpuset` as stable Apple performance-core or efficiency-core
-affinity. Docker Desktop schedules Linux vCPUs inside its VM.
+Do not treat Docker `cpuset` as stable physical-host affinity. Docker Desktop
+schedules Linux vCPUs inside its VM, which is distinct from native Windows,
+macOS, or a WSL distro.
 
 ## Edge semantics
 
@@ -171,6 +177,17 @@ hooks and the selected package-manager semantics intact.
 A script such as `prisma migrate deploy && next start -p 3001` is a database
 mutation followed by a daemon that leases port 3001. A health-dependent smoke
 test waits for readiness, not for the server process to exit.
+
+This frontend is POSIX-specific. Native Windows Preview does not reinterpret
+it as PowerShell or `cmd.exe`. A supported PowerShell entrypoint is one
+snapshotted `.ps1` file invoked by PowerShell 7 with `-File`; it remains one
+atom and requires complete declared effects. Inline PowerShell, Windows
+PowerShell 5.1, `.cmd`, and `.bat` lowering fail closed.
+
+Windows file resources recognize drive, UNC, and extended-path forms before
+logical resource schemes. Drive-relative paths such as `C:output.txt` are
+ambiguous and rejected. Case/slash aliases, parent-child overlap, and alternate
+data streams conflict conservatively.
 
 ### Make
 
@@ -275,6 +292,11 @@ Show elapsed time, running/ready/completed/failed counts, and current estimated
 time saved during execution. At completion report observed peak concurrency,
 elapsed time, failures and skips, output locations, per-invocation
 `time_saved_seconds`, and `cumulative_saved_seconds`.
+
+On native Windows, ordinary tasks use separate pipes below a kill-on-close Job
+Object. Optional CPU-rate, job-memory, and active-process limits cover the
+target tree. ConPTY is opt-in for terminal-sensitive programs and reports one
+combined VT stream; MCP and live-runner progress do not require ConPTY.
 
 A supplied serial baseline supports a measured comparison. Otherwise label
 savings and multiplier as estimates derived from observed atom durations; do

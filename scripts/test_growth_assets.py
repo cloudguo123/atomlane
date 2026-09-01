@@ -7,6 +7,8 @@ import unittest
 
 import generate_growth_assets
 
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
 
 class GrowthAssetTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -49,6 +51,23 @@ class GrowthAssetTests(unittest.TestCase):
             self.assertIn("serial equivalent", markdown)
             self.assertIn("not rerun serially", markdown)
             self.assertTrue((target / "social-preview.svg").exists())
+
+    def test_showcase_payload_keeps_safe_form_length_margins(self) -> None:
+        source = (ROOT / "docs" / "launch" / "OPENAI_SHOWCASE.md").read_text(
+            encoding="utf-8"
+        )
+
+        def paragraph_after(heading: str) -> str:
+            return source.split(heading, 1)[1].lstrip("\n").split("\n\n", 1)[0]
+
+        one_line = paragraph_after("## One-line description")
+        building_process = paragraph_after("### Building process")
+        project_description = paragraph_after("### Project description")
+        setup = next(line for line in source.splitlines() if line.startswith("- Setup:"))
+        self.assertLessEqual(len(one_line), 240)
+        self.assertLessEqual(len(building_process), 480)
+        self.assertLessEqual(len(setup.removeprefix("- Setup: ")), 480)
+        self.assertLessEqual(len(project_description), 950)
 
 
 if __name__ == "__main__":

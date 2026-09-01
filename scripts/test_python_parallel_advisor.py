@@ -79,6 +79,27 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         self.assertIn("ProcessPoolExecutor", preview["unified_diff"])
         self.assertIn(".map(square, values)", preview["unified_diff"])
 
+    def test_windows_target_caps_process_rewrite_at_platform_limit(self) -> None:
+        self.write("job.py", SAFE_PROGRAM)
+        result = self.analyze(max_workers=64, target_platform="windows")
+        self.assertEqual(result["options"]["effective_max_workers"], 61)
+        self.assertIn("max_workers=61", result["candidates"][0]["rewrite_preview"]["unified_diff"])
+        self.assertIn(
+            "WINDOWS_PROCESS_POOL_LIMIT",
+            {item["code"] for item in result["diagnostics"]},
+        )
+
+        mcp_result = mcp_server.python_parallel_advisor(
+            {
+                "project_path": str(self.project.resolve()),
+                "paths": ["job.py"],
+                "max_workers": 64,
+                "target_platform": "windows",
+            }
+        )
+        self.assertLessEqual(mcp_result["resource_plan"]["chosen_concurrency"], 61)
+        self.assertEqual(mcp_result["resource_plan"]["target_worker_ceiling"], 61)
+
     def test_append_loop_preserves_order_with_executor_map(self) -> None:
         self.write(
             "job.py",
@@ -110,7 +131,11 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         )
         diff = self.analyze()["candidates"][0]["rewrite_preview"]["unified_diff"]
         self.assertIn("ProcessPoolExecutor as _AtomLaneProcessPoolExecutor2", diff)
-        self.assertIn("with _AtomLaneProcessPoolExecutor2(max_workers=4) as _atomlane_pool2", diff)
+        self.assertIn(
+            'with _AtomLaneProcessPoolExecutor2(max_workers=4, '
+            'mp_context=_atomlane_multiprocessing.get_context("spawn")) as _atomlane_pool2',
+            diff,
+        )
 
     def test_spawn_fixture_preserves_order_and_values(self) -> None:
         serial = self.write(

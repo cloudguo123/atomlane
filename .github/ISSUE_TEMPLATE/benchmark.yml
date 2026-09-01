@@ -10,8 +10,16 @@ body:
   - type: input
     id: version
     attributes:
-      label: Plugin version and commit
-      placeholder: 0.9.2 / abc1234
+      label: Plugin version
+      placeholder: 0.12.0
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Full source commit
+      description: Provide the exact 40-character lowercase Git commit recorded by the benchmark.
+      placeholder: 0123456789abcdef0123456789abcdef01234567
     validations:
       required: true
   - type: dropdown
@@ -27,11 +35,33 @@ body:
         - Other
     validations:
       required: true
+  - type: dropdown
+    id: execution_realm
+    attributes:
+      label: Execution realm
+      description: Select where AtomLane itself and the measured task actually ran.
+      options:
+        - macOS native (macos_native)
+        - Windows native Preview (windows_native)
+        - WSL Linux (wsl_linux)
+        - Linux native (linux_native)
+        - Linux container (linux_container)
+    validations:
+      required: true
   - type: input
     id: environment
     attributes:
-      label: Mac and run environment
-      placeholder: Mac model, macOS, power mode, logical CPUs, cold or warm
+      label: Host and run environment
+      description: Include host model, OS version, architecture, logical CPUs, power state, process-tree backend, terminal mode, and cold/warm state. Include Low Power Mode on macOS and Docker daemon/VM facts when relevant.
+      placeholder: Windows Server 2025, AMD64, 4 logical CPUs, AC, windows_job_object, pipes, warm
+    validations:
+      required: true
+  - type: textarea
+    id: windows_evidence
+    attributes:
+      label: Windows boundary evidence or N/A
+      description: For windows_native, record supervisor_pid_then_launch_record, target_creation_atomic=false, requested and queried kill-on-close/CPU/memory/process Job limits, supervisor-inclusive budgeting, client-only containment, any WSL/Docker/WMI/service/scheduled-task/remote broker boundary, and pipes vs ConPTY output semantics. State that captured output is returned at completion and do not treat Windows Server CI as Windows 11 Desktop UI evidence. For every other realm, enter "N/A — <realm>".
+      placeholder: "Assignment: supervisor_pid_then_launch_record; atomic: false; requested limits: ...; queried limits: ...; containment: client_and_inherited_windows_descendants_only; broker: none; terminal: pipes, separate stdout/stderr, completion_result"
     validations:
       required: true
   - type: textarea
@@ -45,7 +75,7 @@ body:
     id: result
     attributes:
       label: Result
-      description: Parallel wall time, measured baseline or labeled serial equivalent, savings, speedup, peak concurrency, repetitions, p50/p90, failures/skips/blockers.
+      description: Report at least three comparable repetitions, observed p50/p90 wall time, measured baseline or labeled serial equivalent, savings, speedup, peak concurrency, failures, skips, and planner blockers. Keep configured thresholds separate from observed values.
     validations:
       required: true
   - type: textarea
@@ -65,4 +95,6 @@ body:
         - label: I did not rerun destructive or stateful work solely for a baseline.
           required: true
         - label: I reviewed this report and removed secrets and private project content.
+          required: true
+        - label: I ran at least three comparable repetitions and reported observed values separately from configured thresholds.
           required: true

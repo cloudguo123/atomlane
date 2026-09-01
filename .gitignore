@@ -4,9 +4,13 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .coverage
+.env
+.env.*
+.venv/
 htmlcov/
 node_modules/
 runs/
+security-runs/
 work/
 *.tmp
 *.log

@@ -1,11 +1,14 @@
 name: Test Report Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI, Five-Minute Benchmark, Windows Five-Minute Benchmark]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -16,6 +19,13 @@ concurrency:
 
 jobs:
   report:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' ||
+      github.event.workflow_run.event == 'workflow_dispatch' ||
+      github.event.workflow_run.event == 'schedule'))
     runs-on: macos-14
     timeout-minutes: 15
     environment:
@@ -25,11 +35,128 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+
+      - name: Restore source-bound native evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_WORKFLOW: ${{ github.event.workflow_run.name }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          evidence_tmp=$(mktemp -d)
+          trap 'rm -rf "$evidence_tmp"' EXIT
+
+          download_evidence() {
+            local workflow_file="$1"
+            local workflow_name="$2"
+            local artifact_prefix="$3"
+            local source_name="$4"
+            local destination="$5"
+            local validator="${6:-}"
+            try_download() {
+              local run_id="$1"
+              local head_sha="$2"
+              local download_dir="$evidence_tmp/${workflow_file%.yml}-$run_id"
+              rm -rf "$download_dir"
+              mkdir -p "$download_dir"
+              if ! gh run download "$run_id" \
+                --repo "$GITHUB_REPOSITORY" \
+                --name "$artifact_prefix-$head_sha" \
+                --dir "$download_dir"; then
+                return 1
+              fi
+              if [[ ! -f "$download_dir/$source_name" ]]; then
+                return 1
+              fi
+              local validation_option=""
+              case "$validator" in
+                macos-benchmark)
+                  validation_option="--validate-macos-benchmark-evidence"
+                  ;;
+                windows-preview)
+                  validation_option="--validate-windows-preview-evidence"
+                  ;;
+                windows-benchmark)
+                  validation_option="--validate-windows-benchmark-evidence"
+                  ;;
+                "")
+                  ;;
+                *)
+                  echo "Unknown evidence validator: $validator" >&2
+                  return 1
+                  ;;
+              esac
+              if [[ -n "$validation_option" ]] &&
+                ! python3 scripts/generate_test_report.py \
+                  "$validation_option" "$download_dir/$source_name" \
+                  --expected-commit "$head_sha"; then
+                echo "Rejected invalid or stale $workflow_name evidence for $head_sha." >&2
+                return 1
+              fi
+              cp "$download_dir/$source_name" "$destination"
+            }
+
+            if [[ "$TRIGGER_WORKFLOW" == "$workflow_name" ]]; then
+              if try_download "$TRIGGER_RUN_ID" "$TRIGGER_HEAD_SHA"; then
+                return
+              fi
+              echo "The triggering $workflow_name run did not provide its required source-bound artifact." >&2
+              return 1
+            fi
+
+            local candidate_rows
+            candidate_rows=$(
+              gh run list \
+                --repo "$GITHUB_REPOSITORY" \
+                --workflow "$workflow_file" \
+                --branch main \
+                --status success \
+                --limit 20 \
+                --json databaseId,headSha \
+                --jq '.[] | [.databaseId, .headSha] | @tsv'
+            )
+            while IFS=$'\t' read -r candidate_run candidate_sha; do
+              if [[ -n "$candidate_run" && -n "$candidate_sha" ]] &&
+                git merge-base --is-ancestor "$candidate_sha" HEAD &&
+                try_download "$candidate_run" "$candidate_sha"; then
+                return
+              fi
+            done <<< "$candidate_rows"
+
+            echo "No downloadable source-compatible $workflow_name evidence is available yet."
+          }
+
+          download_evidence \
+            long-benchmark.yml \
+            "Five-Minute Benchmark" \
+            macos-five-minute-benchmark \
+            benchmark-results.json \
+            docs/benchmark-results.json \
+            macos-benchmark
+          download_evidence \
+            ci.yml \
+            CI \
+            windows-preview-evidence \
+            windows-preview-results.json \
+            docs/windows-preview-results.json \
+            windows-preview
+          download_evidence \
+            windows-long-benchmark.yml \
+            "Windows Five-Minute Benchmark" \
+            windows-five-minute-benchmark \
+            windows-benchmark-results.json \
+            docs/windows-benchmark-results.json \
+            windows-benchmark
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -40,12 +167,10 @@ jobs:
       - name: Install report dependencies
         run: |
           npm ci --no-audit --no-fund
-          python3 -m pip install --disable-pip-version-check ruff==0.16.4
+          python -m pip install --disable-pip-version-check ruff==0.16.4 jsonschema==4.25.1
 
       - name: Generate visual verification report
-        id: report
-        continue-on-error: true
-        run: python3 scripts/generate_test_report.py
+        run: python scripts/generate_test_report.py
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -58,7 +183,3 @@ jobs:
       - name: Deploy report
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
-
-      - name: Preserve failing report but fail the workflow
-        if: steps.report.outcome == 'failure'
-        run: exit 1

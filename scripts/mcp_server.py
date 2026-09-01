@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
-import fcntl
 import fnmatch
 import hashlib
 import importlib.util
@@ -30,6 +30,8 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from atom_engine import (
     AtomError,
+    _normalize_resource,
+    _resource_overlap,
     atom_conflicts,
     canonical_plan_hash,
     compile_atomic_plan,
@@ -37,10 +39,25 @@ from atom_engine import (
     validate_source_snapshots,
 )
 from atom_frontends import compile_entrypoints
+from platform_adapter import (
+    brokered_execution_boundary,
+    default_stats_path,
+    exclusive_file_lock,
+    execution_environment,
+    load_snapshot,
+    memory_snapshot,
+    platform_capabilities,
+    windows_physical_cpu_count,
+)
+from platform_adapter import (
+    power_snapshot as portable_power_snapshot,
+)
 from python_parallel_advisor import AdvisorError, analyze_python_parallelism
+from windows_job_runner import RunnerError, validate_windows_executable_contract
+from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.11.0"
+SERVER_VERSION = "0.12.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"
@@ -54,6 +71,8 @@ DEFAULT_OUTPUT_BYTES = 8_192
 MAX_OUTPUT_BYTES = 65_536
 DEFAULT_TIMEOUT_SECONDS = 900.0
 MAX_TIMEOUT_SECONDS = 86_400.0
+MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS = 32_767
+MAX_WINDOWS_SUPERVISOR_PAYLOAD_BYTES = 2_500_000
 TASK_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _STATIC_HARDWARE_CACHE: dict[str, Any] | None = None
 
@@ -66,17 +85,7 @@ def _progress_interval_seconds() -> float:
 
 
 def _stats_path() -> Path:
-    override = os.environ.get("MAC_PARALLEL_ACCELERATOR_STATS_PATH")
-    if override:
-        return Path(override).expanduser()
-    return (
-        Path.home()
-        / "Library"
-        / "Application Support"
-        / "Codex"
-        / "Mac Parallel Accelerator"
-        / "stats.json"
-    )
+    return default_stats_path()
 
 
 def _indicator_ui_meta() -> dict[str, Any]:
@@ -769,18 +778,14 @@ def _scan_string_list(value: Any, name: str, maximum: int = 128) -> list[str]:
 
 
 def _scan_path_token(value: str, cwd: Path) -> str:
-    if re.match(r"^[A-Za-z][A-Za-z0-9_.-]*:", value) and not value.startswith(("./", "../")):
-        return value
-    path = Path(value).expanduser()
-    if not path.is_absolute():
-        path = cwd / path
-    return str(path.resolve(strict=False))
+    try:
+        return _normalize_resource("file:" + value.removeprefix("file:"), cwd)
+    except AtomError as exc:
+        raise InputError(f"invalid candidate path {value!r}: {exc}") from exc
 
 
 def _scan_path_overlap(first: str, second: str) -> bool:
-    if not first.startswith("/") or not second.startswith("/"):
-        return first == second
-    return first == second or first.startswith(second + os.sep) or second.startswith(first + os.sep)
+    return _resource_overlap(first, second)
 
 
 def _scan_command_traits(argv: list[str] | None, kind: str, cwd: Path) -> dict[str, Any]:
@@ -1335,6 +1340,26 @@ def _compiled_plan_envelope_hash(plan: dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
+def _current_platform_contract() -> dict[str, Any]:
+    capabilities = platform_capabilities()
+    environment = capabilities["execution_environment"]
+    windows_native = environment["is_windows_native"]
+    return {
+        "adapter_protocol": "atomlane-platform/v1",
+        "os_family": environment["system"].lower(),
+        "environment_kind": environment["boundary"],
+        "architecture": platform.machine().lower(),
+        "path_flavor": "nt" if windows_native else "posix",
+        "argv_transport": (
+            "windows-supervisor-json-createprocess/v1"
+            if windows_native
+            else "execve-argv/v1"
+        ),
+        "process_tree_control": capabilities["process_tree_control"],
+        "supported_terminal_modes": capabilities["terminal_modes"],
+    }
+
+
 def atomic_task_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     """Compile task entrypoints and explicit atoms into one immutable executable plan."""
     project_text = arguments.get("project_path")
@@ -1364,6 +1389,15 @@ def atomic_task_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     except AtomError as exc:
         raise InputError(str(exc)) from exc
     compiled["semantic_hash"] = compiled["plan_hash"]
+    compiled["platform_contract"] = {
+        **_current_platform_contract(),
+        "required_terminal_modes": sorted(
+            {
+                atom.get("operation", {}).get("terminal_mode", "pipes")
+                for atom in compiled.get("atoms", [])
+            }
+        ),
+    }
     compiled["resource_plan"] = resource_plan
     compiled["task_summary"] = task_summary
     compiled["project_candidates"] = (
@@ -1490,42 +1524,86 @@ def task_parallel_scan(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _record_time_saved(seconds: float) -> dict[str, Any]:
-    """Atomically add one completed invocation to the per-user cumulative totals."""
+def _normalized_savings_stats(current: Any) -> dict[str, Any]:
+    if not isinstance(current, dict):
+        current = {}
+    raw_count = current.get("run_count", 0)
+    run_count = raw_count if isinstance(raw_count, int) and not isinstance(raw_count, bool) else 0
+    run_count = max(0, run_count)
+    raw_saved = current.get("cumulative_saved_seconds", 0.0)
+    try:
+        cumulative = float(raw_saved)
+    except (TypeError, ValueError):
+        cumulative = 0.0
+    if not math.isfinite(cumulative) or cumulative < 0:
+        cumulative = 0.0
+    raw_updated = current.get("updated_at_epoch_seconds", 0.0)
+    try:
+        updated = float(raw_updated)
+    except (TypeError, ValueError):
+        updated = 0.0
+    if not math.isfinite(updated) or updated < 0:
+        updated = 0.0
+    return {
+        "run_count": run_count,
+        "cumulative_saved_seconds": round(cumulative, 6),
+        "updated_at_epoch_seconds": round(updated, 3),
+    }
+
+
+def _read_time_saved() -> dict[str, Any]:
+    """Read a sanitized cumulative ledger without incrementing it."""
     path = _stats_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+    with exclusive_file_lock(lock_path):
         try:
-            try:
-                current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-            except (OSError, json.JSONDecodeError):
-                current = {}
-            run_count = int(current.get("run_count", 0)) + 1
-            cumulative = float(current.get("cumulative_saved_seconds", 0.0)) + seconds
-            updated = {
-                "run_count": run_count,
-                "cumulative_saved_seconds": round(cumulative, 6),
-                "updated_at_epoch_seconds": round(time.time(), 3),
-            }
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=path.parent,
-                prefix="stats-",
-                suffix=".tmp",
-                delete=False,
-            ) as temporary:
-                json.dump(updated, temporary, ensure_ascii=False, indent=2)
-                temporary.write("\n")
-                temporary.flush()
-                os.fsync(temporary.fileno())
-                temporary_path = Path(temporary.name)
-            os.replace(temporary_path, path)
-            return updated
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            current = {}
+        return _normalized_savings_stats(current)
+
+
+def _record_time_saved(seconds: float) -> dict[str, Any]:
+    """Atomically credit one successful invocation to a monotonic ledger."""
+    if (
+        isinstance(seconds, bool)
+        or not isinstance(seconds, (int, float))
+        or not math.isfinite(float(seconds))
+        or float(seconds) < 0
+    ):
+        raise ValueError("credited time savings must be a finite non-negative number")
+    path = _stats_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with exclusive_file_lock(lock_path):
+        try:
+            raw_current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            raw_current = {}
+        current = _normalized_savings_stats(raw_current)
+        updated = {
+            "run_count": current["run_count"] + 1,
+            "cumulative_saved_seconds": round(
+                current["cumulative_saved_seconds"] + float(seconds), 6
+            ),
+            "updated_at_epoch_seconds": round(time.time(), 3),
+        }
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix="stats-",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            json.dump(updated, temporary, ensure_ascii=False, indent=2)
+            temporary.write("\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        os.replace(temporary_path, path)
+        return updated
 
 
 class ProgressReporter:
@@ -1567,10 +1645,13 @@ class ProgressReporter:
             if item.get("status") != "skipped"
         )
         active_runtime = sum(max(0.0, now - task_started) for task_started in self.active.values())
-        saved_so_far = completed_runtime + active_runtime - elapsed
+        saved_so_far = max(0.0, completed_runtime + active_runtime - elapsed)
         failed = sum(
             1 for item in self.completed if item.get("status") in {"failed", "timed_out"}
         )
+        savings_eligible = failed == 0
+        if not savings_eligible:
+            saved_so_far = 0.0
         return {
             "elapsed_seconds": round(elapsed, 3),
             "running_tasks": len(self.active),
@@ -1579,6 +1660,10 @@ class ProgressReporter:
             "task_count": self.task_count,
             "failed_tasks": failed,
             "estimated_saved_so_far_seconds": round(saved_so_far, 3),
+            "savings_eligible_so_far": savings_eligible,
+            "savings_ineligible_reason": (
+                None if savings_eligible else "a task has failed or timed out"
+            ),
         }
 
     def emit(self) -> None:
@@ -1696,9 +1781,13 @@ def _gpu_snapshot() -> dict[str, Any] | None:
 
 
 def _power_snapshot() -> dict[str, Any]:
-    result: dict[str, Any] = {"source": None, "battery_percent": None}
+    result: dict[str, Any] = {
+        "source": None,
+        "battery_percent": None,
+        "low_power_mode": None,
+    }
     if platform.system() != "Darwin":
-        return result
+        return portable_power_snapshot()
     raw = _run_probe(["pmset", "-g", "batt"])
     if not raw:
         return result
@@ -1726,6 +1815,7 @@ def python_parallel_advisor(arguments: dict[str, Any]) -> dict[str, Any]:
         "execution_context",
         "responsiveness",
         "include_rewrite_previews",
+        "target_platform",
     }
     if not isinstance(arguments, dict):
         raise InputError("arguments must be an object")
@@ -1770,9 +1860,18 @@ def python_parallel_advisor(arguments: dict[str, Any]) -> dict[str, Any]:
         or (isinstance(estimated_memory, float) and not math.isfinite(estimated_memory))
     ):
         raise InputError("estimated_memory_mb_per_worker must be finite and positive")
+    target_platform = arguments.get("target_platform", "auto")
+    if target_platform not in {"auto", "windows", "darwin", "linux"}:
+        raise InputError("target_platform must be auto, windows, darwin, or linux")
+    windows_target = target_platform == "windows" or (
+        target_platform == "auto" and platform.system() == "Windows"
+    )
+    requested_for_plan = requested_workers
+    if windows_target:
+        requested_for_plan = min(requested_workers or 61, 61)
     resource_plan = concurrency_plan(
         "cpu",
-        requested_workers,
+        requested_for_plan,
         None,
         estimated_memory,
         responsiveness,
@@ -1788,10 +1887,12 @@ def python_parallel_advisor(arguments: dict[str, Any]) -> dict[str, Any]:
             minimum_hotspot_seconds=arguments.get("minimum_hotspot_seconds", 10.0),
             execution_context=arguments.get("execution_context", "standalone"),
             include_rewrite_previews=arguments.get("include_rewrite_previews", True),
+            target_platform=target_platform,
         )
     except (AdvisorError, OSError) as exc:
         raise InputError(str(exc)) from exc
     result["resource_plan"] = resource_plan
+    result["resource_plan"]["target_worker_ceiling"] = 61 if windows_target else MAX_CONCURRENCY
     result["advice_contract"] = {
         "target_code_executed": False,
         "target_code_imported": False,
@@ -1804,11 +1905,11 @@ def python_parallel_advisor(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _memory_free_percent() -> int | None:
-    if platform.system() != "Darwin":
-        return None
-    raw = _run_probe(["memory_pressure", "-Q"])
-    match = re.search(r"free percentage:\s*(\d+)%", raw or "")
-    return int(match.group(1)) if match else None
+    if platform.system() == "Darwin":
+        raw = _run_probe(["memory_pressure", "-Q"])
+        match = re.search(r"free percentage:\s*(\d+)%", raw or "")
+        return int(match.group(1)) if match else None
+    return memory_snapshot()["free_percent"]
 
 
 def _static_hardware_snapshot() -> dict[str, Any]:
@@ -1827,6 +1928,15 @@ def _static_hardware_snapshot() -> dict[str, Any]:
             chip = _run_probe(["sysctl", "-n", "machdep.cpu.brand_string"])
             model_identifier = _run_probe(["sysctl", "-n", "hw.model"])
             performance_levels = _performance_levels()
+        elif platform.system() == "Windows":
+            physical = windows_physical_cpu_count(logical)
+            portable_memory = memory_snapshot()
+            memory_total = portable_memory["total_bytes"] or 0
+            chip = platform.processor() or None
+        elif platform.system() == "Linux":
+            portable_memory = memory_snapshot()
+            memory_total = portable_memory["total_bytes"] or 0
+            chip = platform.processor() or None
         _STATIC_HARDWARE_CACHE = {
             "logical_cpus": logical,
             "physical_cpus": physical,
@@ -1862,14 +1972,7 @@ def _available_memory_bytes() -> int | None:
         )
         return available_pages * page_size if available_pages else None
 
-    try:
-        with open("/proc/meminfo", encoding="utf-8") as handle:
-            for line in handle:
-                if line.startswith("MemAvailable:"):
-                    return int(line.split()[1]) * 1024
-    except (OSError, ValueError, IndexError):
-        pass
-    return None
+    return memory_snapshot()["available_bytes"]
 
 
 def machine_snapshot() -> dict[str, Any]:
@@ -1889,7 +1992,7 @@ def machine_snapshot() -> dict[str, Any]:
         if isinstance(active, int) and active > 0:
             logical = min(logical, active)
 
-    load1, load5, load15 = os.getloadavg()
+    load = load_snapshot(logical)
     performance_cores = sum(
         item["physical_cpus"] for item in performance_levels if "performance" in item["name"].lower()
     )
@@ -1898,9 +2001,12 @@ def machine_snapshot() -> dict[str, Any]:
     )
     thermal_names = {0: "nominal", 1: "fair", 2: "serious", 3: "critical"}
     thermal_value = process_state.get("thermal_state")
+    power = _power_snapshot()
     return {
         "platform": platform.platform(),
         "machine": platform.machine(),
+        "execution_environment": execution_environment(),
+        "capabilities": platform_capabilities(),
         "apple_silicon": platform.system() == "Darwin" and platform.machine() == "arm64",
         "chip": chip,
         "model_identifier": model_identifier,
@@ -1913,10 +2019,14 @@ def machine_snapshot() -> dict[str, Any]:
         "memory_total_bytes": memory_total,
         "memory_available_bytes_approx": _available_memory_bytes(),
         "memory_free_percent": _memory_free_percent(),
-        "load_average": {"one_minute": load1, "five_minutes": load5, "fifteen_minutes": load15},
+        "load_average": load,
         "thermal_state": thermal_names.get(thermal_value, "unknown"),
-        "low_power_mode": process_state.get("low_power_mode"),
-        "power": _power_snapshot(),
+        "low_power_mode": (
+            process_state.get("low_power_mode")
+            if process_state.get("low_power_mode") is not None
+            else power.get("low_power_mode")
+        ),
+        "power": power,
     }
 
 
@@ -2006,7 +2116,11 @@ def concurrency_plan(
     if requested is not None:
         reasons.append("explicit max_concurrency is treated as a ceiling, not a safety override")
     chosen = max(1, min(MAX_CONCURRENCY, chosen))
-    nice_adjustment = {"interactive": 10, "balanced": 5, "throughput": 0}[responsiveness]
+    nice_adjustment = (
+        {"interactive": 10, "balanced": 5, "throughput": 0}[responsiveness]
+        if os.name == "posix"
+        else 0
+    )
     qos_clamp = "utility" if responsiveness == "interactive" and platform.system() == "Darwin" else None
     return {
         "profile": profile,
@@ -2090,6 +2204,19 @@ def accelerator_plan(workload: str, responsiveness: str = "interactive") -> dict
     if responsiveness not in {"interactive", "balanced", "throughput"}:
         raise InputError("responsiveness must be one of: interactive, balanced, throughput")
 
+    if platform.system() != "Darwin":
+        return {
+            "status": "unavailable_on_this_platform",
+            "selected_backend": None,
+            "workload": workload,
+            "execution_environment": execution_environment(),
+            "reason": (
+                "mac_accelerator_plan is Apple-specific; use host_resource_plan or a "
+                "platform-native accelerator owner on this host"
+            ),
+            "automatic_changes": False,
+        }
+
     inventory = accelerator_inventory()
     packages = inventory["python_packages"]
     frameworks = inventory["system_frameworks"]
@@ -2171,6 +2298,7 @@ def accelerator_plan(workload: str, responsiveness: str = "interactive") -> dict
 
 
 def docker_snapshot() -> dict[str, Any]:
+    host_boundary = execution_environment()["boundary"]
     docker = shutil.which("docker")
     if not docker:
         return {
@@ -2178,7 +2306,10 @@ def docker_snapshot() -> dict[str, Any]:
             "reason": "docker CLI was not found",
             "vm_cpus": None,
             "vm_memory_bytes": None,
+            "host_boundary": host_boundary,
+            "realm": None,
         }
+    context = _run_probe([docker, "context", "show"])
     info = _json_probe([docker, "info", "--format", "{{json .}}"])
     if not isinstance(info, dict):
         return {
@@ -2187,7 +2318,13 @@ def docker_snapshot() -> dict[str, Any]:
             "vm_cpus": None,
             "vm_memory_bytes": None,
             "client_version": _run_probe([docker, "version", "--format", "{{.Client.Version}}"]),
+            "context": context,
+            "host_boundary": host_boundary,
+            "realm": None,
         }
+    daemon_identity = str(info.get("ID") or "")
+    os_type = str(info.get("OSType") or "unknown").lower()
+    realm_material = f"{daemon_identity}\0{os_type}".encode()
     return {
         "available": True,
         "client_version": _run_probe([docker, "version", "--format", "{{.Client.Version}}"]),
@@ -2200,6 +2337,11 @@ def docker_snapshot() -> dict[str, Any]:
         "architecture": info.get("Architecture"),
         "kernel_version": info.get("KernelVersion"),
         "storage_driver": info.get("Driver"),
+        "os_type": os_type,
+        "daemon_id": daemon_identity or None,
+        "context": context,
+        "host_boundary": host_boundary,
+        "realm": "docker:" + hashlib.sha256(realm_material).hexdigest()[:16],
         "is_docker_desktop": "docker desktop" in str(info.get("OperatingSystem") or "").lower(),
     }
 
@@ -2505,6 +2647,8 @@ def container_resource_plan(arguments: dict[str, Any]) -> dict[str, Any]:
 
     allocations: list[dict[str, Any]] = []
     warnings: list[str] = []
+    daemon_os = str(docker.get("os_type") or "").lower()
+    applicable = bool(docker.get("available") and daemon_os == "linux")
     if not docker["available"]:
         warnings.append(docker["reason"])
     if vm_cpu_source == "host_fallback" or vm_memory_source == "host_fallback":
@@ -2523,7 +2667,11 @@ def container_resource_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         warnings.append(pinning_warning)
     if docker.get("is_docker_desktop"):
         warnings.append(
-            "Docker Desktop cpuset IDs are Linux VM vCPUs, not stable mappings to Apple performance or efficiency cores"
+            "Docker Desktop cpuset IDs are Linux VM vCPUs, not stable mappings to physical host cores"
+        )
+    if docker.get("available") and daemon_os != "linux":
+        warnings.append(
+            "Windows containers are outside the Preview resource contract; emitted values are advisory only"
         )
     if any(item["profile"] == "accelerator" for item in services):
         warnings.append(
@@ -2570,6 +2718,13 @@ def container_resource_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         ),
     )
     return {
+        "status": "applicable" if applicable else "advisory_only",
+        "apply_safe": applicable,
+        "execution_realms": {
+            "host": execution_environment()["boundary"],
+            "docker": docker.get("realm"),
+            "same_resource_envelope": False,
+        },
         "docker": docker,
         "host": {
             "chip": host.get("chip"),
@@ -2609,7 +2764,9 @@ def container_resource_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         },
         "warnings": warnings,
         "boundary": (
-            "The plan emits local Docker Compose and docker run resource controls. It does not change Docker Desktop's VM-wide CPU/memory settings, create containers, or guarantee physical P-core/E-core affinity."
+            "The plan emits Docker Compose and docker run controls inside the identified daemon realm. "
+            "It never treats native Windows, WSL, and the Docker Linux VM as one resource envelope, "
+            "does not change VM-wide settings, and does not guarantee physical-core affinity."
         ),
     }
 
@@ -2637,6 +2794,44 @@ def _validate_argv(argv: Any) -> list[str]:
     return normalized
 
 
+def _merge_environment(
+    base: dict[str, str], overrides: dict[str, str], *, case_insensitive: bool
+) -> dict[str, str]:
+    if not case_insensitive:
+        return {**base, **overrides}
+    merged: dict[str, tuple[str, str]] = {
+        key.casefold(): (key, value) for key, value in base.items()
+    }
+    for key, value in overrides.items():
+        merged[key.casefold()] = (key, value)
+    return dict(merged.values())
+
+
+def _base_process_environment() -> dict[str, str]:
+    """Drop Windows' hidden `=C:` drive entries before serializing a child env."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key and "=" not in key and "\0" not in key + value
+    }
+
+
+def _windows_environment_utf16_units(env: dict[str, str]) -> int:
+    try:
+        return 1 + sum(
+            len(f"{key}={value}\0".encode("utf-16-le")) // 2 for key, value in env.items()
+        )
+    except UnicodeEncodeError as exc:
+        raise InputError("Windows environment contains an invalid Unicode surrogate") from exc
+
+
+def _windows_string_utf16_units(value: str, name: str) -> int:
+    try:
+        return len(value.encode("utf-16-le")) // 2
+    except UnicodeEncodeError as exc:
+        raise InputError(f"{name} contains an invalid Unicode surrogate") from exc
+
+
 def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise InputError(f"task {index} must be an object")
@@ -2653,9 +2848,26 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
     if not isinstance(env_raw, dict) or len(env_raw) > 128:
         raise InputError(f"task {task_id} env must be an object with at most 128 entries")
     env: dict[str, str] = {}
+    environment_keys: set[str] = set()
     for key, value in env_raw.items():
-        if not isinstance(key, str) or not isinstance(value, str) or "\x00" in key + value:
+        if (
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not key
+            or "=" in key
+            or "\x00" in key + value
+        ):
             raise InputError(f"task {task_id} environment keys and values must be NUL-free strings")
+        identity = key.casefold() if os.name == "nt" else key
+        if os.name == "nt" and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is None:
+            raise InputError(
+                f"task {task_id} Windows Preview environment names must use ASCII identifier syntax"
+            )
+        if identity in environment_keys:
+            raise InputError(
+                f"task {task_id} has environment keys that collide under host semantics: {key}"
+            )
+        environment_keys.add(identity)
         env[key] = value
 
     stdin = raw.get("stdin")
@@ -2672,9 +2884,83 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
     if not isinstance(side_effect, bool):
         raise InputError(f"task {task_id} side_effect must be boolean")
 
+    terminal_mode = raw.get("terminal_mode", "pipes")
+    if terminal_mode not in {"pipes", "conpty"}:
+        raise InputError(f"task {task_id} terminal_mode must be pipes or conpty")
+    capabilities = platform_capabilities()
+    if terminal_mode not in capabilities["terminal_modes"]:
+        raise InputError(
+            f"task {task_id} terminal_mode {terminal_mode!r} is unavailable in "
+            f"{capabilities['execution_environment']['boundary']}"
+        )
+
+    resources_raw = raw.get("resources", {})
+    if not isinstance(resources_raw, dict):
+        raise InputError(f"task {task_id} resources must be an object")
+    unknown_resources = sorted(
+        set(resources_raw) - {"cpu_rate_percent", "memory_limit_mb", "max_processes"}
+    )
+    if unknown_resources:
+        raise InputError(
+            f"task {task_id} has unknown resource controls: {', '.join(unknown_resources)}"
+        )
+    cpu_rate = resources_raw.get("cpu_rate_percent")
+    if cpu_rate is not None:
+        cpu_rate = _bounded_number(
+            cpu_rate, f"task {task_id} resources.cpu_rate_percent", 100.0, 100.0
+        )
+        if cpu_rate < 0.01:
+            raise InputError(
+                f"task {task_id} resources.cpu_rate_percent must be at least 0.01"
+            )
+    memory_limit = resources_raw.get("memory_limit_mb")
+    if memory_limit is not None:
+        memory_limit = _bounded_number(
+            memory_limit,
+            f"task {task_id} resources.memory_limit_mb",
+            128.0,
+            1_048_576.0,
+        )
+        if memory_limit < 128:
+            raise InputError(
+                f"task {task_id} resources.memory_limit_mb must be at least 128"
+            )
+    max_processes = resources_raw.get("max_processes")
+    if max_processes is not None and (
+        isinstance(max_processes, bool)
+        or not isinstance(max_processes, int)
+        or not 1 <= max_processes <= 4096
+    ):
+        raise InputError(f"task {task_id} resources.max_processes must be between 1 and 4096")
+    resources = {
+        "cpu_rate_percent": cpu_rate,
+        "memory_limit_mb": memory_limit,
+        "max_processes": max_processes,
+    }
+    if any(value is not None for value in resources.values()) and os.name != "nt":
+        raise InputError(
+            f"task {task_id} Job Object resource controls require native Windows"
+        )
+
+    argv = _validate_argv(raw.get("argv"))
+    if os.name == "nt":
+        try:
+            validate_windows_executable_contract(argv[0])
+        except RunnerError as exc:
+            raise InputError(f"task {task_id} {exc}") from exc
+        command_line = subprocess.list2cmdline(argv)
+        if _windows_string_utf16_units(command_line, f"task {task_id} command line") + 1 > 32_767:
+            raise InputError(f"task {task_id} exceeds the Windows CreateProcessW command-line limit")
+    broker_boundary = brokered_execution_boundary(argv[0])
+    if broker_boundary is not None and any(value is not None for value in resources.values()):
+        raise InputError(
+            f"task {task_id} launches the {broker_boundary['target_realm']} broker; "
+            "Windows Job Object limits apply only to the client, not the brokered workload"
+        )
+
     return {
         "id": task_id,
-        "argv": _validate_argv(raw.get("argv")),
+        "argv": argv,
         "cwd": cwd,
         "env": env,
         "stdin": stdin,
@@ -2686,6 +2972,10 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
         ),
         "depends_on": dependencies,
         "side_effect": side_effect,
+        "terminal_mode": terminal_mode,
+        "resources": resources,
+        "execution_realm": capabilities["execution_environment"]["boundary"],
+        "broker_boundary": broker_boundary,
     }
 
 
@@ -2733,13 +3023,19 @@ class _BoundedCapture:
             if len(self.tail) > self.tail_limit:
                 del self.tail[: len(self.tail) - self.tail_limit]
 
-    def render(self) -> tuple[str, bool, int]:
+    def render(self) -> tuple[str, bool, int, bool]:
         truncated = self.total > self.limit
         if truncated:
             data = bytes(self.head) + b"\n...<output truncated>...\n" + bytes(self.tail)
         else:
             data = bytes(self.head) + bytes(self.tail)
-        return data.decode("utf-8", errors="replace"), truncated, self.total
+        try:
+            text = data.decode("utf-8", errors="strict")
+            replacement_used = False
+        except UnicodeDecodeError:
+            text = data.decode("utf-8", errors="replace")
+            replacement_used = True
+        return text, truncated, self.total, replacement_used
 
 
 async def _read_bounded_stream(
@@ -2772,17 +3068,31 @@ async def _write_process_stdin(
             await writer.wait_closed()
 
 
-async def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
-    """Terminate the complete subprocess session on timeout or cancellation."""
+async def _terminate_process_tree(
+    process: asyncio.subprocess.Process,
+    windows_job: WindowsJobController | None = None,
+) -> dict[str, Any]:
+    """Terminate the complete platform process tree on timeout or cancellation."""
+    if windows_job is not None:
+        termination = await asyncio.to_thread(
+            windows_job.terminate_and_wait_empty, 1, 3.0
+        )
+        if process.returncode is None:
+            await asyncio.wait_for(process.wait(), timeout=3.0)
+        return termination
     if process.returncode is not None:
-        return
+        return {"status": "already_exited", "verified_empty": None}
+    if os.name != "posix":
+        process.kill()
+        await process.wait()
+        return {"status": "terminated", "verified_empty": None}
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
-        return
+        return {"status": "already_exited", "verified_empty": None}
     try:
         await asyncio.wait_for(process.wait(), timeout=3.0)
-        return
+        return {"status": "terminated", "verified_empty": None}
     except asyncio.TimeoutError:
         pass
     try:
@@ -2791,6 +3101,137 @@ async def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
         pass
     with contextlib.suppress(Exception):
         await process.wait()
+    return {"status": "terminated", "verified_empty": None}
+
+
+async def _settle_process_io(
+    input_task: asyncio.Task[None] | None,
+    readers: list[asyncio.Task[None]],
+    timeout_seconds: float = 5.0,
+) -> bool:
+    tasks = [task for task in [input_task, *readers] if task is not None]
+    if not tasks:
+        return True
+    done, pending = await asyncio.wait(tasks, timeout=timeout_seconds)
+    for task in pending:
+        task.cancel()
+    if pending:
+        second_done, still_pending = await asyncio.wait(pending, timeout=0.5)
+        done.update(second_done)
+        for task in still_pending:
+            task.cancel()
+    for task in done:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            task.exception()
+    return not pending
+
+
+def _windows_job_process_slot_reservations(terminal_mode: str) -> tuple[str, ...]:
+    """Reserve capacity without claiming undocumented ConPTY host membership."""
+
+    if terminal_mode == "conpty":
+        return ("supervisor", "conpty_infrastructure_capacity")
+    return ("supervisor",)
+
+
+async def _launch_windows_task(
+    task: dict[str, Any],
+    target_env: dict[str, str],
+) -> tuple[asyncio.subprocess.Process, WindowsJobController, bytes]:
+    """Launch a waiting supervisor, contain it, then release one target record."""
+    if _windows_environment_utf16_units(target_env) > MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS:
+        raise InputError(
+            f"task {task['id']} Windows environment exceeds "
+            f"{MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS} UTF-16 code units"
+        )
+    payload = {
+        "protocol": "atomlane-windows-supervisor/v1",
+        "argv": task["argv"],
+        "cwd": task["cwd"],
+        "stdin_base64": (
+            base64.b64encode(task["stdin"].encode("utf-8")).decode("ascii")
+            if task["stdin"] is not None
+            else None
+        ),
+        "terminal_mode": task.get("terminal_mode", "pipes"),
+        "env": target_env,
+    }
+    launch_input = (json.dumps(payload, ensure_ascii=True) + "\n").encode("utf-8")
+    if len(launch_input) > MAX_WINDOWS_SUPERVISOR_PAYLOAD_BYTES:
+        raise InputError(
+            f"task {task['id']} Windows launch record exceeds "
+            f"{MAX_WINDOWS_SUPERVISOR_PAYLOAD_BYTES} bytes"
+        )
+    runner = SCRIPT_DIR / "windows_job_runner.py"
+    system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR") or r"C:\Windows"
+    python_root = Path(sys.executable).resolve().parent
+    supervisor_paths = [
+        python_root,
+        python_root / "DLLs",
+        Path(system_root) / "System32",
+    ]
+    supervisor_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.casefold()
+        in {
+            "systemroot",
+            "windir",
+            "temp",
+            "tmp",
+            "userprofile",
+            "localappdata",
+            "pathext",
+            "processor_architecture",
+        }
+    }
+    supervisor_env["SystemRoot"] = system_root
+    supervisor_env["PATH"] = os.pathsep.join(str(path) for path in supervisor_paths)
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-I",
+        "-S",
+        "-X",
+        "utf8",
+        str(runner),
+        cwd=str(SCRIPT_DIR),
+        env=supervisor_env,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    resources = task.get(
+        "resources",
+        {"cpu_rate_percent": None, "memory_limit_mb": None, "max_processes": None},
+    )
+    max_processes = resources.get("max_processes")
+    process_slot_reservations = _windows_job_process_slot_reservations(
+        task.get("terminal_mode", "pipes")
+    )
+    job: WindowsJobController | None = None
+    try:
+        job = WindowsJobController(
+            cpu_rate_percent=resources.get("cpu_rate_percent"),
+            memory_limit_mb=resources.get("memory_limit_mb"),
+            # The supervisor is a known Job member. ConPTY may require an
+            # implementation process, but Windows does not document that host
+            # as a member of this Job; reserve capacity without claiming scope.
+            max_processes=(
+                max_processes + len(process_slot_reservations)
+                if max_processes is not None
+                else None
+            ),
+        )
+        job.assign(process.pid)
+        return process, job, launch_input
+    except Exception:
+        if job is not None:
+            job.close()
+        if process.returncode is None:
+            process.kill()
+            with contextlib.suppress(Exception):
+                await process.wait()
+        raise
 
 
 async def execute_task(
@@ -2800,6 +3241,12 @@ async def execute_task(
     qos_clamp: str | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
+    terminal_mode = task.get("terminal_mode", "pipes")
+    resources = task.get(
+        "resources",
+        {"cpu_rate_percent": None, "memory_limit_mb": None, "max_processes": None},
+    )
+    execution_realm = task.get("execution_realm", execution_environment()["boundary"])
     result: dict[str, Any] = {
         "id": task["id"],
         "status": "failed",
@@ -2813,38 +3260,100 @@ async def execute_task(
         "stderr_bytes": 0,
         "stdout_truncated": False,
         "stderr_truncated": False,
+        "output_decoding": "utf-8_with_replacement",
+        "stdout_decode_replacement": False,
+        "stderr_decode_replacement": False,
         "nice_adjustment": nice_adjustment,
         "qos_clamp": qos_clamp,
+        "terminal_mode": terminal_mode,
+        "output_combined": terminal_mode == "conpty",
+        "execution_realm": execution_realm,
+        "requested_resource_controls": resources,
+        "applied_resource_controls": None,
+        "resource_controls": None,
+        "process_tree_backend": "not_started",
+        "containment_scope": "not_started",
+        "broker_boundary": task.get("broker_boundary"),
     }
-    env = os.environ.copy()
-    env.update(task["env"])
+    env = _merge_environment(
+        _base_process_environment(), task["env"], case_insensitive=os.name == "nt"
+    )
     process: asyncio.subprocess.Process | None = None
+    windows_job: WindowsJobController | None = None
     readers: list[asyncio.Task[None]] = []
     input_task: asyncio.Task[None] | None = None
     try:
         launch_argv = task["argv"]
         nice_binary = shutil.which("nice")
-        if nice_adjustment > 0 and nice_binary:
+        if os.name == "posix" and nice_adjustment > 0 and nice_binary:
             launch_argv = [nice_binary, "-n", str(nice_adjustment), *launch_argv]
         taskpolicy = shutil.which("taskpolicy")
         if qos_clamp and taskpolicy:
             launch_argv = [taskpolicy, "-c", qos_clamp, *launch_argv]
-        process = await asyncio.create_subprocess_exec(
-            *launch_argv,
-            cwd=task["cwd"],
-            env=env,
-            stdin=asyncio.subprocess.PIPE if task["stdin"] is not None else asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
-        )
+        launch_input: bytes | None = None
+        if os.name == "nt":
+            process, windows_job, launch_input = await _launch_windows_task(task, env)
+            job_description = windows_job.description()
+            process_slot_reservations = _windows_job_process_slot_reservations(
+                terminal_mode
+            )
+            job_scope = "supervisor_and_inherited_windows_tree"
+            job_description.update(
+                {
+                    "containment_scope": job_scope,
+                    "resource_scope": job_scope,
+                    "verified_job_internal_processes": ["supervisor"],
+                    "job_process_slot_reservations": list(process_slot_reservations),
+                    "job_reserved_process_slots": len(process_slot_reservations),
+                    "conpty_host_job_membership": (
+                        "not_verified" if terminal_mode == "conpty" else "not_applicable"
+                    ),
+                    "target_process_limit": resources.get("max_processes"),
+                }
+            )
+            applied_controls = {
+                **resources,
+                **{
+                    key: value
+                    for key, value in job_description.items()
+                    if key != "backend"
+                },
+            }
+            result["applied_resource_controls"] = applied_controls
+            result["resource_controls"] = applied_controls
+            result["process_tree_backend"] = job_description["backend"]
+            result["containment_scope"] = task.get("broker_boundary", {}).get(
+                "containment_scope", job_description["containment_scope"]
+            )
+        else:
+            process = await asyncio.create_subprocess_exec(
+                *launch_argv,
+                cwd=task["cwd"],
+                env=env,
+                stdin=(
+                    asyncio.subprocess.PIPE
+                    if task["stdin"] is not None
+                    else asyncio.subprocess.DEVNULL
+                ),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
+            )
+            result["process_tree_backend"] = "posix_session"
+            result["containment_scope"] = "posix_process_group"
+            result["applied_resource_controls"] = {}
+            result["resource_controls"] = {}
         stdout_capture = _BoundedCapture(output_limit)
         stderr_capture = _BoundedCapture(output_limit)
         readers = [
             asyncio.create_task(_read_bounded_stream(process.stdout, stdout_capture)),
             asyncio.create_task(_read_bounded_stream(process.stderr, stderr_capture)),
         ]
-        if task["stdin"] is not None:
+        if os.name == "nt":
+            input_task = asyncio.create_task(
+                _write_process_stdin(process.stdin, launch_input or b"")
+            )
+        elif task["stdin"] is not None:
             input_task = asyncio.create_task(
                 _write_process_stdin(process.stdin, task["stdin"].encode("utf-8"))
             )
@@ -2856,23 +3365,65 @@ async def execute_task(
             result["status"] = "timed_out"
             result["outcome"] = "unknown" if task.get("side_effect") else "not_completed"
             result["automatic_retry_allowed"] = False if task.get("side_effect") else None
-            await _terminate_process_group(process)
-        if input_task is not None:
-            await asyncio.gather(input_task, return_exceptions=True)
-        await asyncio.gather(*readers)
+            try:
+                result["process_tree_termination"] = await _terminate_process_tree(
+                    process, windows_job
+                )
+            except (OSError, WindowsJobError, asyncio.TimeoutError) as exc:
+                result["status"] = "failed"
+                result["failure_kind"] = "process_tree_termination"
+                result["outcome"] = "unknown"
+                stderr_capture.feed(
+                    f"AtomLane could not verify process-tree termination: {exc}\n".encode()
+                )
+        else:
+            if windows_job is not None:
+                try:
+                    result["process_tree_termination"] = await asyncio.to_thread(
+                        windows_job.terminate_and_wait_empty, 0, 3.0
+                    )
+                except WindowsJobError as exc:
+                    result["status"] = "failed"
+                    result["failure_kind"] = "process_tree_containment"
+                    result["outcome"] = "unknown"
+                    stderr_capture.feed(
+                        f"AtomLane could not verify an empty Job Object: {exc}\n".encode()
+                    )
+        io_settled = await _settle_process_io(input_task, readers)
+        if not io_settled:
+            result["status"] = "failed"
+            result["failure_kind"] = "process_io_drain_timeout"
+            result["outcome"] = "unknown"
+            stderr_capture.feed(
+                b"AtomLane bounded I/O drain expired; a descendant may have retained a pipe.\n"
+            )
         result["returncode"] = process.returncode
-        if result["status"] != "timed_out":
+        if result["status"] != "timed_out" and "failure_kind" not in result:
             result["status"] = "succeeded" if process.returncode == 0 else "failed"
             result["outcome"] = "committed" if process.returncode == 0 else "not_committed_or_unknown"
-        result["stdout"], result["stdout_truncated"], result["stdout_bytes"] = stdout_capture.render()
-        result["stderr"], result["stderr_truncated"], result["stderr_bytes"] = stderr_capture.render()
-    except asyncio.CancelledError:
-        if process is not None:
-            await _terminate_process_group(process)
-        if readers:
-            await asyncio.gather(*readers, return_exceptions=True)
-        if input_task is not None:
-            await asyncio.gather(input_task, return_exceptions=True)
+        (
+            result["stdout"],
+            result["stdout_truncated"],
+            result["stdout_bytes"],
+            result["stdout_decode_replacement"],
+        ) = stdout_capture.render()
+        (
+            result["stderr"],
+            result["stderr_truncated"],
+            result["stderr_bytes"],
+            result["stderr_decode_replacement"],
+        ) = stderr_capture.render()
+    except asyncio.CancelledError as cancelled:
+        try:
+            if process is not None:
+                await _terminate_process_tree(process, windows_job)
+        except (OSError, WindowsJobError, asyncio.TimeoutError) as exc:
+            if hasattr(cancelled, "add_note"):
+                cancelled.add_note(
+                    f"AtomLane containment cleanup failed during cancellation: {exc}"
+                )
+        finally:
+            await _settle_process_io(input_task, readers, timeout_seconds=1.0)
         raise
     except FileNotFoundError as exc:
         result["stderr"] = str(exc)
@@ -2882,14 +3433,30 @@ async def execute_task(
         result["stderr"] = f"{type(exc).__name__}: {exc}"
     finally:
         if process is not None and process.returncode is None:
-            await _terminate_process_group(process)
-        if input_task is not None:
-            await asyncio.gather(input_task, return_exceptions=True)
-        for reader_task in readers:
-            if not reader_task.done():
-                reader_task.cancel()
-        if readers:
-            await asyncio.gather(*readers, return_exceptions=True)
+            try:
+                result["process_tree_termination"] = await _terminate_process_tree(
+                    process, windows_job
+                )
+            except (OSError, WindowsJobError, asyncio.TimeoutError) as exc:
+                result["status"] = "failed"
+                result["failure_kind"] = "process_tree_termination"
+                result["outcome"] = "unknown"
+                result["stderr"] = (
+                    result.get("stderr", "")
+                    + f"AtomLane cleanup could not verify process-tree termination: {exc}\n"
+                )
+        await _settle_process_io(input_task, readers, timeout_seconds=1.0)
+        if windows_job is not None:
+            try:
+                windows_job.close()
+            except WindowsJobError as exc:
+                result["status"] = "failed"
+                result["failure_kind"] = "job_handle_close"
+                result["outcome"] = "unknown"
+                result["stderr"] = (
+                    result.get("stderr", "")
+                    + f"AtomLane could not close the Job Object: {exc}\n"
+                )
     result["duration_seconds"] = round(time.monotonic() - started, 6)
     return result
 
@@ -2900,30 +3467,49 @@ def _execution_indicator(
     peak_concurrency: int,
     serial_baseline_seconds: float | None,
 ) -> dict[str, Any]:
-    task_runtime = sum(
-        result.get("duration_seconds", 0.0)
-        for result in results
-        if result.get("status") != "skipped"
-    )
-    if serial_baseline_seconds is not None:
+    completed = [result for result in results if result.get("status") != "skipped"]
+    succeeded = [result for result in completed if result.get("status") == "succeeded"]
+    savings_eligible = bool(succeeded) and len(succeeded) == len(completed)
+    ineligible_reason = None
+    if not succeeded:
+        ineligible_reason = "no task completed successfully"
+    elif not savings_eligible:
+        ineligible_reason = "one or more tasks failed or timed out"
+
+    task_runtime = sum(float(result.get("duration_seconds", 0.0)) for result in succeeded)
+    if savings_eligible and serial_baseline_seconds is not None:
         comparison_seconds = serial_baseline_seconds
         speedup_kind = "measured_serial_baseline"
         qualifier_zh = "实测"
-    else:
+    elif savings_eligible:
         comparison_seconds = task_runtime
         speedup_kind = "estimated_sum_of_task_durations"
         qualifier_zh = "估算"
+    else:
+        comparison_seconds = 0.0
+        speedup_kind = "ineligible_failed_or_empty_run"
+        qualifier_zh = "未计入"
 
     speedup = comparison_seconds / elapsed if elapsed > 0 and comparison_seconds > 0 else 0.0
-    time_saved = comparison_seconds - elapsed
-    cumulative = _record_time_saved(time_saved)
+    raw_delta = comparison_seconds - elapsed if savings_eligible else 0.0
+    time_saved = max(0.0, raw_delta)
+    overhead = max(0.0, -raw_delta) if savings_eligible else 0.0
+    cumulative = (
+        _record_time_saved(time_saved) if savings_eligible else _read_time_saved()
+    )
     is_parallel = peak_concurrency > 1
     icon = "⚡" if is_parallel else "→"
     label_zh = "并行" if is_parallel else "串行"
-    display = (
-        f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜{qualifier_zh} {speedup:.2f}×"
-        f"｜本次节约 {time_saved:.2f}s｜累计节约 {cumulative['cumulative_saved_seconds']:.2f}s"
-    )
+    if savings_eligible:
+        display = (
+            f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜{qualifier_zh} {speedup:.2f}×"
+            f"｜本次节约 {time_saved:.2f}s｜累计节约 {cumulative['cumulative_saved_seconds']:.2f}s"
+        )
+    else:
+        display = (
+            f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜本次节约未计入"
+            f"｜累计节约 {cumulative['cumulative_saved_seconds']:.2f}s"
+        )
     efficiency = speedup / peak_concurrency if peak_concurrency else 0.0
     return {
         "display": display,
@@ -2935,10 +3521,16 @@ def _execution_indicator(
         "comparison_seconds": round(comparison_seconds, 6),
         "wall_time_seconds": round(elapsed, 6),
         "time_saved_seconds": round(time_saved, 6),
+        "overhead_seconds": round(overhead, 6),
+        "savings_eligible": savings_eligible,
+        "savings_ineligible_reason": ineligible_reason,
         "cumulative_saved_seconds": cumulative["cumulative_saved_seconds"],
         "cumulative_run_count": cumulative["run_count"],
         "parallel_efficiency": round(efficiency, 4),
         "explanation": (
+            f"Savings were not credited because {ineligible_reason}."
+            if not savings_eligible
+            else
             "Speedup uses the supplied serial baseline."
             if serial_baseline_seconds is not None
             else "Estimated speedup equals summed non-skipped task runtimes divided by wall time; no task is rerun."
@@ -2970,6 +3562,9 @@ def _summary(
         "elapsed_seconds": round(elapsed, 6),
         "comparison_seconds": indicator["comparison_seconds"],
         "time_saved_seconds": indicator["time_saved_seconds"],
+        "overhead_seconds": indicator["overhead_seconds"],
+        "savings_eligible": indicator["savings_eligible"],
+        "savings_ineligible_reason": indicator["savings_ineligible_reason"],
         "cumulative_saved_seconds": indicator["cumulative_saved_seconds"],
         "cumulative_run_count": indicator["cumulative_run_count"],
     }
@@ -3275,6 +3870,32 @@ def _verify_compiled_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         or execution_contract["arguments"].get("plan_hash") != supplied_hash
     ):
         raise InputError("compiled_plan has an invalid execution contract")
+    platform_contract = plan.get("platform_contract")
+    current_contract = _current_platform_contract()
+    identity_fields = {
+        "adapter_protocol",
+        "os_family",
+        "environment_kind",
+        "architecture",
+        "path_flavor",
+        "argv_transport",
+        "process_tree_control",
+    }
+    if not isinstance(platform_contract, dict) or any(
+        platform_contract.get(field) != current_contract.get(field)
+        for field in identity_fields
+    ):
+        raise InputError(
+            "compiled_plan platform contract does not match this execution realm; recompile locally"
+        )
+    required_terminal_modes = platform_contract.get("required_terminal_modes", [])
+    if (
+        not isinstance(required_terminal_modes, list)
+        or not set(required_terminal_modes).issubset(
+            set(current_contract["supported_terminal_modes"])
+        )
+    ):
+        raise InputError("compiled_plan requires a terminal mode unavailable on this host")
     atoms = plan.get("atoms")
     capacities = plan.get("capacities")
     snapshots = plan.get("source_snapshots", plan.get("snapshots", []))
@@ -3513,6 +4134,17 @@ async def run_atomic(
                     "timeout_seconds": DEFAULT_TIMEOUT_SECONDS,
                     "depends_on": [],
                     "side_effect": atom["side_effect"],
+                    "terminal_mode": operation.get("terminal_mode", "pipes"),
+                    "resources": operation.get(
+                        "resource_limits",
+                        {
+                            "cpu_rate_percent": None,
+                            "memory_limit_mb": None,
+                            "max_processes": None,
+                        },
+                    ),
+                    "execution_realm": execution_environment()["boundary"],
+                    "broker_boundary": operation.get("broker_boundary"),
                 }
                 reserve(atom)
                 pending.remove(atom_id)
@@ -3587,6 +4219,22 @@ TASK_SCHEMA = {
             "default": False,
             "description": "Marks externally visible effects so timeout outcomes are never treated as safely retryable.",
         },
+        "terminal_mode": {
+            "type": "string",
+            "enum": ["pipes", "conpty"],
+            "default": "pipes",
+            "description": "Use separate pipes, or Windows ConPTY with a combined VT output stream.",
+        },
+        "resources": {
+            "type": "object",
+            "properties": {
+                "cpu_rate_percent": {"type": "number", "minimum": 0.01, "maximum": 100},
+                "memory_limit_mb": {"type": "number", "minimum": 128, "maximum": 1048576},
+                "max_processes": {"type": "integer", "minimum": 1, "maximum": 4096},
+            },
+            "additionalProperties": False,
+            "description": "Native Windows Job Object limits for the client and inherited Windows descendants; WSL, Docker, WMI, services, scheduled tasks, and other broker-created work are outside this limit.",
+        },
     },
     "additionalProperties": False,
 }
@@ -3599,7 +4247,13 @@ ATOMIC_ENTRYPOINT_SCHEMA = {
         "id": {"type": "string"},
         "adapter": {
             "type": "string",
-            "enum": ["shell", "package_script", "make_target", "compose_services"],
+            "enum": [
+                "shell",
+                "package_script",
+                "make_target",
+                "compose_services",
+                "powershell_file",
+            ],
         },
         "command": {"type": "string"},
         "cwd": {"type": "string"},
@@ -3610,6 +4264,13 @@ ATOMIC_ENTRYPOINT_SCHEMA = {
         "compose_file": {"type": "string"},
         "services": {"type": "array", "items": {"type": "string"}},
         "profiles": {"type": "array", "items": {"type": "string"}},
+        "script_path": {"type": "string"},
+        "arguments": {"type": "array", "items": {"type": "string"}, "maxItems": 128},
+        "declared_accesses": {"type": "array", "items": {"type": "object"}, "maxItems": 256},
+        "declared_effects": {"type": "array", "items": {"type": "object"}, "maxItems": 128},
+        "effects_declared_complete": {"type": "boolean", "default": False},
+        "side_effect": {"type": "boolean", "default": True},
+        "profile": {"type": "string", "enum": ["cpu", "io", "mixed", "accelerator"]},
     },
     "additionalProperties": False,
 }
@@ -3674,7 +4335,7 @@ COMMON_PROPERTIES = {
         "type": "integer",
         "minimum": 0,
         "maximum": MAX_CONCURRENCY,
-        "description": "Optional explicit reserve. When omitted, it is derived from this Mac and responsiveness mode.",
+        "description": "Optional explicit reserve. When omitted, it is derived from this host and responsiveness mode.",
     },
     "estimated_memory_mb_per_task": {"type": "number", "exclusiveMinimum": 0},
     "max_output_bytes_per_stream": {
@@ -3776,6 +4437,12 @@ TOOLS = [
                     "default": "interactive",
                 },
                 "include_rewrite_previews": {"type": "boolean", "default": True},
+                "target_platform": {
+                    "type": "string",
+                    "enum": ["auto", "windows", "darwin", "linux"],
+                    "default": "auto",
+                    "description": "Bind spawn and worker-limit advice to a deployment platform; auto uses this host.",
+                },
             },
             "additionalProperties": False,
         },
@@ -3877,8 +4544,27 @@ TOOLS = [
         },
     },
     {
+        "name": "host_resource_plan",
+        "description": "Inspect the current macOS, native Windows, WSL, or Linux execution boundary and recommend concurrency from host CPU, memory, pressure, and responsiveness headroom. Windows facts use native APIs and are never inferred from WSL or Docker VM capacity.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "profile": {"type": "string", "enum": ["cpu", "io", "mixed", "accelerator"], "default": "mixed"},
+                "responsiveness": {
+                    "type": "string",
+                    "enum": ["interactive", "balanced", "throughput"],
+                    "default": "interactive",
+                },
+                "max_concurrency": {"type": "integer", "minimum": 1, "maximum": MAX_CONCURRENCY},
+                "reserve_cores": {"type": "integer", "minimum": 0, "maximum": MAX_CONCURRENCY},
+                "estimated_memory_mb_per_task": {"type": "number", "exclusiveMinimum": 0},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "mac_resource_plan",
-        "description": "Call after a workload is judged parallel-eligible, especially before a large or memory-heavy run. Inspects this Mac's P/E cores, GPU, memory, load, thermal and power state and recommends concurrency with responsive headroom. Do not call for ordinary serial tasks.",
+        "description": "Compatibility alias for host_resource_plan. On macOS it also reports Apple-specific P/E-core, thermal, power, and GPU facts.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -4059,7 +4745,7 @@ async def call_tool(
         result = atomic_task_plan(arguments)
     elif name == "atomic_exec":
         result = await run_atomic(arguments, progress_callback)
-    elif name == "mac_resource_plan":
+    elif name in {"host_resource_plan", "mac_resource_plan"}:
         result = concurrency_plan(
             arguments.get("profile", "mixed"),
             arguments.get("max_concurrency"),
@@ -4104,13 +4790,18 @@ def _progress_callback(progress_token: Any) -> Any | None:
         nonlocal last_progress
         progress = max(float(snapshot["elapsed_seconds"]), last_progress + 0.001)
         last_progress = progress
+        savings_text = (
+            f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
+            if snapshot.get("savings_eligible_so_far", True)
+            else "本次节约不计入（已有失败或超时）"
+        )
         message = (
             f"已运行 {snapshot['elapsed_seconds']:.1f}s｜"
             f"运行中 {snapshot['running_tasks']}｜"
             f"就绪 {snapshot.get('ready_tasks', 0)}｜"
             f"已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}｜"
             f"失败 {snapshot['failed_tasks']}｜"
-            f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
+            f"{savings_text}"
         )
         notification = {
             "jsonrpc": "2.0",
@@ -4221,6 +4912,12 @@ def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def main() -> int:
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8", errors="strict", newline="\n")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(
+            encoding="utf-8", errors="strict", newline="\n", line_buffering=True
+        )
     for line in sys.stdin:
         line = line.strip()
         if not line:

@@ -3,12 +3,13 @@ import {
   applyDocumentTheme,
   applyHostFonts,
   applyHostStyleVariables,
-} from "@modelcontextprotocol/ext-apps/app-with-deps";
+} from "@modelcontextprotocol/ext-apps";
 
 function applyHostContext(context) {
   if (!context) return;
   if (context.theme) applyDocumentTheme(context.theme);
-  if (context.styles?.variables) applyHostStyleVariables(context.styles.variables);
+  if (context.styles?.variables)
+    applyHostStyleVariables(context.styles.variables);
   if (context.styles?.css?.fonts) applyHostFonts(context.styles.css.fonts);
 }
 
@@ -17,7 +18,7 @@ function publish(name, detail) {
 }
 
 const app = new App(
-  { name: "AtomLane Live Indicator", version: "0.11.0" },
+  { name: "AtomLane Live Indicator", version: "0.12.0" },
   { availableDisplayModes: ["inline"] },
   { autoResize: true },
 );
@@ -39,9 +40,12 @@ app.addEventListener("toolcancelled", (params) => {
   publish("mac-parallel-accelerator:tool-cancelled", params || {});
 });
 
-app.connect().then(() => {
-  applyHostContext(app.getHostContext());
-  publish("mac-parallel-accelerator:host-ready", {});
-}).catch(() => {
-  // A raw file preview has no MCP Apps host; the HTML supplies a safe demo state.
-});
+app
+  .connect()
+  .then(() => {
+    applyHostContext(app.getHostContext());
+    publish("mac-parallel-accelerator:host-ready", {});
+  })
+  .catch(() => {
+    // A raw file preview has no MCP Apps host; the HTML supplies a safe demo state.
+  });

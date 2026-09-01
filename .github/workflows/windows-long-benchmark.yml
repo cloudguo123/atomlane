@@ -1,0 +1,133 @@
+name: Windows Five-Minute Benchmark
+
+on:
+  schedule:
+    - cron: "23 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: windows-long-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Native Windows / four tasks / 310 seconds
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Check out triggering SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Restore prior source-compatible Windows history
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $runsJson = gh run list `
+            --repo $env:GITHUB_REPOSITORY `
+            --workflow windows-long-benchmark.yml `
+            --branch main `
+            --status success `
+            --limit 20 `
+            --json databaseId,headSha
+          if ($LASTEXITCODE -ne 0) { throw "could not query prior Windows benchmarks" }
+          $selected = $null
+          $restoreDir = "artifacts/prior"
+          foreach ($candidate in ($runsJson | ConvertFrom-Json)) {
+            git merge-base --is-ancestor $candidate.headSha HEAD
+            if ($LASTEXITCODE -ne 0) {
+              continue
+            }
+
+            Remove-Item -Recurse -Force $restoreDir -ErrorAction SilentlyContinue
+            gh run download ([string]$candidate.databaseId) `
+              --repo $env:GITHUB_REPOSITORY `
+              --name "windows-five-minute-benchmark-$($candidate.headSha)" `
+              --dir $restoreDir
+            if ($LASTEXITCODE -eq 0 -and (Test-Path "$restoreDir/windows-benchmark-results.json")) {
+              Copy-Item "$restoreDir/windows-benchmark-results.json" artifacts/windows-benchmark-results.json
+              $selected = $candidate
+              break
+            }
+          }
+          Remove-Item -Recurse -Force $restoreDir -ErrorAction SilentlyContinue
+          if ($null -eq $selected) {
+            if (Test-Path docs/windows-benchmark-results.json) {
+              Copy-Item docs/windows-benchmark-results.json artifacts/windows-benchmark-results.json
+              Write-Host "Bootstrapped retained Windows history from the reviewed repository evidence."
+            } else {
+              Write-Host "No source-compatible retained Windows history is available; starting a new realm history."
+            }
+          }
+
+      - name: Run four native Windows workloads for 310 seconds
+        run: python scripts/long_benchmark.py run --duration-seconds 310 --minimum-task-seconds 300 --output artifacts/windows-benchmark-results.json
+
+      - name: Validate commit-bound Windows evidence
+        shell: pwsh
+        run: |
+          $report = Get-Content artifacts/windows-benchmark-results.json -Raw | ConvertFrom-Json
+          if ($report.schema_version -ne "1.1") { throw "unexpected benchmark schema" }
+          if ($report.latest.commit -ne $env:GITHUB_SHA) { throw "evidence is not bound to the checkout SHA" }
+          if ($report.latest.status -ne "passed") { throw "benchmark did not pass" }
+          if ($report.latest.platform.execution_realm -ne "windows_native") { throw "benchmark was not native Windows" }
+          if ($report.latest.task_count -ne 4) { throw "benchmark did not run exactly four tasks" }
+          if ($report.latest.parallel.peak_concurrency -ne 4) { throw "four-way concurrency was not observed" }
+          if ($report.latest.target_task_seconds -ne 310) { throw "benchmark target was not 310 seconds" }
+          if ($report.latest.observed_minimum_task_seconds -lt 300) { throw "observed duration gate was not met" }
+          if ($report.latest.worker_evidence_complete -ne $true) { throw "worker completion evidence is incomplete" }
+          foreach ($task in $report.latest.tasks) {
+            if ($task.worker_evidence_valid -ne $true) { throw "invalid worker evidence for $($task.id)" }
+            if ($task.scenario -ne $task.id) { throw "worker scenario mismatch for $($task.id)" }
+            if ($task.duration_seconds -lt 300) { throw "worker runtime was below five minutes for $($task.id)" }
+            if ($task.iterations -le 0 -or $task.work_units -le 0) { throw "worker did not record positive work for $($task.id)" }
+            if ($task.duration_drift_seconds -gt $report.latest.worker_duration_tolerance_seconds) {
+              throw "worker/outer duration mismatch for $($task.id)"
+            }
+          }
+
+      - name: Write Windows benchmark summary
+        shell: pwsh
+        run: |
+          $report = Get-Content artifacts/windows-benchmark-results.json -Raw | ConvertFrom-Json
+          $latest = $report.latest
+          $cumulative = $report.cumulative
+          @"
+          ## Native Windows five-minute benchmark
+
+          - Source SHA: ``$($latest.commit)``
+          - Execution realm: **$($latest.platform.execution_realm)**
+          - Observed minimum task runtime: **$($latest.observed_minimum_task_seconds)s**
+          - Parallel wall time: **$($latest.parallel.wall_time_seconds)s**
+          - Serial equivalent: **$($latest.serial_equivalent.seconds)s**
+          - Saved this run: **$($latest.savings.seconds)s**
+          - Observed speedup: **$($latest.savings.speedup_multiplier)x**
+          - Windows cumulative saved: **$($cumulative.saved_seconds)s** across **$($cumulative.run_count)** verified run(s)
+          - Run URL: $($latest.run_url)
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Upload native Windows benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-five-minute-benchmark-${{ github.sha }}
+          path: artifacts/windows-benchmark-results.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true

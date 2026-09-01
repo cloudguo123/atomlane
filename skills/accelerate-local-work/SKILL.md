@@ -1,6 +1,6 @@
 ---
 name: accelerate-local-work
-description: Use AtomLane to compile and execute safe atomic parallel plans for macOS tasks containing composite shell or package scripts, Make or Compose graphs, native test/build runners, repeated independent work, dependency DAGs, or Apple-silicon operators. Use at task start or an execution boundary when structured local work may contain two or more worthwhile units; skip plain answers, one quick command, and work whose effects cannot be safely bounded.
+description: Use AtomLane to compile and execute safe atomic parallel plans on macOS and native Windows Preview for worthwhile independent argv tasks, dependency DAGs, supported platform entrypoints, or Apple-silicon operators. Use at task start or an execution boundary when structured local work may contain two or more worthwhile units; skip plain answers, one quick command, and work whose effects cannot be safely bounded.
 license: MIT
 ---
 
@@ -29,6 +29,13 @@ If the requested optimization requires changing a long-running Python program
 rather than scheduling its existing commands, route to
 `$optimize-python-parallelism` and `python_parallel_advisor`. Do not treat a
 source rewrite preview as an executable atomic plan.
+
+Identify the execution realm before compiling. Native Windows, one WSL distro,
+and one Docker daemon are distinct resource and path spaces; never mix them in
+one plan without an explicit bridge. On native Windows Preview, use exact argv
+atoms or the whole-file `powershell_file` adapter. POSIX shell, package-script,
+Make-recipe, and Compose lowering are not Windows semantics and must fail
+closed. Do not lower inline PowerShell or `cmd`/`.bat` syntax.
 
 ## Compile once, execute the exact plan
 
@@ -117,7 +124,7 @@ semantics exactly, stop and report the blocker. Do not translate it into
 `parallel_exec`, `parallel_map`, or `parallel_dag`.
 
 Budget native inner workers together with outer concurrency. Do not multiply
-Vitest, BLAS, BuildKit, compiler, or GPU worker pools until the Mac is
+Vitest, BLAS, BuildKit, compiler, or GPU worker pools until the host is
 oversubscribed. Repeated tiny atoms should be fused or delegated to a native
 batch when doing so preserves control flow and reporting.
 
@@ -138,15 +145,23 @@ Parallelism changes timing, not permission. It does not authorize new commands,
 mutations, external actions, retries, or destructive cleanup. Retry only atoms
 the compiled plan marks idempotent and retryable.
 
-## Match the current Mac
+## Match the current host
 
-Use the fresh resource observations embedded by the planner. An explicit
+Use `host_resource_plan` and the fresh resource observations embedded by the planner. An explicit
 concurrency value is a ceiling, not an override of safety limits. Interactive
 mode should retain CPU and memory headroom and reduce work under existing load,
 battery use, Low Power Mode, memory pressure, or thermal pressure.
 
+On native Windows, every target runs below a kill-on-close Job Object. Optional
+`cpu_rate_percent`, `memory_limit_mb`, and `max_processes` limits apply to the
+complete target tree. If Job assignment fails, do not start target code and do
+not fall back to killing only the direct child. Use `terminal_mode: conpty` only
+when terminal behavior is required; it combines stdout/stderr into one VT
+stream. Ordinary tasks retain separate pipes, while MCP/live-runner heartbeats
+still provide real-time elapsed, state, and saving updates.
+
 For numerical or media implementation work, call `mac_accelerator_plan` before
-choosing a backend:
+choosing an Apple backend. On a non-macOS host it is explicitly unavailable:
 
 - Accelerate/BNNS for suitable CPU-vector math, DSP, image, and neural-network
   operators.
@@ -161,9 +176,10 @@ and memory bandwidth are shared; accelerator fan-out is normally low.
 
 For container budgeting, use `container_resource_plan` when useful, but keep
 the generated budgets inside a newly compiled plan. On Docker Desktop, allocate
-from the Linux VM envelope. A cpuset identifies VM vCPUs, not stable Apple
-performance or efficiency cores, and ordinary Linux containers do not receive
-transparent Metal, GPU, ANE, or media-engine access.
+from the identified Linux VM/daemon envelope. A cpuset identifies VM vCPUs,
+not stable physical host cores. Native Windows, WSL, and the Docker Linux VM
+must never share one inferred capacity. Windows-container or unavailable-daemon
+results remain advisory rather than directly applicable.
 
 ## Keep long execution visibly live
 

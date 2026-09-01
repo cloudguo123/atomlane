@@ -8,6 +8,7 @@
     "schema_version",
     "id",
     "plugin_version",
+    "commit",
     "category",
     "environment",
     "condition",
@@ -17,10 +18,155 @@
     "correctness",
     "evidence_url"
   ],
+  "$defs": {
+    "requestedJobLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kill_on_close",
+        "cpu_rate_percent",
+        "memory_limit_mib",
+        "target_process_limit"
+      ],
+      "properties": {
+        "kill_on_close": { "const": true },
+        "cpu_rate_percent": {
+          "type": ["number", "null"],
+          "minimum": 0.01,
+          "maximum": 100
+        },
+        "memory_limit_mib": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 128 }
+          ]
+        },
+        "target_process_limit": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1 }
+          ]
+        }
+      }
+    },
+    "queriedJobLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kill_on_close",
+        "cpu_rate_percent",
+        "memory_limit_mib",
+        "job_active_process_limit",
+        "verified"
+      ],
+      "properties": {
+        "kill_on_close": { "const": true },
+        "cpu_rate_percent": {
+          "type": ["number", "null"],
+          "minimum": 0.01,
+          "maximum": 100
+        },
+        "memory_limit_mib": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 128 }
+          ]
+        },
+        "job_active_process_limit": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 2 }
+          ]
+        },
+        "verified": { "const": true }
+      }
+    },
+    "brokerBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "client",
+        "target_realm",
+        "brokered_work_contained",
+        "job_limits_apply_to_brokered_work"
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["none", "wsl", "docker", "wmi", "service", "scheduled_task", "remote", "other"]
+        },
+        "client": { "type": ["string", "null"], "maxLength": 160 },
+        "target_realm": { "type": ["string", "null"], "maxLength": 80 },
+        "brokered_work_contained": { "const": false },
+        "job_limits_apply_to_brokered_work": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "none" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "client": { "const": null },
+              "target_realm": { "const": null }
+            }
+          },
+          "else": {
+            "properties": {
+              "client": { "type": "string", "minLength": 1 },
+              "target_realm": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "terminalEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "stdout_stderr_combined", "captured_output_delivery"],
+      "properties": {
+        "mode": { "enum": ["pipes", "conpty"] },
+        "stdout_stderr_combined": { "type": "boolean" },
+        "captured_output_delivery": { "const": "completion_result" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "conpty" } }, "required": ["mode"] },
+          "then": { "properties": { "stdout_stderr_combined": { "const": true } } },
+          "else": { "properties": { "stdout_stderr_combined": { "const": false } } }
+        }
+      ]
+    },
+    "windowsEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supervisor_assignment",
+        "target_creation_atomic",
+        "requested_job_limits",
+        "queried_job_limits",
+        "job_limits_include_supervisor",
+        "containment_scope",
+        "broker_boundary",
+        "terminal"
+      ],
+      "properties": {
+        "supervisor_assignment": { "const": "supervisor_pid_then_launch_record" },
+        "target_creation_atomic": { "const": false },
+        "requested_job_limits": { "$ref": "#/$defs/requestedJobLimits" },
+        "queried_job_limits": { "$ref": "#/$defs/queriedJobLimits" },
+        "job_limits_include_supervisor": { "const": true },
+        "containment_scope": {
+          "const": "client_and_inherited_windows_descendants_only"
+        },
+        "broker_boundary": { "$ref": "#/$defs/brokerBoundary" },
+        "terminal": { "$ref": "#/$defs/terminalEvidence" }
+      }
+    }
+  },
   "properties": {
-    "schema_version": { "const": "1.0" },
+    "schema_version": { "const": "1.1" },
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,80}$" },
     "plugin_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "category": {
       "enum": ["web", "docker-compose", "research-paper", "native-build-test", "batch-media-data-ml", "other"]
     },
@@ -28,17 +174,72 @@
     "environment": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mac", "macos", "logical_cpus", "power_source", "low_power_mode"],
+      "required": [
+        "platform",
+        "os_version",
+        "architecture",
+        "execution_realm",
+        "machine",
+        "logical_cpus",
+        "power_source",
+        "process_tree_backend",
+        "terminal_mode"
+      ],
       "properties": {
-        "mac": { "type": "string", "maxLength": 120 },
-        "macos": { "type": "string", "maxLength": 80 },
+        "platform": { "enum": ["macos", "windows", "linux"] },
+        "os_version": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "architecture": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "execution_realm": {
+          "enum": ["macos_native", "windows_native", "wsl_linux", "linux_native", "linux_container"]
+        },
+        "machine": { "type": "string", "minLength": 1, "maxLength": 160 },
         "logical_cpus": { "type": "integer", "minimum": 1 },
         "power_source": { "enum": ["ac", "battery", "unknown"] },
-        "low_power_mode": { "type": "boolean" }
-      }
+        "low_power_mode": { "type": ["boolean", "null"] },
+        "process_tree_backend": { "enum": ["posix_session", "windows_job_object"] },
+        "terminal_mode": { "enum": ["pipes", "conpty", "posix_pty", "not_applicable"] },
+        "docker_realm": { "type": "string", "minLength": 1, "maxLength": 160 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "platform": { "const": "macos" } }, "required": ["platform"] },
+          "then": {
+            "required": ["low_power_mode"],
+            "properties": {
+              "execution_realm": { "const": "macos_native" },
+              "process_tree_backend": { "const": "posix_session" },
+              "terminal_mode": { "enum": ["pipes", "posix_pty", "not_applicable"] },
+              "low_power_mode": { "type": "boolean" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "platform": { "const": "windows" } }, "required": ["platform"] },
+          "then": {
+            "properties": {
+              "execution_realm": { "const": "windows_native" },
+              "process_tree_backend": { "const": "windows_job_object" },
+              "terminal_mode": { "enum": ["pipes", "conpty"] },
+              "low_power_mode": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "platform": { "const": "linux" } }, "required": ["platform"] },
+          "then": {
+            "properties": {
+              "execution_realm": { "enum": ["wsl_linux", "linux_native", "linux_container"] },
+              "process_tree_backend": { "const": "posix_session" },
+              "terminal_mode": { "enum": ["pipes", "posix_pty", "not_applicable"] },
+              "low_power_mode": { "type": "null" }
+            }
+          }
+        }
+      ]
     },
+    "windows_evidence": { "$ref": "#/$defs/windowsEvidence" },
     "condition": { "enum": ["cold", "warm", "mixed"] },
-    "repetitions": { "type": "integer", "minimum": 1 },
+    "repetitions": { "type": "integer", "minimum": 3 },
     "comparison": {
       "type": "object",
       "additionalProperties": false,
@@ -73,5 +274,60 @@
     },
     "planner_blockers": { "type": "array", "items": { "type": "string", "maxLength": 200 } },
     "evidence_url": { "type": "string", "format": "uri" }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "environment": {
+            "properties": { "platform": { "const": "windows" } },
+            "required": ["platform"]
+          }
+        },
+        "required": ["environment"]
+      },
+      "then": { "required": ["windows_evidence"] },
+      "else": { "not": { "required": ["windows_evidence"] } }
+    },
+    {
+      "if": {
+        "properties": {
+          "environment": {
+            "properties": { "platform": { "const": "windows" }, "terminal_mode": { "const": "pipes" } },
+            "required": ["platform", "terminal_mode"]
+          }
+        },
+        "required": ["environment"]
+      },
+      "then": {
+        "properties": {
+          "windows_evidence": {
+            "properties": {
+              "terminal": { "properties": { "mode": { "const": "pipes" } } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "environment": {
+            "properties": { "platform": { "const": "windows" }, "terminal_mode": { "const": "conpty" } },
+            "required": ["platform", "terminal_mode"]
+          }
+        },
+        "required": ["environment"]
+      },
+      "then": {
+        "properties": {
+          "windows_evidence": {
+            "properties": {
+              "terminal": { "properties": { "mode": { "const": "conpty" } } }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

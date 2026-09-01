@@ -30,6 +30,8 @@ Call the advisor with:
 - the actual `execution_context`, so an inner pool is not multiplied by an
   AtomLane or native worker pool;
 - an explicit worker ceiling only as a ceiling, never as a safety override.
+- `target_platform` when the optimized program will deploy somewhere other
+  than the analysis host.
 
 Do not run a workload merely to obtain a profile when repeating it may mutate
 state, incur cost, or affect an external system.
@@ -58,7 +60,7 @@ If source, runtime evidence, executor choice, or resource assumptions changed,
 discard the preview and analyze again.
 
 For the initial supported CPU pattern, preserve ordered map semantics with
-`ProcessPoolExecutor.map`; require a module-level worker and a macOS-safe
+`ProcessPoolExecutor.map`; require a module-level worker and a spawn-safe
 `if __name__ == "__main__"` boundary. Do not move logging, file writes,
 database work, randomness, environment reads, or unknown calls into speculative
 workers. Keep exception, cancellation, result order, and deterministic merge
@@ -82,7 +84,9 @@ After an authorized edit:
 2. Run focused unit/integration tests.
 3. Differentially compare serial and parallel return values, ordering,
    exceptions, stdout/stderr, files, hashes, random seeds, and numeric tolerance.
-4. Exercise process candidates with the macOS `spawn` model.
+4. Exercise process candidates with an explicit `multiprocessing` `spawn`
+   context on every platform. Windows process pools have a 61-worker ceiling;
+   treat it as an upper bound, not a useful default.
 5. For safe repeatable work, compare multiple serial and parallel samples and
    report p50/p90, throughput, peak memory, worker count, and break-even size.
 6. Revert only the newly proposed refactor if correctness fails or measured

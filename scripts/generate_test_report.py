@@ -8,9 +8,11 @@ import hashlib
 import html
 import io
 import json
+import math
 import os
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +24,11 @@ from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
+REPORT_EVIDENCE_INPUTS = {
+    "docs/benchmark-results.json",
+    "docs/windows-benchmark-results.json",
+    "docs/windows-preview-results.json",
+}
 
 DOMAIN_META = {
     "test_atom_engine": {
@@ -38,6 +45,42 @@ DOMAIN_META = {
         "label": "MCP runtime & live execution",
         "description": "Failure propagation, output bounds, timeout semantics, and live progress",
         "accent": "#d7a6ff",
+    },
+    "test_platform_adapter": {
+        "label": "Cross-platform contract",
+        "description": "Execution realms, immutable host binding, portable statistics, and resource probes",
+        "accent": "#79f2c0",
+    },
+    "test_project_benchmark_schema": {
+        "label": "External evidence schema",
+        "description": "Platform/realm consistency, repeatability, and Windows containment evidence",
+        "accent": "#f2ad79",
+    },
+    "test_windows_runtime": {
+        "label": "Windows runtime contracts",
+        "description": (
+            "Portable parser and API contracts; native Job Object and ConPTY proof "
+            "is reported separately"
+        ),
+        "accent": "#5ba7ff",
+    },
+    "test_portable_plugin": {
+        "label": "Plugin packaging & portability",
+        "description": (
+            "Manifest identity, clean package contents, launch paths, and release "
+            "version consistency"
+        ),
+        "accent": "#b7f079",
+    },
+    "test_report_rendering": {
+        "label": "Public report integrity",
+        "description": "Source-bound evidence, privacy-safe labels, and honest platform claims",
+        "accent": "#e879f2",
+    },
+    "test_ui_bundle_security": {
+        "label": "Indicator bundle security",
+        "description": "Reproducible browser bundle without dynamic code evaluation",
+        "accent": "#f2799b",
     },
     "test_growth_assets": {
         "label": "Growth assets & evidence sharing",
@@ -60,6 +103,33 @@ DOMAIN_META = {
         "accent": "#ffb86b",
     },
 }
+
+WINDOWS_CRITICAL_TESTS = {
+    "test_job_object_executes_utf8_and_applies_tree_limits",
+    "test_runner_resolves_bare_executable_from_target_path",
+    "test_native_environment_block_is_exactly_double_nul_terminated",
+    "test_pipe_mode_drains_large_separate_streams",
+    "test_timeout_kills_grandchild_before_delayed_marker",
+    "test_supervisor_ignores_task_python_startup_injection",
+    "test_completed_parent_cannot_leave_a_pipe_holding_descendant",
+    "test_conpty_captures_combined_vt_output",
+    "test_conpty_drains_output_larger_than_pipe_capacity",
+    "test_blocked_synchronous_pipe_read_is_cancelled_and_joined",
+    "test_progress_arrives_before_parallel_tasks_finish",
+    "test_mcp_pipe_is_utf8_and_uses_the_installed_server_entrypoint",
+    "test_windows_argv_and_environment_hazards_fail_closed",
+    "test_powershell_file_is_one_snapshotted_atom",
+}
+
+LONG_BENCHMARK_TASK_IDS = frozenset(
+    {
+        "artifact-hash",
+        "planner-json",
+        "isolated-io",
+        "scheduler-sim",
+    }
+)
+GIT_COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
 class TimedResult(unittest.TextTestResult):
@@ -182,6 +252,45 @@ def validate_metadata() -> dict[str, Any]:
     }
 
 
+def validate_external_benchmarks() -> dict[str, Any]:
+    started = time.perf_counter()
+    try:
+        import jsonschema
+    except ImportError:
+        return {
+            "name": "External benchmark JSON Schema",
+            "status": "skipped",
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "returncode": 0,
+        }
+    try:
+        schema = json.loads(
+            (ROOT / "benchmarks" / "project-result.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        external = json.loads(
+            (ROOT / "benchmarks" / "external-results.json").read_text(encoding="utf-8")
+        )
+        jsonschema.Draft202012Validator.check_schema(schema)
+        validator = jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        )
+        for result in external.get("results", []):
+            validator.validate(result)
+        status = "passed"
+        returncode = 0
+    except (OSError, json.JSONDecodeError, jsonschema.ValidationError, jsonschema.SchemaError):
+        status = "failed"
+        returncode = 1
+    return {
+        "name": "External benchmark JSON Schema",
+        "status": status,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "returncode": returncode,
+    }
+
+
 def bundle_check() -> dict[str, Any]:
     if not (ROOT / "node_modules").is_dir() or shutil.which("npm") is None:
         return {
@@ -211,11 +320,66 @@ def command_version(argv: list[str]) -> str:
     return line[0] if line else "unavailable"
 
 
+def public_runner_label() -> str:
+    runner_environment = os.environ.get("RUNNER_ENVIRONMENT", "").casefold()
+    if runner_environment in {"github-hosted", "self-hosted"}:
+        return f"GitHub Actions ({runner_environment})"
+    if os.environ.get("GITHUB_ACTIONS", "").casefold() == "true":
+        return "GitHub Actions"
+    return "local verification runner"
+
+
 def git_value(*args: str) -> str:
     try:
         return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
     except (OSError, subprocess.CalledProcessError):
         return "unavailable"
+
+
+def _git_dirty_paths() -> set[str] | None:
+    """Return tracked and untracked worktree changes, or None when Git is unavailable."""
+    try:
+        tracked = subprocess.check_output(
+            ["git", "diff", "--name-only", "HEAD", "--"],
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).splitlines()
+        untracked = subprocess.check_output(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).splitlines()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {path for path in [*tracked, *untracked] if path}
+
+
+def _source_provenance_check() -> tuple[dict[str, Any], bool]:
+    started = time.perf_counter()
+    dirty_paths = _git_dirty_paths()
+    unexpected = (
+        None if dirty_paths is None else sorted(dirty_paths - REPORT_EVIDENCE_INPUTS)
+    )
+    clean = unexpected == []
+    return (
+        {
+            "name": "Clean source provenance",
+            "status": "passed" if clean else "failed",
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "returncode": 0 if clean else 1,
+            "unexpected_dirty_path_count": (
+                None if unexpected is None else len(unexpected)
+            ),
+            "allowed_evidence_input_count": (
+                0
+                if dirty_paths is None
+                else len(dirty_paths & REPORT_EVIDENCE_INPUTS)
+            ),
+        },
+        clean,
+    )
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -226,19 +390,400 @@ def sha256(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
+def _evidence_number(value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError("benchmark evidence value is not numeric")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("benchmark evidence value is not finite")
+    return number
+
+
+def _evidence_integer(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError("benchmark evidence value is not an integer")
+    return value
+
+
+def validate_macos_benchmark_evidence(
+    benchmark: Any,
+    *,
+    expected_commit: str | None = None,
+) -> dict[str, Any]:
+    """Accept only complete, source-bound native-macOS five-minute evidence."""
+    if not isinstance(benchmark, dict):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    latest = benchmark.get("latest")
+    cumulative = benchmark.get("cumulative")
+    history = benchmark.get("history")
+    realms = benchmark.get("realms")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (latest, dict),
+            (cumulative, dict),
+            (history, list),
+            (realms, dict),
+        )
+    ):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+
+    platform_info = latest.get("platform")
+    tasks = latest.get("tasks")
+    parallel = latest.get("parallel")
+    serial = latest.get("serial_equivalent")
+    savings = latest.get("savings")
+    progress = latest.get("progress_samples")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (platform_info, dict),
+            (tasks, list),
+            (parallel, dict),
+            (serial, dict),
+            (savings, dict),
+            (progress, list),
+        )
+    ) or not all(isinstance(task, dict) for task in tasks):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+
+    try:
+        minimum_seconds = _evidence_number(latest["minimum_task_seconds"])
+        target_seconds = _evidence_number(latest["target_task_seconds"])
+        observed_field = _evidence_number(latest["observed_minimum_task_seconds"])
+        tolerance_seconds = _evidence_number(
+            latest["worker_duration_tolerance_seconds"]
+        )
+        task_count = _evidence_integer(latest["task_count"])
+        wall_seconds = _evidence_number(parallel["wall_time_seconds"])
+        peak = _evidence_integer(parallel["peak_concurrency"])
+        chosen = _evidence_integer(parallel["chosen_concurrency"])
+        serial_seconds = _evidence_number(serial["seconds"])
+        saved_seconds = _evidence_number(savings["seconds"])
+        speedup = _evidence_number(savings["speedup_multiplier"])
+        percent = _evidence_number(savings["percent"])
+        efficiency = _evidence_number(savings["parallel_efficiency"])
+        durations = [_evidence_number(task["duration_seconds"]) for task in tasks]
+        outer_durations = [
+            _evidence_number(task["outer_duration_seconds"]) for task in tasks
+        ]
+        duration_drifts = [
+            _evidence_number(task["duration_drift_seconds"]) for task in tasks
+        ]
+        iterations = [_evidence_integer(task["iterations"]) for task in tasks]
+        work_units = [_evidence_integer(task["work_units"]) for task in tasks]
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+
+    latest_commit = latest.get("commit")
+    commit_is_valid = (
+        isinstance(latest_commit, str)
+        and GIT_COMMIT_PATTERN.fullmatch(latest_commit) is not None
+    )
+    commit_matches_source = commit_is_valid and _macos_evidence_matches_source(
+        latest_commit
+    )
+    if expected_commit is not None:
+        expected_commit_is_valid = (
+            isinstance(expected_commit, str)
+            and GIT_COMMIT_PATTERN.fullmatch(expected_commit) is not None
+        )
+        source_matches = (
+            expected_commit_is_valid
+            and commit_is_valid
+            and latest_commit == expected_commit
+            and commit_matches_source
+        )
+    else:
+        source_matches = commit_matches_source
+
+    expected_tolerance = max(2.0, target_seconds * 0.02)
+    task_ids = [task.get("id") for task in tasks]
+    task_ids_are_valid = all(isinstance(task_id, str) for task_id in task_ids)
+    tasks_are_complete = (
+        len(tasks) == len(LONG_BENCHMARK_TASK_IDS)
+        and task_count == len(LONG_BENCHMARK_TASK_IDS)
+        and task_ids_are_valid
+        and set(task_ids) == LONG_BENCHMARK_TASK_IDS
+        and all(task.get("scenario") == task.get("id") for task in tasks)
+        and all(task.get("status") == "succeeded" for task in tasks)
+        and all(task.get("worker_evidence_valid") is True for task in tasks)
+        and all(task.get("worker_evidence_errors") == [] for task in tasks)
+        and all(value > 0 for value in iterations)
+        and all(value > 0 for value in work_units)
+    )
+    durations_are_observed = (
+        all(value >= 300 for value in durations)
+        and all(value >= 300 for value in outer_durations)
+        and all(value >= 0 for value in duration_drifts)
+        and all(
+            math.isclose(
+                drift,
+                abs(outer - observed),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and drift <= tolerance_seconds
+            for observed, outer, drift in zip(
+                durations,
+                outer_durations,
+                duration_drifts,
+                strict=True,
+            )
+        )
+    )
+    observed_minimum = min(durations, default=0.0)
+    arithmetic_matches = (
+        wall_seconds > 0
+        and peak > 0
+        and serial_seconds > 0
+        and saved_seconds >= 0
+        and math.isclose(serial_seconds, sum(durations), rel_tol=0, abs_tol=0.01)
+        and math.isclose(
+            saved_seconds,
+            max(0.0, serial_seconds - wall_seconds),
+            rel_tol=0,
+            abs_tol=0.01,
+        )
+        and math.isclose(observed_field, observed_minimum, rel_tol=0, abs_tol=0.01)
+        and math.isclose(
+            speedup,
+            serial_seconds / wall_seconds,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+        and math.isclose(
+            percent,
+            saved_seconds / serial_seconds * 100,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+        and math.isclose(
+            efficiency,
+            serial_seconds / wall_seconds / peak,
+            rel_tol=0,
+            abs_tol=0.0001,
+        )
+    )
+
+    progress_is_valid = bool(progress) and all(
+        isinstance(sample, dict) for sample in progress
+    )
+    has_live_sample = False
+    if progress_is_valid:
+        try:
+            has_live_sample = any(
+                _evidence_integer(sample["running_tasks"])
+                == len(LONG_BENCHMARK_TASK_IDS)
+                and 0
+                <= _evidence_integer(sample["completed_tasks"])
+                < len(LONG_BENCHMARK_TASK_IDS)
+                and 0 <= _evidence_number(sample["elapsed_seconds"]) < wall_seconds
+                and sample.get("savings_eligible") is True
+                for sample in progress
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            progress_is_valid = False
+
+    history_is_macos_only = bool(history) and all(
+        isinstance(row, dict)
+        and row.get("status") == "passed"
+        and row.get("execution_realm") == "macos_native"
+        for row in history
+    )
+    run_ids = [str(row.get("run_id", "")) for row in history if isinstance(row, dict)]
+    latest_run_id = str(latest.get("run_id", ""))
+    history_is_unique = (
+        len(run_ids) == len(history)
+        and len(run_ids) == len(set(run_ids))
+        and all(run_id.endswith("@macos_native") for run_id in run_ids)
+    )
+    current_history_rows = [
+        row
+        for row in history
+        if isinstance(row, dict) and str(row.get("run_id", "")) == latest_run_id
+    ]
+    history_arithmetic_matches = True
+    try:
+        for row in history:
+            row_commit = row["commit"]
+            if (
+                not isinstance(row_commit, str)
+                or GIT_COMMIT_PATTERN.fullmatch(row_commit) is None
+            ):
+                history_arithmetic_matches = False
+                break
+            row_wall = _evidence_number(row["wall_time_seconds"])
+            row_serial = _evidence_number(row["serial_equivalent_seconds"])
+            row_saved = _evidence_number(row["saved_seconds"])
+            row_speedup = _evidence_number(row["speedup_multiplier"])
+            if not (
+                row_wall > 0
+                and row_serial > 0
+                and row_saved >= 0
+                and math.isclose(
+                    row_saved,
+                    max(0.0, row_serial - row_wall),
+                    rel_tol=0,
+                    abs_tol=0.01,
+                )
+                and math.isclose(
+                    row_speedup,
+                    row_serial / row_wall,
+                    rel_tol=0,
+                    abs_tol=0.0001,
+                )
+            ):
+                history_arithmetic_matches = False
+                break
+    except (KeyError, TypeError, ValueError, OverflowError):
+        history_arithmetic_matches = False
+
+    try:
+        current_history_matches = len(current_history_rows) == 1 and (
+            current_history_rows[0].get("commit") == latest_commit
+            and math.isclose(
+                _evidence_number(current_history_rows[0]["wall_time_seconds"]),
+                wall_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(
+                    current_history_rows[0]["serial_equivalent_seconds"]
+                ),
+                serial_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(current_history_rows[0]["saved_seconds"]),
+                saved_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(current_history_rows[0]["speedup_multiplier"]),
+                speedup,
+                rel_tol=0,
+                abs_tol=0.0001,
+            )
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        current_history_matches = False
+
+    try:
+        cumulative_matches = (
+            _evidence_integer(cumulative["run_count"]) == len(history)
+            and math.isclose(
+                _evidence_number(cumulative["parallel_wall_seconds"]),
+                sum(_evidence_number(row["wall_time_seconds"]) for row in history),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(cumulative["serial_equivalent_seconds"]),
+                sum(
+                    _evidence_number(row["serial_equivalent_seconds"])
+                    for row in history
+                ),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                _evidence_number(cumulative["saved_seconds"]),
+                sum(_evidence_number(row["saved_seconds"]) for row in history),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        cumulative_matches = False
+
+    macos_state = realms.get("macos_native")
+    realm_state_matches = (
+        isinstance(macos_state, dict)
+        and macos_state.get("latest") == latest
+        and macos_state.get("history") == history
+        and macos_state.get("cumulative") == cumulative
+    )
+    system = str(platform_info.get("system", "")).casefold()
+    realm = platform_info.get("execution_realm")
+    evidence_valid = (
+        benchmark.get("schema_version") == "1.1"
+        and benchmark.get("aggregation_scope") == "execution_realm"
+        and benchmark.get("latest_realm") == "macos_native"
+        and latest.get("status") == "passed"
+        and latest.get("worker_evidence_complete") is True
+        and latest.get("minimum_duration_met") is True
+        and latest.get("full_parallelism_observed") is True
+        and minimum_seconds >= 300
+        and target_seconds >= minimum_seconds
+        and math.isclose(
+            tolerance_seconds,
+            expected_tolerance,
+            rel_tol=0,
+            abs_tol=0.000001,
+        )
+        and observed_minimum >= 300
+        and system in {"darwin", "macos"}
+        and realm == "macos_native"
+        and latest_run_id.endswith("@macos_native")
+        and tasks_are_complete
+        and durations_are_observed
+        and peak == len(LONG_BENCHMARK_TASK_IDS)
+        and chosen == len(LONG_BENCHMARK_TASK_IDS)
+        and progress_is_valid
+        and has_live_sample
+        and arithmetic_matches
+        and source_matches
+        and history_is_macos_only
+        and history_is_unique
+        and history_arithmetic_matches
+        and current_history_matches
+        and cumulative_matches
+        and realm_state_matches
+    )
+    if not evidence_valid:
+        return {
+            "available": False,
+            "status": "native_macos_benchmark_gate_failed",
+            "schema_is_current": benchmark.get("schema_version") == "1.1",
+            "source_match": source_matches,
+            "all_tasks_succeeded": tasks_are_complete,
+            "worker_evidence_complete": latest.get("worker_evidence_complete")
+            is True,
+            "observed_minimum_task_seconds": round(observed_minimum, 6),
+            "task_arithmetic_matches": arithmetic_matches,
+            "live_progress_observed": has_live_sample,
+            "history_is_macos_only": history_is_macos_only,
+            "current_history_matches_latest": current_history_matches,
+            "cumulative_matches_history": cumulative_matches,
+        }
+    return {
+        **benchmark,
+        "available": True,
+        "status": "passed",
+        "source_match": True,
+    }
+
+
 def load_long_benchmark() -> dict[str, Any]:
     path = ROOT / "docs" / "benchmark-results.json"
     if not path.exists():
-        return {"available": False}
+        return {"available": False, "status": "awaiting_native_benchmark"}
     try:
         benchmark = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"available": False}
-    latest = benchmark.get("latest")
-    cumulative = benchmark.get("cumulative")
-    if not isinstance(latest, dict) or not isinstance(cumulative, dict):
-        return {"available": False}
-    return {"available": True, **benchmark}
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    evidence = validate_macos_benchmark_evidence(benchmark)
+    if not evidence["available"]:
+        return evidence
+    return {
+        **evidence,
+        "evidence_sha256": sha256(path),
+        "evidence_url": "benchmark-results.json",
+    }
 
 
 def load_growth_metrics() -> dict[str, Any]:
@@ -254,6 +799,373 @@ def load_growth_metrics() -> dict[str, Any]:
     if not isinstance(latest, dict) or not isinstance(targets, dict):
         return {"available": False}
     return {"available": True, **metrics}
+
+
+def _benchmark_evidence_matches_source(commit: str) -> bool:
+    if GIT_COMMIT_PATTERN.fullmatch(commit) is None:
+        return False
+    dirty_paths = _git_dirty_paths()
+    if dirty_paths is None or dirty_paths - REPORT_EVIDENCE_INPUTS:
+        return False
+    current = git_value("rev-parse", "HEAD")
+    if current == commit:
+        return True
+    if GIT_COMMIT_PATTERN.fullmatch(current) is None:
+        return False
+    try:
+        subprocess.check_call(
+            ["git", "merge-base", "--is-ancestor", commit, current],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        changed = subprocess.check_output(
+            ["git", "diff", "--name-only", f"{commit}..{current}"],
+            cwd=ROOT,
+            text=True,
+        ).splitlines()
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return bool(changed) and all(path.startswith("docs/") for path in changed)
+
+
+def _macos_evidence_matches_source(commit: str) -> bool:
+    return _benchmark_evidence_matches_source(commit)
+
+
+def _windows_evidence_matches_source(commit: str) -> bool:
+    return _benchmark_evidence_matches_source(commit)
+
+
+def load_windows_preview_evidence(
+    path: pathlib.Path | None = None,
+    *,
+    expected_commit: str | None = None,
+) -> dict[str, Any]:
+    """Load and compact a report produced by the native Windows release runner."""
+    path = path or ROOT / "docs" / "windows-preview-results.json"
+    if not path.exists():
+        return {"available": False, "status": "awaiting_native_ci"}
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"available": False, "status": "invalid_evidence"}
+    environment = report.get("environment")
+    summary = report.get("summary")
+    source = report.get("source")
+    domains = report.get("domains")
+    checks = report.get("checks")
+    tests = report.get("tests")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (environment, dict),
+            (summary, dict),
+            (source, dict),
+            (domains, list),
+            (checks, list),
+            (tests, list),
+        )
+    ):
+        return {"available": False, "status": "invalid_evidence"}
+    if not str(environment.get("os", "")).startswith("Windows"):
+        return {"available": False, "status": "not_native_windows"}
+    runtime_domain = next(
+        (
+            domain
+            for domain in domains
+            if isinstance(domain, dict) and domain.get("module") == "test_windows_runtime"
+        ),
+        None,
+    )
+    if not isinstance(runtime_domain, dict):
+        return {"available": False, "status": "missing_native_runtime_domain"}
+    expected_version = json.loads(
+        (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )["version"]
+    source_commit = str(source.get("commit", ""))
+    native_test_rows = [
+        test
+        for test in tests
+        if isinstance(test, dict) and test.get("class") == "WindowsNativeRuntimeTests"
+    ]
+    critical = {
+        test.get("name"): test.get("status")
+        for test in native_test_rows
+    }
+    release_checks_passed = sum(
+        isinstance(check, dict) and check.get("status") == "passed" for check in checks
+    )
+    native_gate_passed = (
+        WINDOWS_CRITICAL_TESTS.issubset(critical)
+        and len(critical) == len(native_test_rows)
+        and all(test.get("status") == "passed" for test in native_test_rows)
+        and runtime_domain.get("failed", 0) == 0
+        and runtime_domain.get("errors", 0) == 0
+        and runtime_domain.get("skipped", 0) == 0
+    )
+    release_gate_passed = release_checks_passed == len(checks) and bool(checks)
+    expected_commit_matches = expected_commit is None or (
+        isinstance(expected_commit, str)
+        and GIT_COMMIT_PATTERN.fullmatch(expected_commit) is not None
+        and source_commit == expected_commit
+    )
+    evidence_is_current = (
+        expected_commit_matches
+        and _windows_evidence_matches_source(source_commit)
+    )
+    if not (
+        report.get("overall") == "passed"
+        and report.get("version") == expected_version
+        and summary.get("failed", 0) == 0
+        and summary.get("errors", 0) == 0
+        and native_gate_passed
+        and release_gate_passed
+        and evidence_is_current
+    ):
+        return {
+            "available": False,
+            "status": "native_evidence_gate_failed",
+            "version_match": report.get("version") == expected_version,
+            "source_match": evidence_is_current,
+            "critical_tests_passed": sum(
+                critical.get(name) == "passed" for name in WINDOWS_CRITICAL_TESTS
+            ),
+            "critical_tests_required": len(WINDOWS_CRITICAL_TESTS),
+        }
+    return {
+        "available": True,
+        "source_match": True,
+        "status": report.get("overall", "unknown"),
+        "version": report.get("version", "unknown"),
+        "verified_at": report.get("generated_at", "unknown"),
+        "commit": source_commit,
+        "runner": environment.get("runner", "unknown"),
+        "os": environment.get("os", "unknown"),
+        "architecture": environment.get("architecture", "unknown"),
+        "python": environment.get("python", "unknown"),
+        "tests": {
+            "total": summary.get("total", 0),
+            "passed": summary.get("passed", 0),
+            "failed": summary.get("failed", 0),
+            "errors": summary.get("errors", 0),
+            "skipped": summary.get("skipped", 0),
+        },
+        "native_runtime": {
+            "total": len(native_test_rows),
+            "passed": sum(test.get("status") == "passed" for test in native_test_rows),
+            "failed": sum(test.get("status") == "failed" for test in native_test_rows),
+            "errors": sum(test.get("status") == "error" for test in native_test_rows),
+            "skipped": sum(test.get("status") == "skipped" for test in native_test_rows),
+        },
+        "release_checks": {
+            "passed": release_checks_passed,
+            "total": len(checks),
+        },
+        "critical_tests": sorted(WINDOWS_CRITICAL_TESTS),
+        "evidence_sha256": sha256(path),
+        "evidence_url": "windows-preview-results.json",
+    }
+
+
+def load_windows_benchmark_evidence(
+    path: pathlib.Path | None = None,
+    *,
+    expected_commit: str | None = None,
+) -> dict[str, Any]:
+    """Accept only source-bound, observed five-minute native-Windows evidence."""
+    path = path or ROOT / "docs" / "windows-benchmark-results.json"
+    if not path.exists():
+        return {"available": False, "status": "awaiting_native_benchmark"}
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    latest = report.get("latest")
+    cumulative = report.get("cumulative")
+    history = report.get("history")
+    if not isinstance(latest, dict) or not isinstance(cumulative, dict) or not isinstance(history, list):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    platform_info = latest.get("platform")
+    tasks = latest.get("tasks")
+    parallel = latest.get("parallel")
+    serial = latest.get("serial_equivalent")
+    savings = latest.get("savings")
+    progress = latest.get("progress_samples")
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (platform_info, dict),
+            (tasks, list),
+            (parallel, dict),
+            (serial, dict),
+            (savings, dict),
+            (progress, list),
+        )
+    ):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    try:
+        durations = [float(task["duration_seconds"]) for task in tasks]
+        wall_seconds = float(parallel["wall_time_seconds"])
+        serial_seconds = float(serial["seconds"])
+        saved_seconds = float(savings["seconds"])
+        peak = int(parallel["peak_concurrency"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"available": False, "status": "invalid_benchmark_evidence"}
+    finite_values = [*durations, wall_seconds, serial_seconds, saved_seconds]
+    observed_minimum = min(durations) if durations else 0.0
+    system = str(platform_info.get("system") or platform_info.get("platform") or "")
+    realm = str(platform_info.get("execution_realm") or "")
+    all_succeeded = len(tasks) == 4 and all(
+        isinstance(task, dict) and task.get("status") == "succeeded" for task in tasks
+    )
+    has_live_sample = False
+    for sample in progress:
+        if not isinstance(sample, dict):
+            continue
+        try:
+            has_live_sample = (
+                int(sample.get("running_tasks", 0)) >= 2
+                and int(sample.get("completed_tasks", 0)) < len(tasks)
+                and float(sample.get("elapsed_seconds", wall_seconds)) < wall_seconds
+            )
+        except (TypeError, ValueError, OverflowError):
+            has_live_sample = False
+        if has_live_sample:
+            break
+    arithmetic_matches = (
+        math.isclose(serial_seconds, sum(durations), rel_tol=0, abs_tol=0.01)
+        and math.isclose(saved_seconds, max(0.0, serial_seconds - wall_seconds), rel_tol=0, abs_tol=0.01)
+    )
+    observed_field = latest.get("observed_minimum_task_seconds", observed_minimum)
+    try:
+        observed_field_matches = math.isclose(
+            float(observed_field), observed_minimum, rel_tol=0, abs_tol=0.01
+        )
+    except (TypeError, ValueError, OverflowError):
+        observed_field_matches = False
+    latest_commit = str(latest.get("commit", ""))
+    expected_commit_matches = expected_commit is None or (
+        isinstance(expected_commit, str)
+        and GIT_COMMIT_PATTERN.fullmatch(expected_commit) is not None
+        and latest_commit == expected_commit
+    )
+    source_matches = expected_commit_matches and _windows_evidence_matches_source(
+        latest_commit
+    )
+    history_is_windows_only = bool(history) and all(
+        isinstance(row, dict)
+        and row.get("status") == "passed"
+        and row.get("execution_realm") == "windows_native"
+        for row in history
+    )
+    run_ids = [str(row.get("run_id", "")) for row in history if isinstance(row, dict)]
+    latest_run_id = str(latest.get("run_id", ""))
+    latest_is_in_history = latest_run_id in run_ids
+    history_is_unique = len(run_ids) == len(set(run_ids)) and all(run_ids)
+    current_history_rows = [
+        row
+        for row in history
+        if isinstance(row, dict) and str(row.get("run_id", "")) == latest_run_id
+    ]
+    try:
+        current_history_matches = len(current_history_rows) == 1 and (
+            current_history_rows[0].get("commit") == latest.get("commit")
+            and math.isclose(
+                float(current_history_rows[0]["wall_time_seconds"]),
+                wall_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                float(current_history_rows[0]["serial_equivalent_seconds"]),
+                serial_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                float(current_history_rows[0]["saved_seconds"]),
+                saved_seconds,
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        current_history_matches = False
+    try:
+        cumulative_matches = (
+            int(cumulative["run_count"]) == len(history)
+            and math.isclose(
+                float(cumulative["parallel_wall_seconds"]),
+                sum(float(row["wall_time_seconds"]) for row in history),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                float(cumulative["serial_equivalent_seconds"]),
+                sum(float(row["serial_equivalent_seconds"]) for row in history),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+            and math.isclose(
+                float(cumulative["saved_seconds"]),
+                sum(float(row["saved_seconds"]) for row in history),
+                rel_tol=0,
+                abs_tol=0.01,
+            )
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        cumulative_matches = False
+    realms = report.get("realms")
+    windows_state = realms.get("windows_native") if isinstance(realms, dict) else None
+    realm_state_matches = (
+        isinstance(windows_state, dict)
+        and windows_state.get("history") == history
+        and windows_state.get("cumulative") == cumulative
+        and windows_state.get("latest") == latest
+    )
+    evidence_valid = (
+        report.get("schema_version") == "1.1"
+        and report.get("aggregation_scope") == "execution_realm"
+        and report.get("latest_realm") == "windows_native"
+        and latest.get("status") == "passed"
+        and system.casefold().startswith("windows")
+        and realm == "windows_native"
+        and all(math.isfinite(value) and value >= 0 for value in finite_values)
+        and all_succeeded
+        and observed_minimum >= 300
+        and latest.get("minimum_duration_met") is True
+        and peak >= 2
+        and has_live_sample
+        and arithmetic_matches
+        and observed_field_matches
+        and source_matches
+        and history_is_windows_only
+        and latest_is_in_history
+        and current_history_matches
+        and history_is_unique
+        and cumulative_matches
+        and realm_state_matches
+    )
+    if not evidence_valid:
+        return {
+            "available": False,
+            "status": "native_benchmark_gate_failed",
+            "source_match": source_matches,
+            "observed_minimum_task_seconds": round(observed_minimum, 6),
+            "all_tasks_succeeded": all_succeeded,
+            "live_progress_observed": has_live_sample,
+            "history_is_windows_only": history_is_windows_only,
+            "current_history_matches_latest": current_history_matches,
+            "cumulative_matches_history": cumulative_matches,
+        }
+    return {
+        **report,
+        "available": True,
+        "source_match": True,
+        "evidence_sha256": sha256(path),
+        "evidence_url": "windows-benchmark-results.json",
+    }
 
 
 def build_python_advisor_evidence() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -361,12 +1273,21 @@ def build_report() -> dict[str, Any]:
         ruff_argv = [sys.executable, "-m", "ruff", "check", "--no-cache", "scripts"]
     checks.append(run_command("Ruff static analysis", ruff_argv))
     checks.append(validate_metadata())
+    checks.append(validate_external_benchmarks())
     advisor_check, advisor_evidence = build_python_advisor_evidence()
     checks.append(advisor_check)
     checks.append(bundle_check())
+    provenance_check, source_clean = _source_provenance_check()
+    checks.append(provenance_check)
 
     status_counts = Counter(test["status"] for test in tests)
     passed = status_counts["passed"]
+    failed = status_counts["failed"]
+    errors = status_counts["error"]
+    skipped = status_counts["skipped"]
+    expected_failures = status_counts["expected_failure"]
+    unexpected_successes = status_counts["unexpected_success"]
+    required_tests = max(0, len(tests) - skipped - expected_failures)
     overall = "passed" if all(check["status"] in {"passed", "skipped"} for check in checks) else "failed"
     domain_rows = []
     for module, meta in DOMAIN_META.items():
@@ -377,6 +1298,9 @@ def build_report() -> dict[str, Any]:
                 "module": module,
                 "total": len(domain_tests),
                 "passed": sum(test["status"] == "passed" for test in domain_tests),
+                "failed": sum(test["status"] == "failed" for test in domain_tests),
+                "errors": sum(test["status"] == "error" for test in domain_tests),
+                "skipped": sum(test["status"] == "skipped" for test in domain_tests),
                 "duration_ms": round(sum(test["duration_ms"] for test in domain_tests), 2),
             }
         )
@@ -391,8 +1315,12 @@ def build_report() -> dict[str, Any]:
         "summary": {
             "total": len(tests),
             "passed": passed,
-            "failed": len(tests) - passed,
-            "pass_rate": round((passed / len(tests) * 100) if tests else 0, 2),
+            "failed": failed,
+            "errors": errors,
+            "skipped": skipped,
+            "expected_failures": expected_failures,
+            "unexpected_successes": unexpected_successes,
+            "pass_rate": round((passed / required_tests * 100) if required_tests else 0, 2),
             "checks_passed": sum(check["status"] == "passed" for check in checks),
             "checks_total": len(checks),
             "elapsed_ms": round(sum(check["duration_ms"] for check in checks), 2),
@@ -402,13 +1330,14 @@ def build_report() -> dict[str, Any]:
             "commit_short": git_value("rev-parse", "--short=10", "HEAD"),
             "branch": os.environ.get("GITHUB_REF_NAME") or git_value("branch", "--show-current"),
             "repository": "cloudguo123/atomlane",
+            "clean": source_clean,
         },
         "environment": {
             "os": f"{platform.system()} {platform.release()}",
             "architecture": platform.machine(),
             "python": platform.python_version(),
             "node": command_version(["node", "--version"]),
-            "runner": os.environ.get("RUNNER_NAME", "local verification runner"),
+            "runner": public_runner_label(),
         },
         "provenance": {
             "bundle_sha256": sha256(bundle),
@@ -418,11 +1347,15 @@ def build_report() -> dict[str, Any]:
         "domains": domain_rows,
         "tests": tests,
         "benchmark": load_long_benchmark(),
+        "windows_preview": load_windows_preview_evidence(),
+        "windows_benchmark": load_windows_benchmark_evidence(),
         "python_advisor": advisor_evidence,
         "growth": load_growth_metrics(),
         "scope_note": (
             "This dashboard reports behavioral regression and release-gate results. "
-            "It is not a statement of line or branch coverage."
+            "The subsystem cards reflect tests executed on the report host; native Windows "
+            "claims require the separate source-bound Windows evidence panels above. It is "
+            "not a statement of line or branch coverage."
         ),
     }
 
@@ -431,13 +1364,49 @@ def render_html(report: dict[str, Any]) -> str:
     data = json.dumps(report, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     overall = report["overall"].upper()
     generated = html.escape(report["generated_at"])
-    verified_test_count = html.escape(str(report.get("summary", {}).get("total", "verified")))
+    summary = report.get("summary", {})
+    verified_test_count = html.escape(
+        str(summary.get("passed", summary.get("total", "verified")))
+    )
+    windows_verified = bool(report.get("windows_preview", {}).get("available"))
+    if windows_verified:
+        meta_description = (
+            "Verified host regression tests, source-bound native Windows Preview evidence, "
+            "five-minute benchmarks, live progress, and public adoption signals for AtomLane."
+        )
+        operating_system = "macOS, Windows Preview"
+        hero_platform_claim = "runs proven concurrency on macOS and native Windows Preview"
+    else:
+        meta_description = (
+            "Host regression tests, Windows Preview evidence status, five-minute benchmarks, "
+            "live progress, and public adoption signals for AtomLane."
+        )
+        operating_system = "macOS"
+        hero_platform_claim = (
+            "runs proven concurrency on macOS while native Windows Preview evidence is pending"
+        )
+    structured_data = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "AtomLane",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": operating_system,
+            "softwareVersion": str(report["version"]),
+            "codeRepository": "https://github.com/cloudguo123/atomlane",
+            "url": "https://cloudguo123.github.io/atomlane/",
+            "license": "https://opensource.org/license/mit",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Verified tests, a five-minute benchmark, live progress, and public adoption signals for AtomLane.">
+  <meta name="description" content="{html.escape(meta_description)}">
   <meta name="theme-color" content="#07100e">
   <link rel="canonical" href="https://cloudguo123.github.io/atomlane/">
   <meta property="og:type" content="website">
@@ -452,7 +1421,7 @@ def render_html(report: dict[str, Any]) -> str:
   <meta name="twitter:title" content="AtomLane · Verified test report">
   <meta name="twitter:description" content="Parallelize only what is proven safe, with live progress and honest savings evidence.">
   <meta name="twitter:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
-  <script type="application/ld+json">{{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AtomLane","alternateName":"Mac Parallel Accelerator","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","softwareVersion":"{html.escape(report['version'])}","codeRepository":"https://github.com/cloudguo123/atomlane","url":"https://cloudguo123.github.io/atomlane/","license":"https://opensource.org/license/mit","offers":{{"@type":"Offer","price":"0","priceCurrency":"USD"}}}}</script>
+  <script type="application/ld+json">{structured_data}</script>
   <title>AtomLane · Test Report</title>
   <style>
     :root {{ color-scheme: dark; --bg:#07100e; --panel:#0c1815; --panel2:#10201c; --line:#20352f; --text:#ecf8f3; --muted:#8ba69c; --green:#65e6b4; --blue:#80b7ff; --purple:#d7a6ff; --red:#ff8f8f; }}
@@ -505,19 +1474,23 @@ def render_html(report: dict[str, Any]) -> str:
 <main class="wrap">
   <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/atomlane">Source</a><a href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/atomlane/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane finds reviewable Python refactors without executing target code, compiles local work into verified atomic plans, and runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
+    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane finds reviewable Python refactors without executing target code, compiles local work into verified atomic plans, and {html.escape(hero_platform_claim)} with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>
   <div class="section-title"><div><div class="eyebrow">Visible by default</div><h2>Watch the work while it runs</h2></div><p>20-second deterministic demo</p></div>
-  <section class="panel"><img class="demo" src="share/demo.gif" width="960" height="540" alt="Live execution counters and estimated time saved updating during a parallel run"><p class="note">The real PTY runner streams elapsed time, running/ready/completed/failed counters, and current savings throughout long execution.</p></section>
+  <section class="panel"><img class="demo" src="share/demo.gif" width="960" height="540" alt="Live execution counters and estimated time saved updating during a parallel run"><p class="note">The live runner streams elapsed time, running/ready/completed/failed counters, and current savings throughout long execution. Windows uses UTF-8 pipes by default and optional ConPTY for terminal-sensitive programs. Captured stdout/stderr is returned with the completed result; ConPTY does not turn task output into a live UI stream.</p></section>
+  <div class="section-title"><div><div class="eyebrow">Cross-platform release gate</div><h2>Native Windows Preview evidence</h2></div><p>Job Object · ConPTY · PowerShell · UTF-8</p></div>
+  <section class="panel" id="windows-preview"></section>
+  <div class="section-title"><div><div class="eyebrow">Native Windows performance evidence</div><h2>Windows five-minute benchmark</h2></div><p>Observed durations · separate cumulative history</p></div>
+  <section class="panel benchmark" id="windows-benchmark"></section>
   <div class="section-title"><div><div class="eyebrow">Long-horizon evidence</div><h2>Five-minute parallel benchmark</h2></div><p>Fast regression report retained below</p></div>
   <section class="panel benchmark" id="benchmark"></section>
   <div class="section-title"><div><div class="eyebrow">Program-level optimization</div><h2>Python refactor safety evidence</h2></div><p>Static fixtures · no target execution</p></div>
   <section class="panel" id="python-advisor"></section>
   <div class="section-title"><div><div class="eyebrow">Quality gates</div><h2>Release checks</h2></div><p id="overall">{overall}</p></div>
   <section class="checks" id="checks"></section>
-  <div class="section-title"><div><div class="eyebrow">Behavioral coverage</div><h2>Verified subsystems</h2></div><p>Every regression grouped by responsibility</p></div>
+  <div class="section-title"><div><div class="eyebrow">Behavioral coverage</div><h2>Host regression subsystems</h2></div><p>Portable and host-local checks grouped by responsibility</p></div>
   <section class="domains" id="domains"></section>
   <div class="section-title"><div><div class="eyebrow">Test inventory</div><h2>All regression cases</h2></div><p id="test-count"></p></div>
   <section class="panel"><div class="toolbar"><input id="search" type="search" placeholder="Filter by test, subsystem, or behavior…" aria-label="Filter tests"></div><div style="overflow:auto"><table><thead><tr><th>Behavior</th><th>Subsystem</th><th>Status</th><th>Duration</th></tr></thead><tbody id="tests"></tbody></table></div></section>
@@ -549,18 +1522,46 @@ q('#seal').style.setProperty('--rate',String(Math.max(0,Math.min(100,finite(d.su
 q('#overall').textContent=d.overall==='passed'?'ALL REQUIRED GATES PASSED':'VERIFICATION FAILED';
 q('#overall').style.color=d.overall==='passed'?'var(--green)':'var(--red)';
 
-const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]];
+const metrics=[['Tests',d.summary.total],['Passed',d.summary.passed],['Failed / errors',finite(d.summary.failed)+' / '+finite(d.summary.errors)],['Skipped',finite(d.summary.skipped)],['Release gates',d.summary.checks_passed+'/'+d.summary.checks_total],['Total wall time',ms(d.summary.elapsed_ms)]];
 clear('#metrics',...metrics.map(item=>valueCard('metric',item[0],item[1])));
+
+const wp=d.windows_preview||{{available:false,status:'awaiting_native_ci'}};
+if(!wp.available){{
+  clear('#windows-preview',add(E('div','benchmark-head'),add(E('div'),E('h3','','Native Windows evidence pending'),E('p','','The Preview is not labeled verified until the release commit passes the native Windows matrix and its machine-readable artifact is retained here.')),E('span','long-pill',String(wp.status).replaceAll('_',' '))));
+}}else{{
+  const nt=wp.native_runtime||{{}},all=wp.tests||{{}},gates=wp.release_checks||{{}};
+  const windowsMetrics=[['Native runtime',finite(nt.passed)+' / '+finite(nt.total)],['Native skips',finite(nt.skipped)],['Full suite',finite(all.passed)+' / '+finite(all.total)],['Failures / errors',finite(all.failed)+' / '+finite(all.errors)],['Release gates',finite(gates.passed)+' / '+finite(gates.total)],['Python',wp.python]];
+  const heading=add(E('div','benchmark-head'),add(E('div'),E('div','eyebrow',String(wp.status)+' · '+String(wp.os)),E('h3','','In-Job execution verified on native Windows'),E('p','','The retained runner evidence covers the client and normally inherited in-Job descendants, with supervisor-plus-target resource budgets, UTF-8 MCP transport, pre-completion lifecycle progress, optional ConPTY, PowerShell file atoms, and startup-injection isolation. Brokers outside the Job—including WSL, Docker, WMI, services, and scheduled tasks—remain separate execution realms.')),E('span','long-pill','Windows Preview '+String(wp.version)));
+  const link=E('a','','Open raw Windows evidence');link.href=String(wp.evidence_url);link.rel='noopener';
+  clear('#windows-preview',heading,add(E('div','grid6'),...windowsMetrics.map(item=>valueCard('bench-metric',item[0],item[1]))),add(E('p','note'),'Runner '+String(wp.runner)+' · '+String(wp.architecture)+' · commit '+String(wp.commit).slice(0,10)+' · evidence SHA-256 '+String(wp.evidence_sha256)+'. ',link));
+}}
+
+const wb=d.windows_benchmark||{{available:false,status:'awaiting_native_benchmark'}};
+if(!wb.available){{
+  clear('#windows-benchmark',add(E('div','benchmark-head'),add(E('div'),E('h3','','Native Windows five-minute evidence pending'),E('p','','This panel stays unverified until four independent workloads each complete at least 300 observed seconds on a source-bound native Windows runner, with pre-completion progress evidence.')),E('span','long-pill',String(wb.status).replaceAll('_',' '))));
+}}else{{
+  const x=wb.latest||{{}},c=wb.cumulative||{{}},tasks=Array.isArray(x.tasks)?x.tasks:[],p=x.platform||{{}},observed=finite(x.observed_minimum_task_seconds,tasks.length?Math.min(...tasks.map(task=>finite(task.duration_seconds))):0);
+  const metrics=[['Observed minimum',span(observed)],['Parallel wall time',span((x.parallel||{{}}).wall_time_seconds)],['Serial equivalent',span((x.serial_equivalent||{{}}).seconds)],['Saved this run',span((x.savings||{{}}).seconds)],['Windows cumulative saved',span(c.saved_seconds)],['Observed speedup',finite((x.savings||{{}}).speedup_multiplier).toFixed(2)+'×']];
+  const heading=add(E('div','benchmark-head'),add(E('div'),E('div','eyebrow',String(x.status)+' · '+String(p.execution_realm)),E('h3','','Four native Windows workloads met or exceeded five observed minutes'),E('p','','Mac and Windows histories are kept separate. Serial-equivalent time is the sum of observed independent task runtimes; savings subtract actual parallel wall time.')),E('span','long-pill','Observed ≥ '+span(observed)));
+  const lanes=E('div','lanes'),target=Math.max(finite(x.target_task_seconds),1);
+  tasks.forEach(task=>{{const fill=E('i','lane-fill',String(task.status).toUpperCase());fill.style.width=pct(finite(task.duration_seconds)/target*100);lanes.append(add(E('div','lane'),E('span','',task.label),add(E('div','lane-track'),fill),E('strong','',span(task.duration_seconds))));}});
+  const raw=E('a','','Open raw Windows benchmark');raw.href=String(wb.evidence_url);raw.rel='noopener';
+  clear('#windows-benchmark',heading,add(E('div','grid6'),...metrics.map(item=>valueCard('bench-metric',item[0],item[1]))),E('h4','','Concurrent task timeline'),lanes,add(E('p','note'),'Runner '+String(p.runner_name||'unknown')+' · '+String(p.os_version||p.system||'Windows')+' · '+String(p.architecture||'unknown')+' · commit '+String(x.commit).slice(0,10)+' · evidence SHA-256 '+String(wb.evidence_sha256)+'. ',raw));
+}}
 
 const b=d.benchmark;
 if(!b.available){{
   const copy=add(E('div'),E('h3','','First long benchmark pending'),E('p','','The five-minute evidence run is independent from fast CI and will appear here after its first successful execution.'));
   clear('#benchmark',add(E('div','benchmark-head'),copy,E('span','long-pill','Scheduled benchmark')));
 }}else{{
-  const x=b.latest,c=b.cumulative,serial=finite(x.serial_equivalent.seconds),wall=finite(x.parallel.wall_time_seconds),historyRows=Array.isArray(b.history)?b.history:[],maxSaved=Math.max(...historyRows.map(row=>finite(row.saved_seconds)),1),longEnough=finite(x.minimum_task_seconds)>=300;
-  const headerCopy=add(E('div'),E('div','eyebrow',String(x.status)+' · '+String(x.task_count)+' independent workloads'),E('h3','',longEnough?'Every task ran beyond five minutes':'Every task met the configured duration gate'),E('p','','Observed task runtimes are summed for the serial equivalent; no synthetic multiplier and no 20-minute serial rerun. Savings equal that observed work minus actual parallel wall time.'));
+  const x=b.latest||{{}},c=b.cumulative||{{}},serial=finite((x.serial_equivalent||{{}}).seconds),wall=finite((x.parallel||{{}}).wall_time_seconds),tasks=Array.isArray(x.tasks)?x.tasks:[],observedMinimum=tasks.length?Math.min(...tasks.map(task=>finite(task.duration_seconds))):0;
+  const allTasksSucceeded=tasks.length===finite(x.task_count)&&tasks.every(task=>task.status==='succeeded');
+  const longEnough=x.status==='passed'&&x.minimum_duration_met===true&&allTasksSucceeded&&observedMinimum>=300;
+  const xRealm=String((x.platform||{{}}).execution_realm||'legacy_macos');
+  const historyRows=(Array.isArray(b.history)?b.history:[]).filter(row=>String(row.execution_realm||xRealm)===xRealm&&row.status==='passed'),maxSaved=Math.max(...historyRows.map(row=>finite(row.saved_seconds)),1);
+  const headerCopy=add(E('div'),E('div','eyebrow',String(x.status)+' · '+String(x.task_count)+' independent workloads'),E('h3','',longEnough?'Every observed task ran for at least five minutes':'Five-minute evidence gate not met'),E('p','','Observed task runtimes are summed for the serial equivalent; no synthetic multiplier and no 20-minute serial rerun. Savings equal that observed work minus actual parallel wall time.'));
   const header=add(E('div','benchmark-head'),headerCopy,E('span','long-pill','Minimum gate '+span(x.minimum_task_seconds)));
-  const benchmarkMetrics=[['Per-task minimum',span(x.minimum_task_seconds)],['Parallel wall time',span(wall)],['Serial equivalent',span(serial)],['Saved this run',span(x.savings.seconds)],['Cumulative saved',span(c.saved_seconds)],['Observed speedup',finite(x.savings.speedup_multiplier).toFixed(2)+'×']];
+  const benchmarkMetrics=[['Observed minimum',span(observedMinimum)],['Required gate',span(x.minimum_task_seconds)],['Parallel wall time',span(wall)],['Serial equivalent',span(serial)],['Saved this run',span(x.savings.seconds)],['Cumulative saved',span(c.saved_seconds)],['Observed speedup',finite(x.savings.speedup_multiplier).toFixed(2)+'×']];
   const metricGrid=add(E('div','grid6'),...benchmarkMetrics.map(item=>valueCard('bench-metric',item[0],item[1])));
   const comparisonLeft=add(E('div'),E('h4','','Serial-equivalent vs parallel'),compareRow('Serial equivalent',100,span(serial)),compareRow('Parallel',serial>0?wall/serial*100:0,span(wall),true),E('p','note',finite(x.savings.percent).toFixed(2)+'% less wall time · '+(finite(x.savings.parallel_efficiency)*100).toFixed(1)+'% parallel efficiency · peak '+String(x.parallel.peak_concurrency)+' workers'));
   const history=E('div','history');
@@ -568,7 +1569,7 @@ if(!b.available){{
   const comparisonRight=add(E('div'),E('h4','','Cumulative savings history'),history,E('p','note',String(c.run_count)+' verified run'+(c.run_count===1?'':'s')+' · '+span(c.saved_seconds)+' saved in total'));
   const comparison=add(E('div','comparison'),comparisonLeft,comparisonRight);
   const lanes=E('div','lanes'),targetSeconds=Math.max(finite(x.target_task_seconds),1);
-  (Array.isArray(x.tasks)?x.tasks:[]).forEach(task=>{{const fill=E('i','lane-fill',String(task.status).toUpperCase());fill.style.width=pct(finite(task.duration_seconds)/targetSeconds*100);lanes.append(add(E('div','lane'),E('span','',task.label),add(E('div','lane-track'),fill),E('strong','',span(task.duration_seconds))));}});
+  tasks.forEach(task=>{{const fill=E('i','lane-fill',String(task.status).toUpperCase());fill.style.width=pct(finite(task.duration_seconds)/targetSeconds*100);lanes.append(add(E('div','lane'),E('span','',task.label),add(E('div','lane-track'),fill),E('strong','',span(task.duration_seconds))));}});
   const resource=x.resource||{{}};
   const methodNote='Method: '+String(x.method)+'. Latest run '+String(x.run_id)+' on '+String(resource.machine)+' ('+String(resource.logical_cpus)+' logical CPUs). Source commit '+String(x.commit).slice(0,10)+'.';
   clear('#benchmark',header,metricGrid,comparison,E('h4','','Concurrent task timeline'),lanes,E('p','note',methodNote));
@@ -605,7 +1606,7 @@ function draw(list){{
 draw(d.tests);
 q('#search').addEventListener('input',event=>{{const term=String(event.target.value).toLowerCase();draw(d.tests.filter(test=>Object.values(test).join(' ').toLowerCase().includes(term)));}});
 
-const provenance=[['Verified commit',d.source.commit],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]];
+const provenance=[['Verified commit',d.source.commit],['Source tree',d.source.clean===true?'clean':'dirty / unknown'],['Branch',d.source.branch],['Runner',d.environment.runner],['Platform',d.environment.os+' · '+d.environment.architecture],['Toolchain','Python '+d.environment.python+' · Node '+d.environment.node],['UI bundle SHA-256',d.provenance.bundle_sha256]];
 clear('#provenance',...provenance.map(item=>add(E('div','prov'),E('span','',item[0]),E('code','',item[1]))));
 q('#scope').textContent=String(d.scope_note);
 
@@ -633,7 +1634,79 @@ def main() -> int:
         type=pathlib.Path,
         default=ROOT / "docs" / "test-results.json",
     )
+    validation = parser.add_mutually_exclusive_group()
+    validation.add_argument(
+        "--validate-macos-benchmark-evidence",
+        type=pathlib.Path,
+        help="validate one downloaded native-macOS benchmark artifact and exit",
+    )
+    validation.add_argument(
+        "--validate-windows-preview-evidence",
+        type=pathlib.Path,
+        help="validate one downloaded native-Windows CI artifact and exit",
+    )
+    validation.add_argument(
+        "--validate-windows-benchmark-evidence",
+        type=pathlib.Path,
+        help="validate one downloaded native-Windows benchmark artifact and exit",
+    )
+    parser.add_argument(
+        "--expected-commit",
+        help="exact source commit required by artifact validation modes",
+    )
     args = parser.parse_args()
+    validation_mode = next(
+        (
+            (name, path)
+            for name, path in (
+                ("macos_benchmark", args.validate_macos_benchmark_evidence),
+                ("windows_preview", args.validate_windows_preview_evidence),
+                ("windows_benchmark", args.validate_windows_benchmark_evidence),
+            )
+            if path is not None
+        ),
+        None,
+    )
+    if validation_mode is not None:
+        if args.expected_commit is None:
+            parser.error("--expected-commit is required with artifact validation")
+        mode, evidence_path = validation_mode
+        if mode == "windows_preview":
+            evidence = load_windows_preview_evidence(
+                evidence_path,
+                expected_commit=args.expected_commit,
+            )
+        elif mode == "windows_benchmark":
+            evidence = load_windows_benchmark_evidence(
+                evidence_path,
+                expected_commit=args.expected_commit,
+            )
+        else:
+            try:
+                benchmark = json.loads(evidence_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                evidence = {
+                    "available": False,
+                    "status": "invalid_benchmark_evidence",
+                }
+            else:
+                evidence = validate_macos_benchmark_evidence(
+                    benchmark,
+                    expected_commit=args.expected_commit,
+                )
+        print(
+            json.dumps(
+                {
+                    "available": evidence.get("available", False),
+                    "status": evidence.get("status", "invalid_benchmark_evidence"),
+                    "source_match": evidence.get("source_match", False),
+                },
+                separators=(",", ":"),
+            )
+        )
+        return 0 if evidence.get("available") is True else 1
+    if args.expected_commit is not None:
+        parser.error("--expected-commit requires an artifact validation mode")
     report = build_report()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.json_output.parent.mkdir(parents=True, exist_ok=True)

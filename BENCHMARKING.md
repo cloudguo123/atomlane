@@ -2,7 +2,7 @@
 
 AtomLane reports two different kinds of evidence. Keep them separate:
 
-- **Controlled scheduler benchmark:** isolated workloads with known independence, useful for measuring scheduler overhead, live reporting, and savings arithmetic.
+- **Controlled scheduler benchmark:** isolated workloads with known independence, useful for measuring scheduler overhead, live lifecycle/savings reporting, and savings arithmetic. Captured task output is completion evidence, not a real-time UI stream.
 - **Project benchmark:** a real project command or workflow, useful for measuring practical benefit and discovering safety blockers.
 - **Python refactor validation:** a before/after program comparison in which the
   serial observation is measured, the advisor projection remains modeled, and
@@ -25,8 +25,9 @@ Before accepting a reviewable preview:
 2. Review worker picklability, import-time behavior, exception timing, ordering,
    cancellation, external effects, and nested/native worker budgets.
 3. Compile the transformed source without importing it.
-4. Run serial and parallel implementations on deterministic fixtures under the
-   macOS `spawn` start method; compare values, order, exception types/messages,
+4. Run serial and parallel implementations on deterministic fixtures under an
+   explicit `spawn` context on every claimed target platform; compare values,
+   order, exception types/messages,
    stdout/stderr policy, and hashes of every produced file.
 5. Measure at least three safe repetitions with identical cold/warm state;
    report p50, p90 when meaningful, peak RSS, worker count, item count, and
@@ -43,13 +44,28 @@ read-I/O, and native-library shapes are separated without executing targets.
 A publishable project result includes:
 
 1. Plugin version and commit.
-2. Mac model, macOS version, power source, Low Power Mode, and logical CPU count.
+2. Native host model, OS version, architecture, power state, logical CPU count,
+   and execution realm. On macOS include Low Power Mode. On Windows record the
+   staged supervisor assignment, requested and queried Job limits, containment
+   scope, broker boundary, and terminal mode. Job CPU/memory budgets include the
+   supervisor and normally inherited target tree; memory requests must be at
+   least 128 MiB. Report WSL and Docker VM facts separately. A `windows-2025`
+   runner result must not be labeled Windows 11 Desktop UI evidence.
 3. Project category and a sanitized description of the entrypoint.
 4. Whether the run was cold or warm; cache and dependency state must be explicit.
 5. Exact success criteria and output hashes or other correctness checks.
 6. Parallel wall time and either a separately measured safe serial baseline or a clearly labeled serial equivalent.
 7. Per-run savings, speedup, peak concurrency, failures, skips, and planner blockers.
 8. At least three repetitions for stable work; report median (p50) and slowest observation (p90 when enough samples exist).
+
+For Windows, report the live lifecycle/count/savings samples separately from
+captured stdout/stderr, which is returned in the completed result. If ConPTY is
+used, record that stdout and stderr are intentionally combined. Do not describe
+the current supervisor-first, PID-assignment sequence as atomic creation: the
+Preview does not use `CREATE_SUSPENDED` or `PROC_THREAD_ATTRIBUTE_JOB_LIST` for
+the target. An empty queried Job proves only the Job is empty; it says nothing
+about work handed to WSL, Docker, WMI, services, scheduled tasks, or another
+broker.
 
 Do not publish project names, paths, prompts, command bodies, tool output, environment variables, or file contents unless you have reviewed and intentionally disclosed them.
 

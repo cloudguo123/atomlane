@@ -344,6 +344,37 @@ class ReportRenderingTests(unittest.TestCase):
             ):
                 self.assertEqual(generate_test_report.main(), 1)
 
+    def test_windows_benchmark_cli_reports_nested_success_status(self) -> None:
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "generate_test_report.py",
+                    "--validate-windows-benchmark-evidence",
+                    "windows-benchmark-results.json",
+                    "--expected-commit",
+                    "a" * 40,
+                ],
+            ),
+            mock.patch.object(
+                generate_test_report,
+                "load_windows_benchmark_evidence",
+                return_value={
+                    "available": True,
+                    "latest": {"status": "passed"},
+                    "source_match": True,
+                },
+            ),
+            mock.patch("builtins.print") as printer,
+        ):
+            self.assertEqual(generate_test_report.main(), 0)
+
+        payload = json.loads(printer.call_args.args[0])
+        self.assertEqual(payload["status"], "passed")
+        self.assertTrue(payload["available"])
+        self.assertTrue(payload["source_match"])
+
     def test_pages_validates_artifacts_before_restoring_them(self) -> None:
         workflow = (
             generate_test_report.ROOT / ".github" / "workflows" / "pages.yml"

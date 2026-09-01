@@ -1696,11 +1696,22 @@ def main() -> int:
                     benchmark,
                     expected_commit=args.expected_commit,
                 )
+        evidence_status = evidence.get("status")
+        if not isinstance(evidence_status, str):
+            latest = evidence.get("latest")
+            if isinstance(latest, dict):
+                evidence_status = latest.get("status")
+        if not isinstance(evidence_status, str):
+            evidence_status = (
+                "passed"
+                if evidence.get("available") is True
+                else "invalid_benchmark_evidence"
+            )
         print(
             json.dumps(
                 {
                     "available": evidence.get("available", False),
-                    "status": evidence.get("status", "invalid_benchmark_evidence"),
+                    "status": evidence_status,
                     "source_match": evidence.get("source_match", False),
                 },
                 separators=(",", ":"),

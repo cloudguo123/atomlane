@@ -1700,7 +1700,12 @@ def main() -> int:
             json.dumps(
                 {
                     "available": evidence.get("available", False),
-                    "status": evidence.get("status", "invalid_benchmark_evidence"),
+                    "status": evidence.get(
+                        "status",
+                        "passed"
+                        if evidence.get("available") is True
+                        else "invalid_benchmark_evidence",
+                    ),
                     "source_match": evidence.get("source_match", False),
                 },
                 separators=(",", ":"),

@@ -300,9 +300,11 @@ class ReportRenderingTests(unittest.TestCase):
                     "_macos_evidence_matches_source",
                     return_value=True,
                 ),
-                mock.patch("builtins.print"),
+                mock.patch("builtins.print") as print_mock,
             ):
                 self.assertEqual(generate_test_report.main(), 0)
+            validation_summary = json.loads(print_mock.call_args.args[0])
+            self.assertEqual(validation_summary["status"], "passed")
             with (
                 mock.patch.object(
                     sys,

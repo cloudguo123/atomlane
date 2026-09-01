@@ -294,9 +294,13 @@ elapsed time, failures and skips, output locations, per-invocation
 `time_saved_seconds`, and `cumulative_saved_seconds`.
 
 On native Windows, ordinary tasks use separate pipes below a kill-on-close Job
-Object. Optional CPU-rate, job-memory, and active-process limits cover the
-target tree. ConPTY is opt-in for terminal-sensitive programs and reports one
-combined VT stream; MCP and live-runner progress do not require ConPTY.
+Object. Optional CPU-rate and job-memory limits cover the supervisor plus the
+normally inherited target tree. In pipe mode, `max_processes` is the exact
+Job-wide active-member ceiling (minimum 2) and includes the supervisor; it is
+not a target-only allowance. ConPTY with `max_processes` fails closed because
+console-host Job membership is not proven, while ConPTY with CPU or memory
+limits remains supported. ConPTY reports one combined VT stream; MCP and
+live-runner progress do not require it.
 
 A supplied serial baseline supports a measured comparison. Otherwise label
 savings and multiplier as estimates derived from observed atom durations; do

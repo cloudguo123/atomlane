@@ -14,7 +14,6 @@ import math
 import os
 import platform
 import re
-import shutil
 import signal
 import subprocess
 import sys
@@ -47,7 +46,9 @@ from platform_adapter import (
     load_snapshot,
     memory_snapshot,
     platform_capabilities,
+    resolve_host_executable,
     windows_physical_cpu_count,
+    windows_process_limit_blocker,
 )
 from platform_adapter import (
     power_snapshot as portable_power_snapshot,
@@ -1345,7 +1346,7 @@ def _current_platform_contract() -> dict[str, Any]:
     environment = capabilities["execution_environment"]
     windows_native = environment["is_windows_native"]
     return {
-        "adapter_protocol": "atomlane-platform/v1",
+        "adapter_protocol": "atomlane-platform/v2",
         "os_family": environment["system"].lower(),
         "environment_kind": environment["boundary"],
         "architecture": platform.machine().lower(),
@@ -1357,6 +1358,10 @@ def _current_platform_contract() -> dict[str, Any]:
         ),
         "process_tree_control": capabilities["process_tree_control"],
         "supported_terminal_modes": capabilities["terminal_modes"],
+        "supported_resource_controls": capabilities["resource_controls"],
+        "resource_control_constraints": capabilities[
+            "resource_control_constraints"
+        ],
     }
 
 
@@ -1746,7 +1751,7 @@ def _performance_levels() -> list[dict[str, Any]]:
 
 
 def _process_info_state() -> dict[str, Any]:
-    if platform.system() != "Darwin" or not shutil.which("osascript"):
+    if platform.system() != "Darwin" or not resolve_host_executable("osascript"):
         return {}
     script = (
         'ObjC.import("Foundation"); '
@@ -1760,7 +1765,7 @@ def _process_info_state() -> dict[str, Any]:
 
 
 def _gpu_snapshot() -> dict[str, Any] | None:
-    if platform.system() != "Darwin" or not shutil.which("system_profiler"):
+    if platform.system() != "Darwin" or not resolve_host_executable("system_profiler"):
         return None
     data = _json_probe(["system_profiler", "SPDisplaysDataType", "-json"])
     devices = data.get("SPDisplaysDataType", []) if isinstance(data, dict) else []
@@ -2139,7 +2144,7 @@ def concurrency_plan(
 
 
 def _xcrun_tool(name: str) -> str | None:
-    if not shutil.which("xcrun"):
+    if not resolve_host_executable("xcrun"):
         return None
     return _run_probe(["xcrun", "-f", name])
 
@@ -2157,7 +2162,7 @@ def accelerator_inventory() -> dict[str, Any]:
         )
         numpy_accelerate = "accelerate" in (config or "").lower()
 
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = resolve_host_executable("ffmpeg")
     ffmpeg_encoders = _run_probe([ffmpeg, "-hide_banner", "-encoders"]) if ffmpeg else None
     videotoolbox_encoders = sorted(
         set(re.findall(r"\b([a-z0-9]+_videotoolbox)\b", ffmpeg_encoders or ""))
@@ -2299,7 +2304,7 @@ def accelerator_plan(workload: str, responsiveness: str = "interactive") -> dict
 
 def docker_snapshot() -> dict[str, Any]:
     host_boundary = execution_environment()["boundary"]
-    docker = shutil.which("docker")
+    docker = resolve_host_executable("docker")
     if not docker:
         return {
             "available": False,
@@ -2929,9 +2934,12 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
     if max_processes is not None and (
         isinstance(max_processes, bool)
         or not isinstance(max_processes, int)
-        or not 1 <= max_processes <= 4096
+        or not 2 <= max_processes <= 4096
     ):
-        raise InputError(f"task {task_id} resources.max_processes must be between 1 and 4096")
+        raise InputError(f"task {task_id} resources.max_processes must be between 2 and 4096")
+    process_limit_blocker = windows_process_limit_blocker(terminal_mode, max_processes)
+    if process_limit_blocker is not None:
+        raise InputError(f"task {task_id} {process_limit_blocker}")
     resources = {
         "cpu_rate_percent": cpu_rate,
         "memory_limit_mb": memory_limit,
@@ -3126,12 +3134,33 @@ async def _settle_process_io(
     return not pending
 
 
-def _windows_job_process_slot_reservations(terminal_mode: str) -> tuple[str, ...]:
-    """Reserve capacity without claiming undocumented ConPTY host membership."""
+def _windows_job_process_slot_reservations(
+    terminal_mode: str, max_processes: int | None
+) -> tuple[str, ...]:
+    """Reserve verified Job members only when ActiveProcessLimit is enabled."""
 
-    if terminal_mode == "conpty":
-        return ("supervisor", "conpty_infrastructure_capacity")
+    if max_processes is None:
+        return ()
+    blocker = windows_process_limit_blocker(terminal_mode, max_processes)
+    if blocker is not None:
+        raise InputError(blocker)
     return ("supervisor",)
+
+
+def _reported_windows_containment_scope(
+    broker_boundary: Any, job_scope: str
+) -> str:
+    """Use the native Job scope only when no broker boundary exists."""
+
+    if broker_boundary is None:
+        return job_scope
+    if (
+        isinstance(broker_boundary, dict)
+        and broker_boundary.get("containment_scope")
+        == "client_and_inherited_windows_descendants_only"
+    ):
+        return "client_and_inherited_windows_descendants_only"
+    raise InputError("invalid Windows broker containment boundary")
 
 
 async def _launch_windows_task(
@@ -3139,6 +3168,16 @@ async def _launch_windows_task(
     target_env: dict[str, str],
 ) -> tuple[asyncio.subprocess.Process, WindowsJobController, bytes]:
     """Launch a waiting supervisor, contain it, then release one target record."""
+    resources = task.get(
+        "resources",
+        {"cpu_rate_percent": None, "memory_limit_mb": None, "max_processes": None},
+    )
+    max_processes = resources.get("max_processes")
+    # Validate every fail-closed process-limit combination before the trusted
+    # waiting supervisor exists, even if an internal caller bypassed normalization.
+    _windows_job_process_slot_reservations(
+        task.get("terminal_mode", "pipes"), max_processes
+    )
     if _windows_environment_utf16_units(target_env) > MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS:
         raise InputError(
             f"task {task['id']} Windows environment exceeds "
@@ -3200,27 +3239,15 @@ async def _launch_windows_task(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    resources = task.get(
-        "resources",
-        {"cpu_rate_percent": None, "memory_limit_mb": None, "max_processes": None},
-    )
-    max_processes = resources.get("max_processes")
-    process_slot_reservations = _windows_job_process_slot_reservations(
-        task.get("terminal_mode", "pipes")
-    )
     job: WindowsJobController | None = None
     try:
         job = WindowsJobController(
             cpu_rate_percent=resources.get("cpu_rate_percent"),
             memory_limit_mb=resources.get("memory_limit_mb"),
-            # The supervisor is a known Job member. ConPTY may require an
-            # implementation process, but Windows does not document that host
-            # as a member of this Job; reserve capacity without claiming scope.
-            max_processes=(
-                max_processes + len(process_slot_reservations)
-                if max_processes is not None
-                else None
-            ),
+            # This is the exact Job-wide member ceiling. The supervisor consumes
+            # one slot while alive; no extra slot is added or described as a
+            # target-tree guarantee.
+            max_processes=max_processes,
         )
         job.assign(process.pid)
         return process, job, launch_input
@@ -3284,10 +3311,10 @@ async def execute_task(
     input_task: asyncio.Task[None] | None = None
     try:
         launch_argv = task["argv"]
-        nice_binary = shutil.which("nice")
+        nice_binary = resolve_host_executable("nice")
         if os.name == "posix" and nice_adjustment > 0 and nice_binary:
             launch_argv = [nice_binary, "-n", str(nice_adjustment), *launch_argv]
-        taskpolicy = shutil.which("taskpolicy")
+        taskpolicy = resolve_host_executable("taskpolicy")
         if qos_clamp and taskpolicy:
             launch_argv = [taskpolicy, "-c", qos_clamp, *launch_argv]
         launch_input: bytes | None = None
@@ -3295,7 +3322,7 @@ async def execute_task(
             process, windows_job, launch_input = await _launch_windows_task(task, env)
             job_description = windows_job.description()
             process_slot_reservations = _windows_job_process_slot_reservations(
-                terminal_mode
+                terminal_mode, resources.get("max_processes")
             )
             job_scope = "supervisor_and_inherited_windows_tree"
             job_description.update(
@@ -3305,10 +3332,19 @@ async def execute_task(
                     "verified_job_internal_processes": ["supervisor"],
                     "job_process_slot_reservations": list(process_slot_reservations),
                     "job_reserved_process_slots": len(process_slot_reservations),
+                    "job_active_process_limit_semantics": (
+                        "all_job_members_including_supervisor"
+                        if resources.get("max_processes") is not None
+                        else "not_enabled"
+                    ),
+                    "target_process_capacity_at_launch": (
+                        resources["max_processes"] - len(process_slot_reservations)
+                        if resources.get("max_processes") is not None
+                        else None
+                    ),
                     "conpty_host_job_membership": (
                         "not_verified" if terminal_mode == "conpty" else "not_applicable"
                     ),
-                    "target_process_limit": resources.get("max_processes"),
                 }
             )
             applied_controls = {
@@ -3322,8 +3358,8 @@ async def execute_task(
             result["applied_resource_controls"] = applied_controls
             result["resource_controls"] = applied_controls
             result["process_tree_backend"] = job_description["backend"]
-            result["containment_scope"] = task.get("broker_boundary", {}).get(
-                "containment_scope", job_description["containment_scope"]
+            result["containment_scope"] = _reported_windows_containment_scope(
+                task.get("broker_boundary"), job_description["containment_scope"]
             )
         else:
             process = await asyncio.create_subprocess_exec(
@@ -3880,6 +3916,8 @@ def _verify_compiled_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         "path_flavor",
         "argv_transport",
         "process_tree_control",
+        "supported_resource_controls",
+        "resource_control_constraints",
     }
     if not isinstance(platform_contract, dict) or any(
         platform_contract.get(field) != current_contract.get(field)
@@ -4230,12 +4268,28 @@ TASK_SCHEMA = {
             "properties": {
                 "cpu_rate_percent": {"type": "number", "minimum": 0.01, "maximum": 100},
                 "memory_limit_mb": {"type": "number", "minimum": 128, "maximum": 1048576},
-                "max_processes": {"type": "integer", "minimum": 1, "maximum": 4096},
+                "max_processes": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 4096,
+                    "description": "Exact Windows Job Object active-member ceiling, including AtomLane's supervisor; supported only with pipes.",
+                },
             },
             "additionalProperties": False,
-            "description": "Native Windows Job Object limits for the client and inherited Windows descendants; WSL, Docker, WMI, services, scheduled tasks, and other broker-created work are outside this limit.",
+            "description": "Native Windows Job Object limits cover AtomLane's supervisor and inherited Windows descendants; WSL, Docker, WMI, services, scheduled tasks, and other broker-created work are outside this limit.",
         },
     },
+    "allOf": [
+        {
+            "not": {
+                "required": ["terminal_mode", "resources"],
+                "properties": {
+                    "terminal_mode": {"const": "conpty"},
+                    "resources": {"required": ["max_processes"]},
+                },
+            }
+        }
+    ],
     "additionalProperties": False,
 }
 

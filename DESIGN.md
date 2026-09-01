@@ -331,11 +331,13 @@ atomic target-creation guarantee: the current Preview does not use
 The Job can enforce kill-on-close, CPU rate, memory, and active-process limits.
 CPU and memory limits are Job-wide and therefore include the supervisor plus
 the normally inherited target tree; the minimum accepted memory limit is
-128 MiB. The requested target process envelope receives one additional Job slot
-for the supervisor. ConPTY mode conservatively reserves a second infrastructure-
-capacity slot, but AtomLane does not claim that the undocumented console host is
-a member of the Job; reported containment and CPU/memory scope remain the
-supervisor and normally inherited target tree. Separate byte pipes are the
+128 MiB. In pipe mode, `max_processes` is the exact Job-wide active-member
+ceiling and includes the supervisor; it is never inflated into an unprovable
+target-tree allowance. The minimum is two so the supervisor can create one
+target. ConPTY with `max_processes` fails before target code starts because the
+console host's Job membership is not proven; CPU and memory controls remain
+available. Reported containment and resource scope remain the supervisor and
+normally inherited target tree. Separate byte pipes are the
 default concurrently drained capture transport; retained bytes are decoded as
 UTF-8 with an explicit replacement flag. The live surface reports scheduler
 lifecycle counts and savings while the task runs, and returns captured

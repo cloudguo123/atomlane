@@ -21,7 +21,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from platform_adapter import brokered_execution_boundary
+from platform_adapter import brokered_execution_boundary, windows_process_limit_blocker
 from windows_job_runner import RunnerError, validate_windows_executable_contract
 
 IR_VERSION = "2.0"
@@ -854,9 +854,14 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
     if max_processes_raw is not None and (
         isinstance(max_processes_raw, bool)
         or not isinstance(max_processes_raw, int)
-        or not 1 <= max_processes_raw <= 4096
+        or not 2 <= max_processes_raw <= 4096
     ):
-        raise AtomError(f"atom {atom_id} resource_limits.max_processes must be 1..4096")
+        raise AtomError(f"atom {atom_id} resource_limits.max_processes must be 2..4096")
+    process_limit_blocker = windows_process_limit_blocker(
+        terminal_mode, max_processes_raw
+    )
+    if process_limit_blocker is not None:
+        raise AtomError(f"atom {atom_id} {process_limit_blocker}")
     resource_limits = {
         "cpu_rate_percent": cpu_rate_percent,
         "memory_limit_mb": memory_limit_mb,

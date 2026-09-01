@@ -155,11 +155,13 @@ Object supervision, optional ConPTY, and a conservative `pwsh` file frontend.
   closed on native Windows in this Preview. Run POSIX workflows inside WSL, or
   declare exact native atoms instead of relying on shell-text translation.
 - Job-wide CPU rate and memory controls cover the supervisor and normally
-  inherited target tree; the memory limit is at least 128 MiB. The active-
-  process envelope reserves a supervisor slot; ConPTY mode conservatively
-  reserves one further infrastructure-capacity slot without claiming that the
-  console host belongs to the Job. None of these limits constrain brokered work.
-  Windows process-pool advice never exceeds the platform's 61-worker wait limit.
+  inherited target tree; the memory limit is at least 128 MiB. In pipe mode,
+  `max_processes` is the exact active-member ceiling for the entire Job and is
+  at least 2; the verified supervisor consumes one slot while it is alive.
+  ConPTY with `max_processes` fails before target code starts because
+  console-host Job membership is not yet proven; CPU and memory limits remain
+  available. None of these limits constrain brokered work. Windows process-pool
+  advice never exceeds the platform's 61-worker wait limit.
 
 The complete boundary and troubleshooting notes are in
 [Windows Preview](docs/WINDOWS_PREVIEW.md).

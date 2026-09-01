@@ -18,7 +18,7 @@ runs on GitHub's `windows-2025` image with CPython 3.10, 3.11, and 3.13.
 | Commands | Direct executable argv with `shell=False`; direct `.cmd` and `.bat` argv are rejected. |
 | PowerShell | One existing `.ps1` file is one snapshotted atom, launched by `pwsh -NoLogo -NoProfile -NonInteractive -File`. |
 | Process scope | A waiting supervisor is opened by PID and placed in a kill-on-close Windows Job Object before it receives the launch record and creates the target. Normal inherited target descendants share the Job; broker-created WSL, Docker, WMI, service, scheduled-task, or remote work does not. This is staged supervision, not atomic target creation. |
-| Resources | Optional Job-wide CPU hard-cap percentage and memory limit cover the supervisor plus the normally inherited target tree. Memory is at least 128 MiB. Pipe mode reserves one Job slot for the supervisor; ConPTY conservatively reserves one additional infrastructure-capacity slot without asserting console-host Job membership. |
+| Resources | Optional Job-wide CPU hard-cap percentage and memory limit cover the supervisor plus the normally inherited target tree. Memory is at least 128 MiB. In pipe mode, `max_processes` is an exact Job-wide active-member ceiling of 2–4096; the verified supervisor consumes one slot while alive. ConPTY with `max_processes` fails before target code starts because console-host Job membership is not yet proven; CPU and memory limits remain available. |
 | Output | Separate byte pipes, decoded as UTF-8 with replacement, by default; ConPTY is opt-in for programs that need terminal semantics. Pipes are drained concurrently and capture remains bounded; user-visible counters and savings are emitted while work is running. Captured task output is returned in the final result. |
 | Python advice | The static advisor can target Windows and emits an explicit `multiprocessing.get_context("spawn")` process-pool preview for eligible CPU maps. |
 | Docker | Resource advice can target an identified Linux Docker daemon, including Docker Desktop. Windows containers are advisory-only. |
@@ -52,12 +52,15 @@ not silently fall back to uncontained execution.
 
 CPU and memory limits are Job-wide, so the supervisor's own usage consumes part
 of the same budget as the target and its normally inherited descendants. The
-minimum accepted memory limit is 128 MiB. The caller's active-process request
-describes the target envelope; the applied Job limit reserves one additional
-slot for the supervisor. ConPTY reserves one further infrastructure-capacity
-slot because Windows may need a console host, but AtomLane does not claim that
-host is a member of the Job: verified containment and CPU/memory scope remain
-the supervisor plus the normally inherited target tree. On timeout or
+minimum accepted memory limit is 128 MiB. `max_processes` is the exact ceiling
+for all active Job members, not a separate target-tree promise. It is accepted
+from 2 through 4096 in pipe mode; the supervisor consumes one member slot while
+alive, so the target has at most `max_processes - 1` slots at launch. After the
+supervisor exits, the kernel still enforces the same Job-wide total and no
+capacity is added beyond the request. ConPTY may involve a console host whose
+Job membership is not documented strongly enough to make this control
+predictable, so ConPTY with `max_processes` fails before target code starts.
+CPU and memory limits remain available with ConPTY. On timeout or
 cancellation AtomLane terminates the Job and queries it until it reports zero
 active processes. That proves only that the Job is empty, not that work
 delegated through an external broker stopped.

@@ -458,6 +458,30 @@ class AtomEngineTests(unittest.TestCase):
         ]
         for index, (first, second) in enumerate(aliases):
             with self.subTest(index=index):
+                lexical_first = _normalize_windows_path(first)
+                lexical_second = _normalize_windows_path(second)
+                self.assertTrue(
+                    _resource_overlap(
+                        f"file:{lexical_first}", f"file:{lexical_second}"
+                    )
+                )
+                if os.name == "nt" and index == 1:
+                    with self.assertRaisesRegex(
+                        AtomError, "no accessible existing ancestor"
+                    ):
+                        compile_atomic_plan(
+                            [
+                                self.atom(
+                                    "unreachable-unc",
+                                    accesses=[
+                                        {"resource": first, "mode": "overwrite"}
+                                    ],
+                                    side_effect=True,
+                                )
+                            ],
+                            self.project,
+                        )
+                    continue
                 plan = compile_atomic_plan(
                     [
                         self.atom(

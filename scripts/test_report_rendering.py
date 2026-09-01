@@ -317,10 +317,25 @@ class ReportRenderingTests(unittest.TestCase):
         workflow = (
             generate_test_report.ROOT / ".github" / "workflows" / "pages.yml"
         ).read_text(encoding="utf-8")
+        report_section, deploy_section = workflow.split("\n  deploy:\n", maxsplit=1)
         validator = workflow.index("--validate-macos-benchmark-evidence")
         copy = workflow.index('cp "$download_dir/$source_name" "$destination"')
 
         self.assertLess(validator, copy)
+        self.assertIn("ref: refs/heads/main", report_section)
+        self.assertIn("fetch-depth: 0", report_section)
+        self.assertIn("$GITHUB_EVENT_PATH", report_section)
+        self.assertIn("scripts/pages_evidence_selector.py", report_section)
+        self.assertIn("github.ref == 'refs/heads/main'", report_section)
+        self.assertNotIn("pages: write", report_section)
+        self.assertNotIn("id-token: write", report_section)
+        for untrusted_checkout_expression in (
+            "${{ github.event.workflow_run.head_sha",
+            "${{ github.event.workflow_run.head_branch",
+            "${{ github.event.pull_request.head.sha",
+            "${{ github.event.pull_request.head.ref",
+        ):
+            self.assertNotIn(untrusted_checkout_expression, workflow)
         self.assertIn('--expected-commit "$head_sha"', workflow)
         self.assertIn("--validate-windows-preview-evidence", workflow)
         self.assertIn("--validate-windows-benchmark-evidence", workflow)
@@ -331,6 +346,11 @@ class ReportRenderingTests(unittest.TestCase):
             "source-bound artifact.",
             workflow,
         )
+        self.assertIn("needs: report", deploy_section)
+        self.assertIn("pages: write", deploy_section)
+        self.assertIn("id-token: write", deploy_section)
+        self.assertNotIn("actions/checkout@", deploy_section)
+        self.assertNotIn("\n        run:", deploy_section)
 
     def test_python_advisor_evidence_is_non_executing_and_hash_stable(self) -> None:
         check, evidence = generate_test_report.build_python_advisor_evidence()

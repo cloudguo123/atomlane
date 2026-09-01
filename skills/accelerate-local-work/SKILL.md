@@ -153,12 +153,16 @@ mode should retain CPU and memory headroom and reduce work under existing load,
 battery use, Low Power Mode, memory pressure, or thermal pressure.
 
 On native Windows, every target runs below a kill-on-close Job Object. Optional
-`cpu_rate_percent`, `memory_limit_mb`, and `max_processes` limits apply to the
-complete target tree. If Job assignment fails, do not start target code and do
-not fall back to killing only the direct child. Use `terminal_mode: conpty` only
-when terminal behavior is required; it combines stdout/stderr into one VT
-stream. Ordinary tasks retain separate pipes, while MCP/live-runner heartbeats
-still provide real-time elapsed, state, and saving updates.
+`cpu_rate_percent` and `memory_limit_mb` limits apply Job-wide.
+`max_processes` is available only with `terminal_mode: pipes`, where the Job
+active-member ceiling includes the verified supervisor and must be at least 2;
+it is not a target-only allowance. Combining it with ConPTY fails closed because
+console-host Job membership is not yet proven. If Job assignment
+fails, do not start target code and do not fall back to killing only the direct
+child. Use `terminal_mode: conpty` only when terminal behavior is required; it
+combines stdout/stderr into one VT stream. Ordinary tasks retain separate pipes,
+while MCP/live-runner heartbeats still provide real-time elapsed, state, and
+saving updates.
 
 For numerical or media implementation work, call `mac_accelerator_plan` before
 choosing an Apple backend. On a non-macOS host it is explicitly unavailable:

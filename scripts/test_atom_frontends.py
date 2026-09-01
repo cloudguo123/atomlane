@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import atom_frontends
 from atom_engine import AtomError, validate_atoms
 from atom_frontends import Compilation, compile_entrypoints, compile_shell
 
@@ -274,6 +276,66 @@ class MakeFrontendTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("ruby"), "safe Compose YAML frontend requires system Ruby")
 class ComposeFrontendTests(unittest.TestCase):
+    def test_safe_yaml_parser_pins_utf8_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            compose = Path(temporary) / "compose.yml"
+            compose.write_text("name: 研究\nservices: {}\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout='{"name":"研究","name_interpolation":false,"services":{}}',
+                stderr="",
+            )
+            with mock.patch.object(
+                atom_frontends.subprocess, "run", return_value=completed
+            ) as run:
+                payload = atom_frontends._parse_compose_with_safe_yaml(compose)
+
+        self.assertEqual(payload["name"], "研究")
+        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        self.assertEqual(run.call_args.kwargs["errors"], "strict")
+        self.assertIn("研究", run.call_args.kwargs["input"])
+
+    def test_safe_ruby_environment_is_minimal_and_platform_native(self) -> None:
+        with (
+            mock.patch.object(atom_frontends.os, "name", "nt"),
+            mock.patch.dict(
+                atom_frontends.os.environ,
+                {
+                    "SystemRoot": r"C:\Windows",
+                    "TEMP": r"C:\Temp",
+                    "RUBYOPT": "-rhostile",
+                    "RUBYLIB": r"C:\hostile",
+                    "GEM_HOME": r"C:\hostile-gems",
+                },
+                clear=True,
+            ),
+        ):
+            windows_environment = atom_frontends._safe_ruby_environment(
+                r"C:\Ruby\bin\ruby.exe"
+            )
+        self.assertEqual(windows_environment["SystemRoot"], r"C:\Windows")
+        self.assertEqual(windows_environment["WINDIR"], r"C:\Windows")
+        self.assertIn(r"C:\Ruby\bin", windows_environment["PATH"])
+        self.assertIn(r"C:\Windows\System32", windows_environment["PATH"])
+        self.assertEqual(windows_environment["TEMP"], r"C:\Temp")
+        for forbidden in ("RUBYOPT", "RUBYLIB", "GEM_HOME"):
+            self.assertNotIn(forbidden, windows_environment)
+
+        with (
+            mock.patch.object(atom_frontends.os, "name", "posix"),
+            mock.patch.dict(
+                atom_frontends.os.environ,
+                {"RUBYOPT": "-rhostile", "RUBYLIB": "/hostile"},
+                clear=True,
+            ),
+        ):
+            posix_environment = atom_frontends._safe_ruby_environment("/usr/bin/ruby")
+        self.assertEqual(
+            posix_environment,
+            {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        )
+
     def _compose(self, project: Path) -> Path:
         compose = project / "compose.json"
         compose.write_text(

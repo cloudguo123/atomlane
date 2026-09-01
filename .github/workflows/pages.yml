@@ -10,8 +10,6 @@ on:
 permissions:
   actions: read
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -20,23 +18,22 @@ concurrency:
 jobs:
   report:
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       (github.event.workflow_run.event == 'push' ||
       github.event.workflow_run.event == 'workflow_dispatch' ||
       github.event.workflow_run.event == 'schedule'))
     runs-on: macos-14
     timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: refs/heads/main
           fetch-depth: 0
 
       - name: Set up Python
@@ -48,13 +45,30 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TRIGGER_WORKFLOW: ${{ github.event.workflow_run.name }}
-          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
-          TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           evidence_tmp=$(mktemp -d)
           trap 'rm -rf "$evidence_tmp"' EXIT
+
+          TRIGGER_WORKFLOW=""
+          TRIGGER_RUN_ID=""
+          TRIGGER_HEAD_SHA=""
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
+            trigger_fields=()
+            while IFS= read -r -d '' value; do
+              trigger_fields+=("$value")
+            done < <(
+              python3 scripts/pages_evidence_selector.py \
+                "$GITHUB_EVENT_PATH" "$GITHUB_REPOSITORY"
+            )
+            if [[ "${#trigger_fields[@]}" -ne 3 ]]; then
+              echo "Could not read a complete workflow_run trust record." >&2
+              exit 1
+            fi
+            TRIGGER_WORKFLOW="${trigger_fields[0]}"
+            TRIGGER_RUN_ID="${trigger_fields[1]}"
+            TRIGGER_HEAD_SHA="${trigger_fields[2]}"
+          fi
 
           download_evidence() {
             local workflow_file="$1"
@@ -126,7 +140,8 @@ jobs:
                 --jq '.[] | [.databaseId, .headSha] | @tsv'
             )
             while IFS=$'\t' read -r candidate_run candidate_sha; do
-              if [[ -n "$candidate_run" && -n "$candidate_sha" ]] &&
+              if [[ "$candidate_run" =~ ^[0-9]+$ ]] &&
+                [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] &&
                 git merge-base --is-ancestor "$candidate_sha" HEAD &&
                 try_download "$candidate_run" "$candidate_sha"; then
                 return
@@ -172,13 +187,26 @@ jobs:
       - name: Generate visual verification report
         run: python scripts/generate_test_report.py
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
       - name: Upload report artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs
+
+  deploy:
+    needs: report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Deploy report
         id: deployment

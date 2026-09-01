@@ -59,6 +59,16 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         arguments.update(overrides)
         return analyze_python_parallelism(**arguments)
 
+    def apply_diff(self, diff: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            ["git", "apply", "--unsafe-paths", "--whitespace=nowarn", "-"],
+            cwd=self.project,
+            input=diff.encode("utf-8"),
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+
     def test_pure_ordered_map_emits_hash_bound_process_preview(self) -> None:
         self.write("job.py", SAFE_PROGRAM)
         result = self.analyze()
@@ -188,16 +198,12 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         candidate = self.analyze()["candidates"][0]
         self.assertEqual(candidate["classification"], "reviewable_rewrite")
         diff = candidate["rewrite_preview"]["unified_diff"]
-        applied = subprocess.run(
-            ["git", "apply", "--unsafe-paths", "--whitespace=nowarn", "-"],
-            cwd=self.project,
-            input=diff,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15,
+        applied = self.apply_diff(diff)
+        self.assertEqual(
+            applied.returncode,
+            0,
+            applied.stderr.decode("utf-8", errors="replace"),
         )
-        self.assertEqual(applied.returncode, 0, applied.stderr)
         compile(target.read_text(encoding="utf-8"), str(target), "exec")
 
         parallel = subprocess.run(
@@ -210,6 +216,25 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         )
         self.assertEqual(parallel.returncode, 0, parallel.stderr)
         self.assertEqual(parallel.stdout, serial.stdout)
+
+    def test_emitted_diff_applies_to_crlf_source_as_exact_utf8_bytes(self) -> None:
+        target = self.project / "job.py"
+        target.write_bytes(SAFE_PROGRAM.replace("\n", "\r\n").encode("utf-8"))
+        candidate = self.analyze()["candidates"][0]
+        self.assertEqual(candidate["classification"], "reviewable_rewrite")
+        diff = candidate["rewrite_preview"]["unified_diff"]
+        self.assertIn("\r\n", diff)
+
+        applied = self.apply_diff(diff)
+        self.assertEqual(
+            applied.returncode,
+            0,
+            applied.stderr.decode("utf-8", errors="replace"),
+        )
+        patched = target.read_bytes()
+        self.assertIn(b"\r\n", patched)
+        self.assertNotIn(b"\r\r\n", patched)
+        compile(patched.decode("utf-8"), str(target), "exec")
 
     def test_missing_main_guard_is_conditional_and_has_no_patch(self) -> None:
         self.write(
@@ -1177,8 +1202,7 @@ class PythonParallelAdvisorTests(unittest.TestCase):
 
     def test_rewrite_does_not_emit_control_characters_in_diff_headers(self) -> None:
         hostile_path = "job\n--- injected.py"
-        self.write(hostile_path, SAFE_PROGRAM)
-        with self.assertRaises(AdvisorError):
+        with self.assertRaisesRegex(AdvisorError, "control or line-separator"):
             analyze_python_parallelism(
                 self.project,
                 paths=[hostile_path],

@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import ntpath
 import os
 import re
 import shlex
-import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -30,12 +30,14 @@ from atom_engine import (
     _normalize_resource,
     _slug,
 )
+from platform_adapter import resolve_host_executable, resolve_windows_path_executable
 from python_static_effects import infer_python_cli_accesses
 
 MAX_SHELL_SEGMENTS = 128
 MAX_PACKAGE_SCRIPTS = 256
 MAX_PACKAGE_DEPTH = 8
 MAX_MAKE_TARGETS = 1024
+SAFE_YAML_PARSER_TIMEOUT_SECONDS = 15
 
 
 def _strict_read_text(path: Path, label: str) -> str:
@@ -1566,9 +1568,36 @@ STDOUT.write(JSON.generate({
 '''
 
 
+def _safe_ruby_environment(ruby: str) -> dict[str, str]:
+    """Build a minimal host-native environment without Ruby/Gem injection hooks."""
+
+    if os.name == "nt":
+        system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+        if not system_root:
+            raise AtomError("safe Compose YAML parser requires the Windows system root")
+        environment = {
+            "PATH": ";".join(
+                item
+                for item in (
+                    ntpath.dirname(ruby),
+                    ntpath.join(system_root, "System32"),
+                )
+                if item
+            ),
+            "SystemRoot": system_root,
+            "WINDIR": system_root,
+        }
+        for name in ("TEMP", "TMP"):
+            value = os.environ.get(name)
+            if value:
+                environment[name] = value
+        return environment
+    return {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
+
+
 def _parse_compose_with_safe_yaml(path: Path) -> dict[str, Any]:
     system_ruby = Path("/usr/bin/ruby")
-    ruby = str(system_ruby) if system_ruby.is_file() else shutil.which("ruby")
+    ruby = str(system_ruby) if system_ruby.is_file() else resolve_host_executable("ruby")
     if not ruby:
         raise AtomError("a standards-compliant safe YAML parser is unavailable")
     source = _strict_read_text(path, str(path))
@@ -1578,9 +1607,11 @@ def _parse_compose_with_safe_yaml(path: Path) -> dict[str, Any]:
             input=source,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="strict",
             check=False,
-            timeout=3,
-            env={"PATH": "/usr/bin:/bin"},
+            timeout=SAFE_YAML_PARSER_TIMEOUT_SECONDS,
+            env=_safe_ruby_environment(ruby),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise AtomError(f"safe Compose YAML parser failed: {exc}") from exc
@@ -1974,7 +2005,7 @@ def compile_entrypoints(
             profile = entrypoint.get("profile", "mixed")
             if profile not in {"cpu", "io", "mixed", "accelerator"}:
                 raise AtomError(f"entrypoint {entry_id} profile is unsupported")
-            pwsh = shutil.which("pwsh")
+            pwsh = resolve_windows_path_executable("pwsh")
             blockers = [] if pwsh else ["POWERSHELL_7_UNAVAILABLE"]
             snapshot = compilation.snapshot(script)
             script_access = {"resource": str(script), "mode": "snapshot"}

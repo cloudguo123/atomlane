@@ -16,7 +16,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+try:
+    import jsonschema
+except ImportError:  # pragma: no cover - CI installs the schema validator
+    jsonschema = None
+
 import atom_engine
+import atom_frontends
 import mcp_server
 import windows_job_runner
 
@@ -28,15 +34,64 @@ def _task(cwd: Path, argv: list[str], **overrides: object) -> dict[str, object]:
 
 
 class WindowsPortableContractTests(unittest.TestCase):
-    def test_job_slot_reservations_do_not_claim_conpty_host_membership(self) -> None:
+    @unittest.skipIf(jsonschema is None, "jsonschema is unavailable")
+    def test_task_schema_exposes_only_provable_process_limit_combinations(self) -> None:
+        validator = jsonschema.Draft202012Validator(mcp_server.TASK_SCHEMA)
+        self.assertTrue(
+            validator.is_valid(
+                {"argv": ["tool.exe"], "resources": {"max_processes": 2}}
+            )
+        )
+        self.assertFalse(
+            validator.is_valid(
+                {
+                    "argv": ["tool.exe"],
+                    "terminal_mode": "conpty",
+                    "resources": {"max_processes": 2},
+                }
+            )
+        )
+        self.assertFalse(
+            validator.is_valid(
+                {"argv": ["tool.exe"], "resources": {"max_processes": 1}}
+            )
+        )
+
+    def test_job_slot_reservations_exist_only_for_verified_active_limits(self) -> None:
         self.assertEqual(
-            mcp_server._windows_job_process_slot_reservations("pipes"),
+            mcp_server._windows_job_process_slot_reservations("pipes", 4),
             ("supervisor",),
         )
         self.assertEqual(
-            mcp_server._windows_job_process_slot_reservations("conpty"),
-            ("supervisor", "conpty_infrastructure_capacity"),
+            mcp_server._windows_job_process_slot_reservations("conpty", None),
+            (),
         )
+        self.assertEqual(
+            mcp_server._windows_job_process_slot_reservations("pipes", None),
+            (),
+        )
+        with self.assertRaisesRegex(mcp_server.InputError, "cannot be combined"):
+            mcp_server._windows_job_process_slot_reservations("conpty", 2)
+
+    def test_reported_containment_scope_handles_an_absent_broker(self) -> None:
+        job_scope = "supervisor_and_inherited_windows_tree"
+        self.assertEqual(
+            mcp_server._reported_windows_containment_scope(None, job_scope),
+            job_scope,
+        )
+        self.assertEqual(
+            mcp_server._reported_windows_containment_scope(
+                {"containment_scope": "client_and_inherited_windows_descendants_only"},
+                job_scope,
+            ),
+            "client_and_inherited_windows_descendants_only",
+        )
+        for malformed in ({"containment_scope": None}, {}, "invalid"):
+            with (
+                self.subTest(malformed=malformed),
+                self.assertRaisesRegex(mcp_server.InputError, "invalid Windows broker"),
+            ):
+                mcp_server._reported_windows_containment_scope(malformed, job_scope)
 
     def test_pipe_runner_pins_executable_and_closes_unrelated_handles(self) -> None:
         process = mock.Mock(returncode=0)
@@ -313,7 +368,7 @@ if os.name == "nt":
             self.assertEqual(result["applied_resource_controls"]["cpu_rate_percent"], 50.0)
             self.assertTrue(result["applied_resource_controls"]["verified"])
             self.assertEqual(
-                result["applied_resource_controls"]["job_active_process_limit"], 5
+                result["applied_resource_controls"]["job_active_process_limit"], 4
             )
             self.assertEqual(
                 result["applied_resource_controls"]["verified_job_internal_processes"],
@@ -328,7 +383,14 @@ if os.name == "nt":
                 "not_applicable",
             )
             self.assertEqual(
-                result["applied_resource_controls"]["target_process_limit"], 4
+                result["applied_resource_controls"]["target_process_capacity_at_launch"],
+                3,
+            )
+            self.assertEqual(
+                result["applied_resource_controls"][
+                    "job_active_process_limit_semantics"
+                ],
+                "all_job_members_including_supervisor",
             )
 
         def test_runner_resolves_bare_executable_from_target_path(self) -> None:
@@ -343,6 +405,60 @@ if os.name == "nt":
                 windows_job_runner.ARGV_ASSURANCE,
                 "resolved-lpapplicationname/windows-crt-v1",
             )
+
+        def test_job_active_process_limit_is_an_exact_job_wide_ceiling(self) -> None:
+            overflow_marker = self.project / "process-limit-overflow-ran.txt"
+            first_child = "import time;time.sleep(30)"
+            overflow_child = (
+                "import pathlib,time;"
+                f"pathlib.Path({str(overflow_marker)!r}).write_text('ran',encoding='utf-8');"
+                "time.sleep(30)"
+            )
+            program = (
+                "import subprocess,sys\n"
+                f"first_child={first_child!r}\n"
+                f"overflow_child={overflow_child!r}\n"
+                "options={'stdout':subprocess.DEVNULL,'stderr':subprocess.DEVNULL}\n"
+                "first=subprocess.Popen([sys.executable,'-c',first_child],**options)\n"
+                "try:\n"
+                "    second=subprocess.Popen([sys.executable,'-c',overflow_child],**options)\n"
+                "except OSError as exc:\n"
+                "    if getattr(exc, 'winerror', None) != 1816:\n"
+                "        print(f'unexpected-create-error:{exc!r}',flush=True)\n"
+                "        sys.exit(9)\n"
+                "    print(f'limit-blocked-create:{getattr(exc, \"winerror\", None)}',flush=True)\n"
+                "else:\n"
+                "    try:\n"
+                "        code=second.wait(timeout=2)\n"
+                "    except subprocess.TimeoutExpired:\n"
+                "        print('limit-not-blocked',flush=True)\n"
+                "        second.terminate()\n"
+                "        sys.exit(9)\n"
+                "    else:\n"
+                "        if code == 0:\n"
+                "            print('limit-not-blocked-zero-exit',flush=True)\n"
+                "            sys.exit(9)\n"
+                "        print(f'limit-blocked-exit:{code}',flush=True)\n"
+                "print(f'first-held:{first.poll() is None}',flush=True)\n"
+            )
+            task = _task(
+                self.project,
+                [sys.executable, "-c", program],
+                resources={"max_processes": 3},
+                timeout_seconds=10,
+            )
+            result = asyncio.run(mcp_server.execute_task(task, 8192))
+            self.assertEqual(result["status"], "succeeded", result["stderr"])
+            self.assertIn("limit-blocked-", result["stdout"])
+            self.assertIn("first-held:True", result["stdout"])
+            self.assertNotIn("limit-not-blocked", result["stdout"])
+            self.assertFalse(
+                overflow_marker.exists(), "over-limit target code executed a side effect"
+            )
+            self.assertEqual(
+                result["applied_resource_controls"]["job_active_process_limit"], 3
+            )
+            self.assertTrue(result["process_tree_termination"]["verified_empty"])
 
         def test_native_environment_block_is_exactly_double_nul_terminated(self) -> None:
             block = windows_job_runner._windows_environment_block(
@@ -370,22 +486,29 @@ if os.name == "nt":
 
         def test_timeout_kills_grandchild_before_delayed_marker(self) -> None:
             marker = self.project / "grandchild-survived.txt"
+            started_marker = self.project / "grandchild-started.txt"
             child = (
-                "import pathlib,time;time.sleep(1.2);"
+                "import pathlib,time;"
+                f"pathlib.Path({str(started_marker)!r}).write_text('started',encoding='utf-8');"
+                "time.sleep(4);"
                 f"pathlib.Path({str(marker)!r}).write_text('escaped',encoding='utf-8')"
             )
             parent = (
-                "import subprocess,sys,time;"
+                "import pathlib,subprocess,sys,time;"
                 f"subprocess.Popen([sys.executable,'-c',{child!r}]);"
+                "deadline=time.time()+2;"
+                f"started=pathlib.Path({str(started_marker)!r});"
+                "\nwhile not started.exists() and time.time()<deadline: time.sleep(0.02)\n"
                 "time.sleep(30)"
             )
             task = _task(
                 self.project,
                 [sys.executable, "-c", parent],
-                timeout_seconds=0.25,
+                timeout_seconds=3,
             )
             result = asyncio.run(mcp_server.execute_task(task, 8192))
             self.assertEqual(result["status"], "timed_out")
+            self.assertTrue(started_marker.exists(), "grandchild never reached the Job test")
             time.sleep(1.5)
             self.assertFalse(marker.exists(), "a descendant escaped the Job Object")
 
@@ -439,14 +562,20 @@ if os.name == "nt":
                 self.project,
                 [sys.executable, "-c", "print('conpty-live-✓', flush=True)"],
                 terminal_mode="conpty",
-                resources={"max_processes": 1},
+                resources={"cpu_rate_percent": 50, "memory_limit_mb": 512},
             )
             result = asyncio.run(mcp_server.execute_task(task, 8192))
             self.assertEqual(result["status"], "succeeded", result["stderr"])
             self.assertTrue(result["output_combined"])
             self.assertIn("conpty-live-✓", result["stdout"])
+            self.assertIsNone(
+                result["applied_resource_controls"]["job_active_process_limit"]
+            )
             self.assertEqual(
-                result["applied_resource_controls"]["job_active_process_limit"], 3
+                result["applied_resource_controls"]["cpu_rate_percent"], 50.0
+            )
+            self.assertEqual(
+                result["applied_resource_controls"]["memory_limit_mb"], 512.0
             )
             self.assertEqual(
                 result["applied_resource_controls"]["verified_job_internal_processes"],
@@ -454,11 +583,11 @@ if os.name == "nt":
             )
             self.assertEqual(
                 result["applied_resource_controls"]["job_process_slot_reservations"],
-                ["supervisor", "conpty_infrastructure_capacity"],
+                [],
             )
             self.assertEqual(
                 result["applied_resource_controls"]["job_reserved_process_slots"],
-                2,
+                0,
             )
             self.assertEqual(
                 result["applied_resource_controls"]["resource_scope"],
@@ -468,6 +597,33 @@ if os.name == "nt":
                 result["applied_resource_controls"]["conpty_host_job_membership"],
                 "not_verified",
             )
+            self.assertEqual(
+                result["containment_scope"],
+                "supervisor_and_inherited_windows_tree",
+            )
+
+        def test_conpty_rejects_an_unverifiable_active_process_limit(self) -> None:
+            with self.assertRaisesRegex(mcp_server.InputError, "cannot be combined"):
+                _task(
+                    self.project,
+                    [sys.executable, "-c", "print('never started')"],
+                    terminal_mode="conpty",
+                    resources={"max_processes": 2},
+                )
+
+            atom = {
+                "id": "conpty-limit",
+                "operation": {
+                    "kind": "command",
+                    "argv": [sys.executable, "-c", "print('never started')"],
+                    "cwd": str(self.project),
+                    "terminal_mode": "conpty",
+                    "resource_limits": {"max_processes": 2},
+                },
+                "accesses": [],
+            }
+            with self.assertRaisesRegex(atom_engine.AtomError, "cannot be combined"):
+                atom_engine.validate_atoms([atom], self.project)
 
         def test_conpty_drains_output_larger_than_pipe_capacity(self) -> None:
             stream_size = 750_000
@@ -643,8 +799,13 @@ if os.name == "nt":
                 )
 
         def test_powershell_file_is_one_snapshotted_atom(self) -> None:
-            script = self.project / "build task.ps1"
-            script.write_text("Write-Output 'ok'\n", encoding="utf-8")
+            script = self.project / "构建 task.ps1"
+            script.write_text(
+                "param([string]$Value)\n"
+                "if ($Value -ne '参数 value') { Write-Error 'argument mismatch'; exit 7 }\n"
+                "Write-Output 'powershell-unicode-ok'\n",
+                encoding="utf-8",
+            )
             plan = mcp_server.atomic_task_plan(
                 {
                     "project_path": str(self.project),
@@ -666,6 +827,42 @@ if os.name == "nt":
             self.assertEqual(atom["provenance"]["adapter"], "powershell_file")
             self.assertEqual(atom["operation"]["argv"].count("-File"), 1)
             self.assertEqual(len(plan["source_snapshots"]), 1)
+            result = asyncio.run(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+            )
+            self.assertEqual(result["results"][0]["status"], "succeeded")
+            self.assertIn("powershell-unicode-ok", result["results"][0]["stdout"])
+
+        def test_powershell_resolver_never_searches_the_current_directory(self) -> None:
+            current = self.project / "current"
+            trusted = self.project / "trusted"
+            current.mkdir()
+            trusted.mkdir()
+            for executable in ("pwsh.exe", "docker.exe"):
+                (current / executable).write_bytes(b"untrusted-current-directory")
+                (trusted / executable).write_bytes(b"trusted-path-entry")
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(current)
+                with mock.patch.dict(
+                    os.environ,
+                    {"PATH": f".;relative;{trusted}"},
+                    clear=False,
+                ):
+                    resolved = {
+                        "pwsh": atom_frontends.resolve_windows_path_executable("pwsh"),
+                        "docker": mcp_server.resolve_host_executable("docker"),
+                    }
+            finally:
+                os.chdir(previous_cwd)
+            for executable, path in resolved.items():
+                with self.subTest(executable=executable):
+                    self.assertIsNotNone(path)
+                    self.assertTrue(
+                        os.path.samefile(path or "", trusted / f"{executable}.exe")
+                    )
 
 else:
 

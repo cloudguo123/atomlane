@@ -77,10 +77,87 @@ class PlatformAdapterTests(unittest.TestCase):
                     / "stats.json"
                 ),
             )
-        with mock.patch.object(platform_adapter.platform, "system", return_value="Darwin"):
-            with mock.patch.dict(os.environ, {}, clear=True):
-                path = platform_adapter.default_stats_path()
-            self.assertIn("Mac Parallel Accelerator", str(path))
+        with (
+            mock.patch.object(platform_adapter.platform, "system", return_value="Darwin"),
+            mock.patch.object(
+                platform_adapter.Path,
+                "home",
+                return_value=Path("/Users/example"),
+            ),
+            mock.patch.dict(os.environ, {}, clear=True),
+        ):
+            path = platform_adapter.default_stats_path()
+        self.assertIn("Mac Parallel Accelerator", str(path))
+
+    def test_conpty_process_limit_policy_is_fail_closed(self) -> None:
+        self.assertIsNone(platform_adapter.windows_process_limit_blocker("pipes", 4))
+        self.assertIsNone(platform_adapter.windows_process_limit_blocker("conpty", None))
+        self.assertIn(
+            "console-host Job Object membership is verified",
+            platform_adapter.windows_process_limit_blocker("conpty", 1) or "",
+        )
+
+    def test_windows_capabilities_publish_process_limit_constraints(self) -> None:
+        with (
+            mock.patch.object(
+                platform_adapter,
+                "execution_environment",
+                return_value={"boundary": "windows_native", "is_windows_native": True},
+            ),
+            mock.patch.object(
+                platform_adapter,
+                "_windows_kernel32",
+                return_value=mock.Mock(CreatePseudoConsole=object()),
+            ),
+        ):
+            capabilities = platform_adapter.platform_capabilities()
+        self.assertEqual(
+            capabilities["resource_control_constraints"]["max_processes"],
+            {
+                "minimum": 2,
+                "maximum": 4096,
+                "terminal_modes": ["pipes"],
+                "scope": "all_job_members_including_supervisor",
+            },
+        )
+
+    def test_explicit_windows_path_resolution_is_hermetic_and_quote_strict(self) -> None:
+        trusted = r"C:\trusted\pwsh.exe"
+
+        def is_file(path: str) -> bool:
+            return path.casefold() == trusted.casefold()
+
+        with (
+            mock.patch.dict(
+                platform_adapter.os.environ,
+                {"TOOL_HOME": r"C:\trusted"},
+                clear=False,
+            ),
+            mock.patch.object(platform_adapter.os.path, "isfile", side_effect=is_file),
+            mock.patch.object(
+                platform_adapter.os.path,
+                "realpath",
+                side_effect=lambda path: path,
+            ),
+        ):
+            self.assertIsNone(
+                platform_adapter.resolve_windows_path_executable(
+                    "pwsh", r"%TOOL_HOME%"
+                )
+            )
+            for malformed in (r'"C:\trusted', 'C:\\trusted"', "C:\\trusted\n"):
+                with self.subTest(malformed=malformed):
+                    self.assertIsNone(
+                        platform_adapter.resolve_windows_path_executable(
+                            "pwsh", malformed
+                        )
+                    )
+            self.assertEqual(
+                platform_adapter.resolve_windows_path_executable(
+                    "pwsh", r'"C:\trusted"'
+                ),
+                trusted,
+            )
 
     def test_exclusive_stats_lock_never_loses_threaded_updates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -133,11 +210,40 @@ class PlatformAdapterTests(unittest.TestCase):
                 }
             )
             original = dict(plan["platform_contract"])
-            self.assertEqual(original["adapter_protocol"], "atomlane-platform/v1")
+            self.assertEqual(original["adapter_protocol"], "atomlane-platform/v2")
+            self.assertEqual(
+                original["resource_control_constraints"],
+                mcp_server._current_platform_contract()[
+                    "resource_control_constraints"
+                ],
+            )
             foreign = {**original, "environment_kind": "foreign-realm"}
             with (
                 mock.patch.object(
                     mcp_server, "_current_platform_contract", return_value=foreign
+                ),
+                self.assertRaisesRegex(mcp_server.InputError, "platform contract"),
+            ):
+                mcp_server._verify_compiled_plan(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+
+            changed_resource_semantics = {
+                **original,
+                "resource_control_constraints": {
+                    "max_processes": {
+                        "minimum": 1,
+                        "maximum": 4096,
+                        "terminal_modes": ["pipes", "conpty"],
+                        "scope": "target_tree_only",
+                    }
+                },
+            }
+            with (
+                mock.patch.object(
+                    mcp_server,
+                    "_current_platform_contract",
+                    return_value=changed_resource_semantics,
                 ),
                 self.assertRaisesRegex(mcp_server.InputError, "platform contract"),
             ):

@@ -123,8 +123,11 @@ Preview 与 macOS 共用 Atom IR、不可变计划哈希、副作用检查、调
 - 支持精确 argv 任务和已声明的 `.ps1` 文件。PowerShell 文件整体视为一个不透明原子，必须完整声明副作用。
 - 原生 Windows Preview 对 POSIX shell、package script、Make、Compose、`.cmd`、`.bat` 的自动拆解一律拒绝；POSIX 工作流应放在 WSL 中运行，或改为显式原子任务。
 - Job 范围的 CPU 比例和内存限制覆盖 supervisor 与正常继承的目标进程树，
-  内存下限为 128 MiB；活动进程预算会为 supervisor 预留一个槽位。broker
-  外部工作不受这些限制。Windows 进程池建议不会超过 61 个 worker。
+  内存下限为 128 MiB。管道模式下，`max_processes` 是整个 Job 的精确活动
+  成员总上限（2–4096），supervisor 存活时占用其中一个槽位；它不是目标树的
+  额外配额。ConPTY 与 `max_processes` 的组合会在启动目标代码前拒绝，但 CPU
+  和内存限制仍可使用。broker 外部工作不受这些限制。Windows 进程池建议
+  不会超过 61 个 worker。
 
 完整边界和排障说明见 [Windows Preview](docs/WINDOWS_PREVIEW.md)。
 

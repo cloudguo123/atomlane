@@ -8,6 +8,7 @@ import ctypes
 import ntpath
 import os
 import platform
+import shutil
 import struct
 import time
 from collections.abc import Iterator
@@ -31,6 +32,81 @@ WINDOWS_BROKER_EXECUTABLES = {
     "wmic": "windows_management_instrumentation",
     "wsl": "wsl_linux",
 }
+
+
+def resolve_windows_path_executable(
+    executable: str, path_value: str | None = None
+) -> str | None:
+    """Resolve only through fully qualified Windows PATH entries.
+
+    This deliberately avoids Python/Win32 current-directory executable search,
+    which differs across Python versions and can run an unrelated local image.
+    """
+
+    if (
+        not executable
+        or "\0" in executable
+        or ntpath.basename(executable) != executable
+    ):
+        return None
+    suffix = ntpath.splitext(executable)[1].casefold()
+    names = [executable] if suffix else [f"{executable}.exe", f"{executable}.com"]
+    if suffix and suffix not in {".exe", ".com"}:
+        return None
+    expand_environment = path_value is None
+    search_path = os.environ.get("PATH", "") if expand_environment else path_value
+    for raw_directory in search_path.split(";"):
+        if any(
+            ord(character) < 32 or ord(character) == 127
+            for character in raw_directory
+        ):
+            continue
+        directory = raw_directory.strip()
+        if not directory or any(
+            ord(character) < 32 or ord(character) == 127
+            for character in directory
+        ):
+            continue
+        begins_quote = directory.startswith('"')
+        ends_quote = directory.endswith('"')
+        if begins_quote or ends_quote:
+            if not (begins_quote and ends_quote) or len(directory) < 2:
+                continue
+            directory = directory[1:-1]
+        if not directory or '"' in directory:
+            continue
+        if expand_environment:
+            directory = ntpath.expandvars(directory)
+        if any(
+            ord(character) < 32 or ord(character) == 127
+            for character in directory
+        ):
+            continue
+        drive, tail = ntpath.splitdrive(directory)
+        if not drive or not tail.startswith(("\\", "/")):
+            continue
+        for name in names:
+            candidate = ntpath.join(directory, name)
+            if not os.path.isfile(candidate):
+                continue
+            resolved = os.path.realpath(candidate)
+            resolved_drive, resolved_tail = ntpath.splitdrive(resolved)
+            if (
+                resolved_drive
+                and resolved_tail.startswith(("\\", "/"))
+                and ntpath.splitext(resolved)[1].casefold() in {".exe", ".com"}
+                and os.path.isfile(resolved)
+            ):
+                return resolved
+    return None
+
+
+def resolve_host_executable(executable: str) -> str | None:
+    """Resolve a host tool without implicit current-directory search on Windows."""
+
+    if os.name == "nt":
+        return resolve_windows_path_executable(executable)
+    return shutil.which(executable)
 
 
 def execution_environment() -> dict[str, Any]:
@@ -105,6 +181,19 @@ def brokered_execution_boundary(
         "brokered_work_contained": False,
         "job_resource_limits_apply_to_brokered_work": False,
     }
+
+
+def windows_process_limit_blocker(
+    terminal_mode: str, max_processes: Any
+) -> str | None:
+    """Return the fail-closed reason for an unprovable Windows process limit."""
+
+    if terminal_mode == "conpty" and max_processes is not None:
+        return (
+            "max_processes cannot be combined with ConPTY until console-host "
+            "Job Object membership is verified"
+        )
+    return None
 
 
 def default_stats_path() -> Path:
@@ -362,5 +451,29 @@ def platform_capabilities() -> dict[str, Any]:
             ["cpu_rate_percent", "memory_limit_mb", "max_processes"]
             if environment["is_windows_native"]
             else []
+        ),
+        "resource_control_constraints": (
+            {
+                "cpu_rate_percent": {
+                    "minimum": 0.01,
+                    "maximum": 100,
+                    "terminal_modes": ["pipes", "conpty"],
+                    "scope": "all_job_members_including_supervisor",
+                },
+                "memory_limit_mb": {
+                    "minimum": 128,
+                    "maximum": 1_048_576,
+                    "terminal_modes": ["pipes", "conpty"],
+                    "scope": "all_job_members_including_supervisor",
+                },
+                "max_processes": {
+                    "minimum": 2,
+                    "maximum": 4096,
+                    "terminal_modes": ["pipes"],
+                    "scope": "all_job_members_including_supervisor",
+                }
+            }
+            if environment["is_windows_native"]
+            else {}
         ),
     }

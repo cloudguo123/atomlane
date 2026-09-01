@@ -32,7 +32,7 @@ class ProjectBenchmarkSchemaTests(unittest.TestCase):
     @staticmethod
     def macos_result() -> dict[str, object]:
         return {
-            "schema_version": "1.1",
+            "schema_version": "1.2",
             "id": "macos-project-result",
             "plugin_version": "0.12.0",
             "commit": "a" * 40,
@@ -92,13 +92,13 @@ class ProjectBenchmarkSchemaTests(unittest.TestCase):
                 "kill_on_close": True,
                 "cpu_rate_percent": 50.0,
                 "memory_limit_mib": 256,
-                "target_process_limit": 4,
+                "job_active_process_limit": 4,
             },
             "queried_job_limits": {
                 "kill_on_close": True,
                 "cpu_rate_percent": 50.0,
                 "memory_limit_mib": 256,
-                "job_active_process_limit": 5,
+                "job_active_process_limit": 4,
                 "verified": True,
             },
             "job_limits_include_supervisor": True,
@@ -149,7 +149,33 @@ class ProjectBenchmarkSchemaTests(unittest.TestCase):
         conpty["environment"]["terminal_mode"] = "conpty"
         conpty["windows_evidence"]["terminal"]["mode"] = "conpty"
         conpty["windows_evidence"]["terminal"]["stdout_stderr_combined"] = True
+        conpty["windows_evidence"]["requested_job_limits"][
+            "job_active_process_limit"
+        ] = None
+        conpty["windows_evidence"]["queried_job_limits"][
+            "job_active_process_limit"
+        ] = None
         self.validator.validate(conpty)
+
+        impossible_conpty_limit = copy.deepcopy(conpty)
+        impossible_conpty_limit["windows_evidence"]["requested_job_limits"][
+            "job_active_process_limit"
+        ] = 4
+        self.assert_rejected(impossible_conpty_limit)
+
+        for evidence_key in ("requested_job_limits", "queried_job_limits"):
+            with self.subTest(evidence_key=evidence_key):
+                over_limit = self.windows_result()
+                over_limit["windows_evidence"][evidence_key][
+                    "job_active_process_limit"
+                ] = 4097
+                self.assert_rejected(over_limit)
+
+                over_memory = self.windows_result()
+                over_memory["windows_evidence"][evidence_key][
+                    "memory_limit_mib"
+                ] = 1_048_577
+                self.assert_rejected(over_memory)
 
     def test_existing_external_results_remain_valid(self) -> None:
         collection = json.loads(

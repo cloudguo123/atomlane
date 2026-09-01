@@ -160,9 +160,11 @@ it is not a target-only allowance. Combining it with ConPTY fails closed because
 console-host Job membership is not yet proven. If Job assignment
 fails, do not start target code and do not fall back to killing only the direct
 child. Use `terminal_mode: conpty` only when terminal behavior is required; it
-combines stdout/stderr into one VT stream. Ordinary tasks retain separate pipes,
-while MCP/live-runner heartbeats still provide real-time elapsed, state, and
-saving updates.
+combines stdout/stderr into one VT stream. Its bounded `stdin` is UTF-8/VT
+terminal input, so carriage return (`\r`) represents Enter; it does not promise
+raw byte-stream or observable EOF semantics. Ordinary tasks retain separate
+pipes, while MCP/live-runner heartbeats still provide real-time elapsed, state,
+and saving updates.
 
 For numerical or media implementation work, call `mac_accelerator_plan` before
 choosing an Apple backend. On a non-macOS host it is explicitly unavailable:

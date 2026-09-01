@@ -20,10 +20,10 @@ All notable changes to this project are documented here.
   alternate-data-stream safety rules plus conservative whole-file `pwsh` atoms.
 - Upgraded Python rewrite previews to use an explicit `spawn` context and a
   platform-aware Windows worker ceiling.
-- Added a macOS/Windows and Python 3.10/3.11/3.13 CI matrix, native Windows runtime
-  canaries, public evidence artifacts, bilingual documentation, and Windows
-  Preview report coverage. The `windows-2025` runner is not presented as proof
-  of Windows 11 Desktop UI integration.
+- Added a macOS/Windows and Python 3.10/3.11/3.12/3.13 CI matrix, native
+  Windows runtime canaries, public evidence artifacts, bilingual documentation,
+  and Windows Preview report coverage. The `windows-2025` runner is not
+  presented as proof of Windows 11 Desktop UI integration.
 - Made browser-bundle dependency versions explicit, retained exact upstream
   third-party license payloads in release archives, and added drift gates for
   bundle provenance and dynamic-code-evaluation removal.

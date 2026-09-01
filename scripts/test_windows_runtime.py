@@ -740,14 +740,9 @@ if os.name == "nt":
                 "supervisor_and_inherited_windows_tree",
             )
 
-        def test_conpty_round_trips_explicit_bounded_stdin(self) -> None:
-            payload = "conpty-input-✓\n"
-            payload_bytes = payload.encode("utf-8")
-            program = (
-                "import sys;"
-                f"data=sys.stdin.buffer.read({len(payload_bytes)});"
-                "print('received:'+data.decode('utf-8'),end='',flush=True)"
-            )
+        def test_conpty_round_trips_bounded_terminal_input(self) -> None:
+            payload = "conpty-input-✓\r"
+            program = "value=input();print('received:'+value,flush=True)"
             task = _task(
                 self.project,
                 [sys.executable, "-c", program],

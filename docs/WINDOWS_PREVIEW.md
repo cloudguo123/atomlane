@@ -213,8 +213,9 @@ automatic proof boundary. A frozen application needs its own reviewed
   entrypoints have no native automatic lowering.
 - ConPTY combines stdout and stderr and is unsuitable when their separation is
   part of the task contract.
-- ConPTY accepts bounded launch input, but callers that require portable,
-  observable stdin EOF semantics should use `terminal_mode: "pipes"`.
+- ConPTY accepts bounded UTF-8/VT terminal input. It is not a raw stdin byte
+  stream: send carriage return (`\r`) to represent Enter. Callers that require
+  portable, observable stdin EOF semantics should use `terminal_mode: "pipes"`.
 - Interactive prompts, UAC elevation, GUI automation, Windows services, and
   detached processes that require escape from the Job Object are not covered.
 - The 128 MiB minimum is a Job-wide floor, not 128 MiB exclusively available

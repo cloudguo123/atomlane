@@ -16,8 +16,8 @@ All notable changes to this project are documented here.
 - Added the `$optimize-python-parallelism` skill, Python Candidate IR reference,
   scenario routing, bilingual documentation, public safety fixtures, and a
   dedicated visual-report section.
-- Added 65 Python-advisor regression cases, bringing the full release suite to
-  112 passing tests, including a pre-parse memory budget and real macOS-compatible
+- Added 66 Python-advisor regression cases, bringing the full release suite to
+  113 passing tests, including a pre-parse memory budget and real macOS-compatible
   `spawn` output equivalence, non-execution, deterministic hashing, effect
   refusals, path escapes, malformed inputs, and MCP contract coverage.
 

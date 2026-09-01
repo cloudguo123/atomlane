@@ -475,11 +475,12 @@ def main() -> int:
         assert python_advice["analysis_mode"] == "static_non_executing"
         assert python_advice["execution_performed"] is False
         assert python_advice["files_modified"] is False
-        assert python_advice["candidates"][0]["benefit"]["kind"] == "measured_serial_modeled_parallel"
         if python_advice["resource_plan"]["chosen_concurrency"] >= 2:
+            assert python_advice["candidates"][0]["benefit"]["kind"] == "measured_serial_modeled_parallel"
             assert python_advice["summary"]["classification_counts"]["reviewable_rewrite"] == 1
             assert python_advice["candidates"][0]["rewrite_preview"]["source_sha256"].startswith("sha256:")
         else:
+            assert python_advice["candidates"][0]["benefit"]["kind"] == "not_applicable_until_safety"
             assert python_advice["summary"]["classification_counts"]["blocked"] == 1
             assert "rewrite_preview" not in python_advice["candidates"][0]
             assert any(

@@ -793,6 +793,7 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         self.write("job.py", SAFE_PROGRAM)
         one_worker = self.analyze(max_workers=1)["candidates"][0]
         self.assertNotEqual(one_worker["classification"], "reviewable_rewrite")
+        self.assertEqual(one_worker["benefit"]["kind"], "not_applicable_until_safety")
         self.assertNotIn("rewrite_preview", one_worker)
 
         low_benefit = self.analyze(
@@ -1323,6 +1324,33 @@ class PythonParallelAdvisorTests(unittest.TestCase):
         self.assertFalse(structured["advice_contract"]["target_code_executed"])
         self.assertFalse(structured["advice_contract"]["files_modified"])
         self.assertNotIn("_meta", response)
+
+    def test_mcp_one_worker_resource_plan_withholds_process_benefit(self) -> None:
+        self.write("job.py", SAFE_PROGRAM)
+        with mock.patch.object(
+            mcp_server,
+            "concurrency_plan",
+            return_value={"chosen_concurrency": 1},
+        ):
+            result = mcp_server.python_parallel_advisor(
+                {
+                    "project_path": str(self.project),
+                    "paths": ["job.py"],
+                    "max_workers": 4,
+                    "hotspots": [
+                        {
+                            "path": "job.py",
+                            "line": 6,
+                            "wall_seconds": 30.0,
+                            "item_count": 100,
+                        }
+                    ],
+                }
+            )
+        candidate = result["candidates"][0]
+        self.assertEqual(candidate["classification"], "blocked")
+        self.assertEqual(candidate["benefit"]["kind"], "not_applicable_until_safety")
+        self.assertNotIn("rewrite_preview", candidate)
 
     def test_mcp_rejects_non_absolute_project_path(self) -> None:
         with self.assertRaises(mcp_server.InputError):

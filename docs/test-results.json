@@ -1,21 +1,21 @@
 {
   "schema_version": "1.0",
   "project": "AtomLane",
-  "version": "0.10.1",
-  "generated_at": "2026-08-27T02:41:44+00:00",
+  "version": "0.11.0",
+  "generated_at": "2026-09-01T01:00:28+00:00",
   "overall": "passed",
   "summary": {
-    "total": 44,
-    "passed": 44,
+    "total": 112,
+    "passed": 112,
     "failed": 0,
     "pass_rate": 100.0,
-    "checks_passed": 6,
-    "checks_total": 6,
-    "elapsed_ms": 3360.1
+    "checks_passed": 7,
+    "checks_total": 7,
+    "elapsed_ms": 7927.85
   },
   "source": {
-    "commit": "56488e0562fc58f145d854ab263f972f8779746b",
-    "commit_short": "56488e0562",
+    "commit": "4b78d0a21213c07a565c9687041ccc86e1e78b1c",
+    "commit_short": "4b78d0a212",
     "branch": "main",
     "repository": "cloudguo123/atomlane"
   },
@@ -27,44 +27,50 @@
     "runner": "local verification runner"
   },
   "provenance": {
-    "bundle_sha256": "df38f1d9300169684c55c0cd985470953bd95dfc6e9cfd616d08ae52d66c909d",
+    "bundle_sha256": "07fbe9a4991e6334b90991cac7d105cb921d6d69672a2d280a5dc9a51a01426a",
     "bundle_bytes": 376099
   },
   "checks": [
     {
       "name": "Python bytecode compilation",
       "status": "passed",
-      "duration_ms": 75.57,
+      "duration_ms": 88.61,
       "returncode": 0
     },
     {
       "name": "Regression suite",
       "status": "passed",
-      "duration_ms": 701.17,
+      "duration_ms": 1646.1,
       "returncode": 0
     },
     {
       "name": "End-to-end MCP self-test",
       "status": "passed",
-      "duration_ms": 2219.68,
+      "duration_ms": 4899.61,
       "returncode": 0
     },
     {
       "name": "Ruff static analysis",
       "status": "passed",
-      "duration_ms": 52.88,
+      "duration_ms": 916.81,
       "returncode": 0
     },
     {
       "name": "Manifest & catalog integrity",
       "status": "passed",
-      "duration_ms": 1.6,
+      "duration_ms": 1.8,
+      "returncode": 0
+    },
+    {
+      "name": "Python advisor safety fixtures",
+      "status": "passed",
+      "duration_ms": 3.56,
       "returncode": 0
     },
     {
       "name": "Reproducible UI bundle",
       "status": "passed",
-      "duration_ms": 309.2,
+      "duration_ms": 371.36,
       "returncode": 0
     }
   ],
@@ -76,7 +82,7 @@
       "module": "test_atom_engine",
       "total": 12,
       "passed": 12,
-      "duration_ms": 13.6
+      "duration_ms": 12.08
     },
     {
       "label": "Static workload frontends",
@@ -85,7 +91,7 @@
       "module": "test_atom_frontends",
       "total": 9,
       "passed": 9,
-      "duration_ms": 63.04
+      "duration_ms": 75.01
     },
     {
       "label": "MCP runtime & live execution",
@@ -94,7 +100,7 @@
       "module": "test_mcp_runtime",
       "total": 8,
       "passed": 8,
-      "duration_ms": 589.46
+      "duration_ms": 780.98
     },
     {
       "label": "Growth assets & evidence sharing",
@@ -103,7 +109,7 @@
       "module": "test_growth_assets",
       "total": 3,
       "passed": 3,
-      "duration_ms": 0.78
+      "duration_ms": 0.68
     },
     {
       "label": "Privacy-safe growth metrics",
@@ -112,7 +118,7 @@
       "module": "test_collect_github_metrics",
       "total": 4,
       "passed": 4,
-      "duration_ms": 0.61
+      "duration_ms": 0.59
     },
     {
       "label": "Long-horizon benchmark evidence",
@@ -121,7 +127,16 @@
       "module": "test_long_benchmark",
       "total": 2,
       "passed": 2,
-      "duration_ms": 0.06
+      "duration_ms": 0.09
+    },
+    {
+      "label": "Python parallel refactor safety",
+      "description": "Non-executing AST analysis, effect gates, spawn semantics, and hash-bound previews",
+      "accent": "#ffb86b",
+      "module": "test_python_parallel_advisor",
+      "total": 65,
+      "passed": 65,
+      "duration_ms": 681.88
     }
   ],
   "tests": [
@@ -133,7 +148,7 @@
       "name": "test_capacity_claims_are_never_overcommitted",
       "title": "capacity claims are never overcommitted",
       "status": "passed",
-      "duration_ms": 1.86
+      "duration_ms": 1.8
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_event_scheduler_releases_successor_without_wave_barrier",
@@ -143,7 +158,7 @@
       "name": "test_event_scheduler_releases_successor_without_wave_barrier",
       "title": "event scheduler releases successor without wave barrier",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.85
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_explicit_data_order_makes_overwrite_read_safe",
@@ -153,7 +168,7 @@
       "name": "test_explicit_data_order_makes_overwrite_read_safe",
       "title": "explicit data order makes overwrite read safe",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.75
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_fusion_split_and_native_delegate_suggestions_are_explicit",
@@ -173,7 +188,7 @@
       "name": "test_lower_exact_data_edges_combines_same_direction_resources",
       "title": "lower exact data edges combines same direction resources",
       "status": "passed",
-      "duration_ms": 0.59
+      "duration_ms": 0.6
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_lower_exact_data_edges_handles_bidirectional_flow",
@@ -183,7 +198,7 @@
       "name": "test_lower_exact_data_edges_handles_bidirectional_flow",
       "title": "lower exact data edges handles bidirectional flow",
       "status": "passed",
-      "duration_ms": 0.57
+      "duration_ms": 0.52
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_macos_casefold_and_hardlink_aliases_fail_closed",
@@ -193,7 +208,7 @@
       "name": "test_macos_casefold_and_hardlink_aliases_fail_closed",
       "title": "macos casefold and hardlink aliases fail closed",
       "status": "passed",
-      "duration_ms": 1.87
+      "duration_ms": 1.85
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_nested_parallelism_is_budgeted_or_outer_serialized",
@@ -203,7 +218,7 @@
       "name": "test_nested_parallelism_is_budgeted_or_outer_serialized",
       "title": "nested parallelism is budgeted or outer serialized",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.86
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_plan_hash_and_schedule_ignore_input_permutation",
@@ -213,7 +228,7 @@
       "name": "test_plan_hash_and_schedule_ignore_input_permutation",
       "title": "plan hash and schedule ignore input permutation",
       "status": "passed",
-      "duration_ms": 2.65
+      "duration_ms": 2.17
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_source_snapshot_detects_toctou_write",
@@ -223,7 +238,7 @@
       "name": "test_source_snapshot_detects_toctou_write",
       "title": "source snapshot detects toctou write",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.84
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_unknown_effect_is_a_hard_execution_blocker",
@@ -233,7 +248,7 @@
       "name": "test_unknown_effect_is_a_hard_execution_blocker",
       "title": "unknown effect is a hard execution blocker",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.5
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_unordered_write_conflict_is_serialized_and_ineligible",
@@ -243,7 +258,7 @@
       "name": "test_unordered_write_conflict_is_serialized_and_ineligible",
       "title": "unordered write conflict is serialized and ineligible",
       "status": "passed",
-      "duration_ms": 1.02
+      "duration_ms": 0.7
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_mapping_syntax_profiles_completion_and_leases",
@@ -253,7 +268,7 @@
       "name": "test_mapping_syntax_profiles_completion_and_leases",
       "title": "mapping syntax profiles completion and leases",
       "status": "passed",
-      "duration_ms": 20.05
+      "duration_ms": 30.72
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_missing_healthcheck_and_profile_dependency_fail_closed",
@@ -263,7 +278,7 @@
       "name": "test_missing_healthcheck_and_profile_dependency_fail_closed",
       "title": "missing healthcheck and profile dependency fail closed",
       "status": "passed",
-      "duration_ms": 36.6
+      "duration_ms": 37.26
     },
     {
       "id": "test_atom_frontends.MakeFrontendTests.test_python_argparse_dataflow_repairs_sibling_prerequisites",
@@ -273,7 +288,7 @@
       "name": "test_python_argparse_dataflow_repairs_sibling_prerequisites",
       "title": "python argparse dataflow repairs sibling prerequisites",
       "status": "passed",
-      "duration_ms": 2.35
+      "duration_ms": 2.51
     },
     {
       "id": "test_atom_frontends.MakeFrontendTests.test_static_discovery_never_executes_shell_and_recipe_is_atomic",
@@ -283,7 +298,7 @@
       "name": "test_static_discovery_never_executes_shell_and_recipe_is_atomic",
       "title": "static discovery never executes shell and recipe is atomic",
       "status": "passed",
-      "duration_ms": 0.95
+      "duration_ms": 1.42
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_npm_test_lifecycle_and_recursive_expansion",
@@ -293,7 +308,7 @@
       "name": "test_npm_test_lifecycle_and_recursive_expansion",
       "title": "npm test lifecycle and recursive expansion",
       "status": "passed",
-      "duration_ms": 1.44
+      "duration_ms": 1.57
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_recursive_cycle_collapses_fail_closed",
@@ -303,7 +318,7 @@
       "name": "test_recursive_cycle_collapses_fail_closed",
       "title": "recursive cycle collapses fail closed",
       "status": "passed",
-      "duration_ms": 0.71
+      "duration_ms": 0.57
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_exact_success_and_order_edges",
@@ -313,7 +328,7 @@
       "name": "test_exact_success_and_order_edges",
       "title": "exact success and order edges",
       "status": "passed",
-      "duration_ms": 0.39
+      "duration_ms": 0.38
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_literal_inner_worker_count_is_bounded",
@@ -323,7 +338,7 @@
       "name": "test_literal_inner_worker_count_is_bounded",
       "title": "literal inner worker count is bounded",
       "status": "passed",
-      "duration_ms": 0.2
+      "duration_ms": 0.22
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_unsupported_shell_regions_are_one_opaque_island",
@@ -333,7 +348,7 @@
       "name": "test_unsupported_shell_regions_are_one_opaque_island",
       "title": "unsupported shell regions are one opaque island",
       "status": "passed",
-      "duration_ms": 0.35
+      "duration_ms": 0.36
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_collect_keeps_only_aggregate_signals",
@@ -343,7 +358,7 @@
       "name": "test_collect_keeps_only_aggregate_signals",
       "title": "collect keeps only aggregate signals",
       "status": "passed",
-      "duration_ms": 0.34
+      "duration_ms": 0.36
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_labeled_issue_count_fails_closed_on_unexpected_shape",
@@ -353,7 +368,7 @@
       "name": "test_labeled_issue_count_fails_closed_on_unexpected_shape",
       "title": "labeled issue count fails closed on unexpected shape",
       "status": "passed",
-      "duration_ms": 0.09
+      "duration_ms": 0.07
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_missing_file_starts_empty_history",
@@ -363,7 +378,7 @@
       "name": "test_missing_file_starts_empty_history",
       "title": "missing file starts empty history",
       "status": "passed",
-      "duration_ms": 0.17
+      "duration_ms": 0.15
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_previous_authenticated_traffic_can_be_identified",
@@ -383,7 +398,7 @@
       "name": "test_listing_logo_is_square_and_product_specific",
       "title": "listing logo is square and product specific",
       "status": "passed",
-      "duration_ms": 0.03
+      "duration_ms": 0.02
     },
     {
       "id": "test_growth_assets.GrowthAssetTests.test_share_outputs_are_machine_readable_and_honestly_labeled",
@@ -393,7 +408,7 @@
       "name": "test_share_outputs_are_machine_readable_and_honestly_labeled",
       "title": "share outputs are machine readable and honestly labeled",
       "status": "passed",
-      "duration_ms": 0.73
+      "duration_ms": 0.64
     },
     {
       "id": "test_growth_assets.GrowthAssetTests.test_social_preview_has_exact_dimensions_and_metrics",
@@ -413,7 +428,7 @@
       "name": "test_history_accumulates_savings_without_duplicate_run",
       "title": "history accumulates savings without duplicate run",
       "status": "passed",
-      "duration_ms": 0.02
+      "duration_ms": 0.05
     },
     {
       "id": "test_long_benchmark.LongBenchmarkTests.test_summary_uses_observed_task_runtimes",
@@ -433,7 +448,7 @@
       "name": "test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor",
       "title": "atomic executor rejects lifecycle edges it cannot honor",
       "status": "passed",
-      "duration_ms": 320.67
+      "duration_ms": 492.38
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
@@ -443,7 +458,7 @@
       "name": "test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
       "title": "atomic plan hash covers scheduler and resource envelope",
       "status": "passed",
-      "duration_ms": 39.15
+      "duration_ms": 41.51
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
@@ -453,7 +468,7 @@
       "name": "test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
       "title": "atomic plan hash survives javascript numeric roundtrip",
       "status": "passed",
-      "duration_ms": 38.95
+      "duration_ms": 42.89
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_live_console_emits_periodic_unchanged_state",
@@ -463,7 +478,7 @@
       "name": "test_live_console_emits_periodic_unchanged_state",
       "title": "live console emits periodic unchanged state",
       "status": "passed",
-      "duration_ms": 0.3
+      "duration_ms": 0.29
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_output_is_bounded_during_read",
@@ -473,7 +488,7 @@
       "name": "test_output_is_bounded_during_read",
       "title": "output is bounded during read",
       "status": "passed",
-      "duration_ms": 21.59
+      "duration_ms": 24.45
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_reverse_order_failure_propagates_to_fixed_point",
@@ -483,7 +498,7 @@
       "name": "test_reverse_order_failure_propagates_to_fixed_point",
       "title": "reverse order failure propagates to fixed point",
       "status": "passed",
-      "duration_ms": 60.25
+      "duration_ms": 70.11
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_side_effect_timeout_has_unknown_outcome",
@@ -493,7 +508,7 @@
       "name": "test_side_effect_timeout_has_unknown_outcome",
       "title": "side effect timeout has unknown outcome",
       "status": "passed",
-      "duration_ms": 54.35
+      "duration_ms": 54.39
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_timeout_covers_blocked_stdin_delivery",
@@ -503,7 +518,7 @@
       "name": "test_timeout_covers_blocked_stdin_delivery",
       "title": "timeout covers blocked stdin delivery",
       "status": "passed",
-      "duration_ms": 54.2
+      "duration_ms": 54.96
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_manifest_uses_closed_agent_plugins_v1_shape",
@@ -513,7 +528,7 @@
       "name": "test_manifest_uses_closed_agent_plugins_v1_shape",
       "title": "manifest uses closed agent plugins v1 shape",
       "status": "passed",
-      "duration_ms": 0.35
+      "duration_ms": 0.56
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_portable_and_codex_manifests_share_identity",
@@ -523,7 +538,7 @@
       "name": "test_portable_and_codex_manifests_share_identity",
       "title": "portable and codex manifests share identity",
       "status": "passed",
-      "duration_ms": 0.16
+      "duration_ms": 0.21
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_portable_skill_discovery_is_unambiguous",
@@ -533,7 +548,7 @@
       "name": "test_portable_skill_discovery_is_unambiguous",
       "title": "portable skill discovery is unambiguous",
       "status": "passed",
-      "duration_ms": 0.13
+      "duration_ms": 0.18
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_stdio_server_is_plugin_root_relative_and_closed",
@@ -546,6 +561,656 @@
       "duration_ms": 0.07
     },
     {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_augmented_live_out_blocks_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_append_loop_augmented_live_out_blocks_rewrite",
+      "title": "append loop augmented live out blocks rewrite",
+      "status": "passed",
+      "duration_ms": 1.47
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_external_or_reflective_target_binding_blocks_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_append_loop_external_or_reflective_target_binding_blocks_rewrite",
+      "title": "append loop external or reflective target binding blocks rewrite",
+      "status": "passed",
+      "duration_ms": 3.17
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_preserves_order_with_executor_map",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_append_loop_preserves_order_with_executor_map",
+      "title": "append loop preserves order with executor map",
+      "status": "passed",
+      "duration_ms": 1.71
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_reaching_definition_rejects_destructuring_rebind",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_append_loop_reaching_definition_rejects_destructuring_rebind",
+      "title": "append loop reaching definition rejects destructuring rebind",
+      "status": "passed",
+      "duration_ms": 1.43
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_variable_live_out_blocks_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_append_loop_variable_live_out_blocks_rewrite",
+      "title": "append loop variable live out blocks rewrite",
+      "status": "passed",
+      "duration_ms": 1.08
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_boolean_numeric_limits_are_rejected",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_boolean_numeric_limits_are_rejected",
+      "title": "boolean numeric limits are rejected",
+      "status": "passed",
+      "duration_ms": 0.46
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_callable_identity_and_guard_mutations_block_spawn_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_callable_identity_and_guard_mutations_block_spawn_rewrite",
+      "title": "callable identity and guard mutations block spawn rewrite",
+      "status": "passed",
+      "duration_ms": 3.98
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_candidate_limit_reports_only_actual_truncation",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_candidate_limit_reports_only_actual_truncation",
+      "title": "candidate limit reports only actual truncation",
+      "status": "passed",
+      "duration_ms": 1.98
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_class_scope_and_repeated_pool_creation_are_not_rewriteable",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_class_scope_and_repeated_pool_creation_are_not_rewriteable",
+      "title": "class scope and repeated pool creation are not rewriteable",
+      "status": "passed",
+      "duration_ms": 1.5
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_core_rejects_non_boolean_preview_and_oversized_input_arrays",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_core_rejects_non_boolean_preview_and_oversized_input_arrays",
+      "title": "core rejects non boolean preview and oversized input arrays",
+      "status": "passed",
+      "duration_ms": 0.63
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_deep_ast_is_reported_without_crashing",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_deep_ast_is_reported_without_crashing",
+      "title": "deep ast is reported without crashing",
+      "status": "passed",
+      "duration_ms": 11.81
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_definition_time_effects_block_spawn_preview",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_definition_time_effects_block_spawn_preview",
+      "title": "definition time effects block spawn preview",
+      "status": "passed",
+      "duration_ms": 2.44
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_dense_valid_source_is_rejected_before_ast_construction",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_dense_valid_source_is_rejected_before_ast_construction",
+      "title": "dense valid source is rejected before ast construction",
+      "status": "passed",
+      "duration_ms": 26.32
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_discovery_skips_virtualenv_and_is_sorted",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_discovery_skips_virtualenv_and_is_sorted",
+      "title": "discovery skips virtualenv and is sorted",
+      "status": "passed",
+      "duration_ms": 3.13
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_dunder_name_rebinding_cannot_fake_spawn_guard",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_dunder_name_rebinding_cannot_fake_spawn_guard",
+      "title": "dunder name rebinding cannot fake spawn guard",
+      "status": "passed",
+      "duration_ms": 1.28
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_emitted_diff_applies_and_matches_serial_execution",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_emitted_diff_applies_and_matches_serial_execution",
+      "title": "emitted diff applies and matches serial execution",
+      "status": "passed",
+      "duration_ms": 145.54
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_environment_read_fails_closed",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_environment_read_fails_closed",
+      "title": "environment read fails closed",
+      "status": "passed",
+      "duration_ms": 1.75
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_explicit_termination_and_assertions_block_spawn_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_explicit_termination_and_assertions_block_spawn_rewrite",
+      "title": "explicit termination and assertions block spawn rewrite",
+      "status": "passed",
+      "duration_ms": 2.14
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_file_read_is_advisory_only",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_file_read_is_advisory_only",
+      "title": "file read is advisory only",
+      "status": "passed",
+      "duration_ms": 0.76
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_free_name_worker_import_subscript_write_and_module_annotation_fail_closed",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_free_name_worker_import_subscript_write_and_module_annotation_fail_closed",
+      "title": "free name worker import subscript write and module annotation fail closed",
+      "status": "passed",
+      "duration_ms": 2.68
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_global_write_fails_closed",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_global_write_fails_closed",
+      "title": "global write fails closed",
+      "status": "passed",
+      "duration_ms": 1.89
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_import_requires_spawn_safety_review_without_importing_target",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_import_requires_spawn_safety_review_without_importing_target",
+      "title": "import requires spawn safety review without importing target",
+      "status": "passed",
+      "duration_ms": 0.91
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_invalid_hotspot_numbers_are_rejected",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_invalid_hotspot_numbers_are_rejected",
+      "title": "invalid hotspot numbers are rejected",
+      "status": "passed",
+      "duration_ms": 0.58
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_iterable_proof_rejects_intervening_control_flow_rebind",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_iterable_proof_rejects_intervening_control_flow_rebind",
+      "title": "iterable proof rejects intervening control flow rebind",
+      "status": "passed",
+      "duration_ms": 1.2
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_iterable_proof_rejects_shadowed_materializer_builtin",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_iterable_proof_rejects_shadowed_materializer_builtin",
+      "title": "iterable proof rejects shadowed materializer builtin",
+      "status": "passed",
+      "duration_ms": 0.93
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_lazy_or_unresolved_iterable_blocks_cpu_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_lazy_or_unresolved_iterable_blocks_cpu_rewrite",
+      "title": "lazy or unresolved iterable blocks cpu rewrite",
+      "status": "passed",
+      "duration_ms": 0.92
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_main_guard_proof_rejects_deferred_else_async_and_generator_calls",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_main_guard_proof_rejects_deferred_else_async_and_generator_calls",
+      "title": "main guard proof rejects deferred else async and generator calls",
+      "status": "passed",
+      "duration_ms": 3.26
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_dispatch_returns_matching_structured_and_text_content",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_mcp_dispatch_returns_matching_structured_and_text_content",
+      "title": "mcp dispatch returns matching structured and text content",
+      "status": "passed",
+      "duration_ms": 40.82
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_rejects_non_absolute_project_path",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_mcp_rejects_non_absolute_project_path",
+      "title": "mcp rejects non absolute project path",
+      "status": "passed",
+      "duration_ms": 0.18
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_runtime_rejects_schema_bypasses",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_mcp_runtime_rejects_schema_bypasses",
+      "title": "mcp runtime rejects schema bypasses",
+      "status": "passed",
+      "duration_ms": 272.28
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_schema_is_closed_and_explicitly_non_executing",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_mcp_schema_is_closed_and_explicitly_non_executing",
+      "title": "mcp schema is closed and explicitly non executing",
+      "status": "passed",
+      "duration_ms": 0.2
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_measured_hotspot_is_distinguished_from_modeled_projection",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_measured_hotspot_is_distinguished_from_modeled_projection",
+      "title": "measured hotspot is distinguished from modeled projection",
+      "status": "passed",
+      "duration_ms": 1.62
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_final_newline_never_produces_a_malformed_diff",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_missing_final_newline_never_produces_a_malformed_diff",
+      "title": "missing final newline never produces a malformed diff",
+      "status": "passed",
+      "duration_ms": 0.72
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_main_guard_is_conditional_and_has_no_patch",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_missing_main_guard_is_conditional_and_has_no_patch",
+      "title": "missing main guard is conditional and has no patch",
+      "status": "passed",
+      "duration_ms": 0.69
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_project_root_is_reported_as_advisor_error",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_missing_project_root_is_reported_as_advisor_error",
+      "title": "missing project root is reported as advisor error",
+      "status": "passed",
+      "duration_ms": 0.16
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_module_global_read_fails_closed_for_spawn_semantics",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_module_global_read_fails_closed_for_spawn_semantics",
+      "title": "module global read fails closed for spawn semantics",
+      "status": "passed",
+      "duration_ms": 0.88
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_native_or_existing_parallelism_avoids_nested_pool",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_native_or_existing_parallelism_avoids_nested_pool",
+      "title": "native or existing parallelism avoids nested pool",
+      "status": "passed",
+      "duration_ms": 0.81
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_network_and_subprocess_are_advice_not_patches",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_network_and_subprocess_are_advice_not_patches",
+      "title": "network and subprocess are advice not patches",
+      "status": "passed",
+      "duration_ms": 1.26
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_no_runtime_evidence_never_invents_speedup",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_no_runtime_evidence_never_invents_speedup",
+      "title": "no runtime evidence never invents speedup",
+      "status": "passed",
+      "duration_ms": 1.01
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_one_worker_and_low_benefit_never_emit_process_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_one_worker_and_low_benefit_never_emit_process_rewrite",
+      "title": "one worker and low benefit never emit process rewrite",
+      "status": "passed",
+      "duration_ms": 1.41
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_outer_parallel_context_blocks_nested_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_outer_parallel_context_blocks_nested_rewrite",
+      "title": "outer parallel context blocks nested rewrite",
+      "status": "passed",
+      "duration_ms": 1.23
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_output_is_deterministic_and_source_hash_bound",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_output_is_deterministic_and_source_hash_bound",
+      "title": "output is deterministic and source hash bound",
+      "status": "passed",
+      "duration_ms": 2.75
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_oversized_source_is_rejected_before_an_unbounded_read",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_oversized_source_is_rejected_before_an_unbounded_read",
+      "title": "oversized source is rejected before an unbounded read",
+      "status": "passed",
+      "duration_ms": 0.69
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_path_escape_and_symlink_escape_are_rejected",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_path_escape_and_symlink_escape_are_rejected",
+      "title": "path escape and symlink escape are rejected",
+      "status": "passed",
+      "duration_ms": 0.74
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_preview_refuses_shared_physical_source_lines",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_preview_refuses_shared_physical_source_lines",
+      "title": "preview refuses shared physical source lines",
+      "status": "passed",
+      "duration_ms": 1.45
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_process_specific_dynamic_values_block_spawn_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_process_specific_dynamic_values_block_spawn_rewrite",
+      "title": "process specific dynamic values block spawn rewrite",
+      "status": "passed",
+      "duration_ms": 3.22
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_pure_ordered_map_emits_hash_bound_process_preview",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_pure_ordered_map_emits_hash_bound_process_preview",
+      "title": "pure ordered map emits hash bound process preview",
+      "status": "passed",
+      "duration_ms": 1.16
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_aliases_do_not_collide_with_function_parameters",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_rewrite_aliases_do_not_collide_with_function_parameters",
+      "title": "rewrite aliases do not collide with function parameters",
+      "status": "passed",
+      "duration_ms": 0.99
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_does_not_discard_internal_comments",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_rewrite_does_not_discard_internal_comments",
+      "title": "rewrite does not discard internal comments",
+      "status": "passed",
+      "duration_ms": 0.78
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_does_not_emit_control_characters_in_diff_headers",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_rewrite_does_not_emit_control_characters_in_diff_headers",
+      "title": "rewrite does not emit control characters in diff headers",
+      "status": "passed",
+      "duration_ms": 0.29
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_preserves_shebang_and_encoding_cookie_before_import",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_rewrite_preserves_shebang_and_encoding_cookie_before_import",
+      "title": "rewrite preserves shebang and encoding cookie before import",
+      "status": "passed",
+      "duration_ms": 0.89
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_uses_collision_resistant_executor_and_pool_names",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_rewrite_uses_collision_resistant_executor_and_pool_names",
+      "title": "rewrite uses collision resistant executor and pool names",
+      "status": "passed",
+      "duration_ms": 1.04
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_same_module_function_values_block_spawn_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_same_module_function_values_block_spawn_rewrite",
+      "title": "same module function values block spawn rewrite",
+      "status": "passed",
+      "duration_ms": 1.33
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_shadowed_builtin_is_not_treated_as_pure",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_shadowed_builtin_is_not_treated_as_pure",
+      "title": "shadowed builtin is not treated as pure",
+      "status": "passed",
+      "duration_ms": 0.78
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_single_item_is_not_a_rewrite_candidate",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_single_item_is_not_a_rewrite_candidate",
+      "title": "single item is not a rewrite candidate",
+      "status": "passed",
+      "duration_ms": 0.67
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_source_read_does_not_follow_a_post_validation_symlink_swap",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_source_read_does_not_follow_a_post_validation_symlink_swap",
+      "title": "source read does not follow a post validation symlink swap",
+      "status": "passed",
+      "duration_ms": 0.84
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_spawn_fixture_preserves_order_and_values",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_spawn_fixture_preserves_order_and_values",
+      "title": "spawn fixture preserves order and values",
+      "status": "passed",
+      "duration_ms": 96.74
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_spawn_import_rejects_guard_only_names_and_module_target_mutation",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_spawn_import_rejects_guard_only_names_and_module_target_mutation",
+      "title": "spawn import rejects guard only names and module target mutation",
+      "status": "passed",
+      "duration_ms": 2.74
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_sync_worker_calling_async_helper_is_not_process_rewriteable",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_sync_worker_calling_async_helper_is_not_process_rewriteable",
+      "title": "sync worker calling async helper is not process rewriteable",
+      "status": "passed",
+      "duration_ms": 0.91
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_syntax_utf8_and_size_failures_are_structured",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_syntax_utf8_and_size_failures_are_structured",
+      "title": "syntax utf8 and size failures are structured",
+      "status": "passed",
+      "duration_ms": 2.1
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_top_level_import_side_effect_blocks_process_rewrite_without_executing",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_top_level_import_side_effect_blocks_process_rewrite_without_executing",
+      "title": "top level import side effect blocks process rewrite without executing",
+      "status": "passed",
+      "duration_ms": 1.23
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_transitive_helper_rebindings_block_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_transitive_helper_rebindings_block_rewrite",
+      "title": "transitive helper rebindings block rewrite",
+      "status": "passed",
+      "duration_ms": 5.97
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_unknown_call_fails_closed",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_unknown_call_fails_closed",
+      "title": "unknown call fails closed",
+      "status": "passed",
+      "duration_ms": 0.8
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_unknown_receiver_method_fails_closed",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_unknown_receiver_method_fails_closed",
+      "title": "unknown receiver method fails closed",
+      "status": "passed",
+      "duration_ms": 0.75
+    },
+    {
+      "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_worker_and_main_rebindings_block_rewrite",
+      "module": "test_python_parallel_advisor",
+      "domain": "Python parallel refactor safety",
+      "class": "PythonParallelAdvisorTests",
+      "name": "test_worker_and_main_rebindings_block_rewrite",
+      "title": "worker and main rebindings block rewrite",
+      "status": "passed",
+      "duration_ms": 4.8
+    },
+    {
       "id": "test_report_rendering.ReportRenderingTests.test_public_report_has_share_and_discovery_metadata",
       "module": "test_report_rendering",
       "domain": "test_report_rendering",
@@ -553,7 +1218,37 @@
       "name": "test_public_report_has_share_and_discovery_metadata",
       "title": "public report has share and discovery metadata",
       "status": "passed",
-      "duration_ms": 0.08
+      "duration_ms": 0.11
+    },
+    {
+      "id": "test_report_rendering.ReportRenderingTests.test_public_report_renders_python_advisor_integrity_evidence",
+      "module": "test_report_rendering",
+      "domain": "test_report_rendering",
+      "class": "ReportRenderingTests",
+      "name": "test_public_report_renders_python_advisor_integrity_evidence",
+      "title": "public report renders python advisor integrity evidence",
+      "status": "passed",
+      "duration_ms": 0.03
+    },
+    {
+      "id": "test_report_rendering.ReportRenderingTests.test_python_advisor_evidence_fails_when_execution_marker_exists",
+      "module": "test_report_rendering",
+      "domain": "test_report_rendering",
+      "class": "ReportRenderingTests",
+      "name": "test_python_advisor_evidence_fails_when_execution_marker_exists",
+      "title": "python advisor evidence fails when execution marker exists",
+      "status": "passed",
+      "duration_ms": 5.81
+    },
+    {
+      "id": "test_report_rendering.ReportRenderingTests.test_python_advisor_evidence_is_non_executing_and_hash_stable",
+      "module": "test_report_rendering",
+      "domain": "test_report_rendering",
+      "class": "ReportRenderingTests",
+      "name": "test_python_advisor_evidence_is_non_executing_and_hash_stable",
+      "title": "python advisor evidence is non executing and hash stable",
+      "status": "passed",
+      "duration_ms": 3.02
     },
     {
       "id": "test_ui_bundle_security.UiBundleSecurityTests.test_bundle_contains_no_dynamic_code_evaluation",
@@ -563,7 +1258,7 @@
       "name": "test_bundle_contains_no_dynamic_code_evaluation",
       "title": "bundle contains no dynamic code evaluation",
       "status": "passed",
-      "duration_ms": 5.99
+      "duration_ms": 5.88
     }
   ],
   "benchmark": {
@@ -863,6 +1558,43 @@
       "serial_equivalent_seconds": 1240.687577,
       "saved_seconds": 930.502085
     }
+  },
+  "python_advisor": {
+    "available": true,
+    "analysis_hash": "sha256:ef7aa6a0709f613334c16b240bb2edf05252d81a517c6d54d4709905208f2353",
+    "analysis_mode": "static_non_executing",
+    "files_analyzed": 5,
+    "candidate_count": 4,
+    "classification_counts": {
+      "reviewable_rewrite": 1,
+      "advisory_only": 1,
+      "blocked": 1,
+      "prefer_native": 1,
+      "already_parallel": 0
+    },
+    "rewrite_preview_count": 1,
+    "source_hash_bound": true,
+    "execution_performed": false,
+    "files_modified": false,
+    "target_code_executed": false,
+    "target_files_modified": false,
+    "fixture_sha256_before": {
+      "must_not_execute.py": "d4459dcb7c5067842a96de8fd82bd1b3ee16ec8721f048ee9df1992cc50d5690",
+      "native.py": "18416f1ef6bb4bd7377c84f2df1826a079705f150dfee2aa5dc26eccae87a063",
+      "pure_cpu.py": "34f4426e269ea78789719718e2077040d0436096c72582485687604058176ce6",
+      "read_io.py": "b6bf75ec1e769ce313b508eeb0070884c4a8c173e835af0d85bc418e48c0f11d",
+      "stateful.py": "20e242973405c5032f06061cda059be324ae1a101dfefdc402973d20c6185b49"
+    },
+    "fixture_sha256_after": {
+      "must_not_execute.py": "d4459dcb7c5067842a96de8fd82bd1b3ee16ec8721f048ee9df1992cc50d5690",
+      "native.py": "18416f1ef6bb4bd7377c84f2df1826a079705f150dfee2aa5dc26eccae87a063",
+      "pure_cpu.py": "34f4426e269ea78789719718e2077040d0436096c72582485687604058176ce6",
+      "read_io.py": "b6bf75ec1e769ce313b508eeb0070884c4a8c173e835af0d85bc418e48c0f11d",
+      "stateful.py": "20e242973405c5032f06061cda059be324ae1a101dfefdc402973d20c6185b49"
+    },
+    "fixture_hashes_unchanged": true,
+    "execution_marker_absent": true,
+    "benefit_kind": "not_estimated"
   },
   "growth": {
     "available": true,

@@ -1,7 +1,7 @@
 {
   "name": "mac-parallel-accelerator",
-  "version": "0.10.1",
-  "description": "AtomLane compiles local work into semantics-preserving atomic plans and executes proven-safe concurrency for Codex on macOS.",
+  "version": "0.11.0",
+  "description": "AtomLane finds reviewable Python parallelism candidates, compiles semantics-preserving atomic plans, and executes proven-safe concurrency on macOS.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"
@@ -15,6 +15,9 @@
     "scheduler",
     "atomic-planning",
     "effect-analysis",
+    "python",
+    "static-analysis",
+    "refactoring",
     "scenario-planning",
     "local-execution",
     "performance"
@@ -22,8 +25,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AtomLane",
-    "shortDescription": "Proven-safe parallel execution for coding agents",
-    "longDescription": "AtomLane compiles shell, package, Make, Compose, test, build, and declared task entrypoints into immutable hashed atomic plans. It preserves typed control flow and effects, fails closed on unknown hazards, delegates concurrency to native owners when safer, adapts to Apple silicon resources, and executes the exact verified plan with live progress and honestly labeled time savings.",
+    "shortDescription": "Safe Python refactors and parallel execution",
+    "longDescription": "AtomLane statically finds reviewable Python parallelism candidates without importing or executing target code, then compiles shell, package, Make, Compose, test, build, and declared task entrypoints into immutable hashed atomic plans. It preserves typed control flow and effects, fails closed on unknown hazards, delegates concurrency to native owners when safer, adapts to Apple silicon resources, and executes exact verified plans with live progress and honestly labeled time savings.",
     "developerName": "cloudguo123",
     "category": "Productivity",
     "capabilities": [
@@ -37,7 +40,10 @@
       "Scenario profiling",
       "Trace-informed routing",
       "Resource awareness",
-      "Apple silicon routing"
+      "Apple silicon routing",
+      "Python parallelism advice",
+      "Source-hash-bound rewrite previews",
+      "GIL-aware executor selection"
     ],
     "brandColor": "#65E6B4",
     "composerIcon": "./assets/growth/listing-logo.svg",
@@ -51,7 +57,8 @@
     "defaultPrompt": [
       "Use $accelerate-local-work to run only the concurrency proven safe for this project.",
       "Use $accelerate-local-work to accelerate this build, test, Docker, or research workflow.",
-      "Use $accelerate-local-work with live progress and per-run plus cumulative time savings."
+      "Use $accelerate-local-work with live progress and per-run plus cumulative time savings.",
+      "Use $optimize-python-parallelism to inspect this long-running Python entrypoint and verify semantics before proposing a parallel refactor."
     ]
   },
   "mcpServers": "./.mcp.json"

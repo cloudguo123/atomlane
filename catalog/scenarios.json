@@ -918,19 +918,21 @@
         "glob_patterns": ["**/*.py"],
         "content_patterns": [
           {"glob_patterns": ["**/*.py"], "regex": "(ThreadPoolExecutor|ProcessPoolExecutor|multiprocessing\\.|joblib\\.|concurrent\\.futures)", "label": "Python executor usage"},
-          {"glob_patterns": ["**/*.py"], "regex": "(asyncio|aiohttp|httpx|requests\\.)", "label": "Python I/O concurrency"}
+          {"glob_patterns": ["**/*.py"], "regex": "(asyncio|aiohttp|httpx|requests\\.)", "label": "Python I/O concurrency"},
+          {"glob_patterns": ["**/*.py"], "regex": "(\\[\\s*[A-Za-z_][A-Za-z0-9_]*\\([^\\]]+\\)\\s+for\\s+[A-Za-z_][A-Za-z0-9_]*\\s+in\\s+|for\\s+[A-Za-z_][A-Za-z0-9_]*\\s+in\\s+[^:\\n]+:\\s*\\n\\s*[A-Za-z_][A-Za-z0-9_]*\\.append\\()", "label": "Python ordered map candidate"}
         ],
-        "task_keywords": ["GIL", "Python并行", "进程池", "线程池", "multiprocessing"],
+        "task_keywords": ["GIL", "Python并行", "Python加速", "长时间Python", "程序并行化", "进程池", "线程池", "multiprocessing"],
         "trace_signatures": ["runtime_parallelism"]
       },
       "match_requirements": {"minimum_content_matches": 1},
-      "default_execution": {"executor": "parallel_map", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "threads for blocking I/O or GIL-releasing kernels; processes for substantial Python CPU units with bounded IPC"},
+      "default_execution": {"executor": "python_parallel_advisor", "profile": "mixed", "initial_concurrency_cap": 4, "isolation": "bounded non-executing source analysis first; threads for reviewed blocking I/O, processes for reviewed coarse pure-Python CPU units, native owners for vector kernels"},
       "optimization_goals": [
         {"id": "gil-aware-executor", "objective": "Use threads for I/O and GIL-releasing native kernels, processes for coarse pure-Python CPU work, and vectorization before either.", "metric": "useful CPU time and wall time"},
         {"id": "python-chunk-amortization", "objective": "Batch items so serialization and process startup remain a small fraction of task time.", "metric": "payload compute time / scheduling overhead"},
-        {"id": "python-ipc-minimization", "objective": "Pass compact immutable references or shared read-only data instead of copying large Python objects.", "metric": "IPC bytes and worker peak memory"}
+        {"id": "python-ipc-minimization", "objective": "Pass compact immutable references or shared read-only data instead of copying large Python objects.", "metric": "IPC bytes and worker peak memory"},
+        {"id": "python-verified-refactor", "objective": "Use bounded AST/effect analysis, source-hash-bound rewrite previews, semantic differential tests, and measured break-even evidence before accepting a source refactor.", "metric": "correctness certificate and measured p50/p90 speedup"}
       ],
-      "guardrails": ["Do not use a process pool for tiny functions or unpicklable state.", "Use spawn-safe entry points and deterministic child seeds."]
+      "guardrails": ["Do not use a process pool for tiny functions or unpicklable state.", "Use spawn-safe entry points and deterministic child seeds.", "A long runtime is only a trigger for analysis; unknown effects, shared writes, order-sensitive behavior, or stale source hashes keep the program serial."]
     },
     {
       "id": "javascript-worker-pool",

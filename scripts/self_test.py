@@ -33,6 +33,17 @@ def main() -> int:
         (project / "packages" / "contract").mkdir(parents=True)
         (project / "prisma" / "migrations" / "001_init").mkdir(parents=True)
         (project / "scripts").mkdir()
+        (project / "scripts" / "pure_map.py").write_text(
+            "def square(value):\n"
+            "    return value * value\n\n"
+            "def main():\n"
+            "    values = list(range(100))\n"
+            "    results = [square(value) for value in values]\n"
+            "    return results\n\n"
+            "if __name__ == '__main__':\n"
+            "    main()\n",
+            encoding="utf-8",
+        )
         (project / "experiments" / "sweep.py").write_text(
             "from concurrent.futures import ProcessPoolExecutor\nimport json\nimport numpy as np\nprint(json.dumps(np.arange(4).tolist()))\n",
             encoding="utf-8",
@@ -309,12 +320,32 @@ def main() -> int:
                     },
                 },
             ),
-            request(11, "tools/list", {}),
-            request(12, "resources/list", {}),
             request(
-                13,
+                11,
+                "tools/call",
+                {
+                    "name": "python_parallel_advisor",
+                    "arguments": {
+                        "project_path": temp_dir,
+                        "paths": ["scripts/pure_map.py"],
+                        "max_workers": 2,
+                        "hotspots": [
+                            {
+                                "path": "scripts/pure_map.py",
+                                "line": 6,
+                                "wall_seconds": 60.0,
+                                "item_count": 100,
+                            }
+                        ],
+                    },
+                },
+            ),
+            request(12, "tools/list", {}),
+            request(13, "resources/list", {}),
+            request(
+                14,
                 "resources/read",
-                {"uri": "ui://widget/mac-parallel-indicator-0.10.1.html"},
+                {"uri": "ui://widget/mac-parallel-indicator-0.11.0.html"},
             ),
         ]
         payload = "".join(json.dumps(message) + "\n" for message in messages)
@@ -337,12 +368,12 @@ def main() -> int:
         messages = [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
         progress = [item for item in messages if item.get("method") == "notifications/progress"]
         responses = [item for item in messages if "id" in item]
-        assert len(responses) == 13
+        assert len(responses) == 14
         assert progress
         assert all(item["params"]["progressToken"] == "self-test-progress" for item in progress)
         assert any("当前预计节约" in item["params"]["message"] for item in progress)
         assert responses[0]["result"]["serverInfo"]["name"] == "mac-parallel-accelerator"
-        assert responses[0]["result"]["serverInfo"]["version"] == "0.10.1"
+        assert responses[0]["result"]["serverInfo"]["version"] == "0.11.0"
         assert "cheaply assess parallel eligibility" in responses[0]["result"]["instructions"]
 
         parallel = responses[1]["result"]["structuredContent"]
@@ -440,8 +471,25 @@ def main() -> int:
         assert task_scan["execution_contract"]["manual_wave_translation_forbidden"] is True
         assert "atomic_task_plan" in task_scan["deprecation"]
 
-        tools = {item["name"]: item for item in responses[10]["result"]["tools"]}
+        python_advice = responses[10]["result"]["structuredContent"]
+        assert python_advice["analysis_mode"] == "static_non_executing"
+        assert python_advice["execution_performed"] is False
+        assert python_advice["files_modified"] is False
+        assert python_advice["candidates"][0]["benefit"]["kind"] == "measured_serial_modeled_parallel"
+        if python_advice["resource_plan"]["chosen_concurrency"] >= 2:
+            assert python_advice["summary"]["classification_counts"]["reviewable_rewrite"] == 1
+            assert python_advice["candidates"][0]["rewrite_preview"]["source_sha256"].startswith("sha256:")
+        else:
+            assert python_advice["summary"]["classification_counts"]["blocked"] == 1
+            assert "rewrite_preview" not in python_advice["candidates"][0]
+            assert any(
+                item["code"] == "INSUFFICIENT_WORKERS"
+                for item in python_advice["candidates"][0]["blockers"]
+            )
+
+        tools = {item["name"]: item for item in responses[11]["result"]["tools"]}
         assert "scenario_plan" in tools
+        assert "python_parallel_advisor" in tools
         assert "task_parallel_scan" in tools
         assert "atomic_task_plan" in tools
         assert "atomic_exec" in tools
@@ -450,10 +498,10 @@ def main() -> int:
             assert tools[name]["_meta"]["openai/outputTemplate"].startswith("ui://widget/")
             assert tools[name]["_meta"]["openai/toolInvocation/invoking"]
 
-        resources = responses[11]["result"]["resources"]
+        resources = responses[12]["result"]["resources"]
         assert len(resources) == 1
         assert resources[0]["mimeType"] == "text/html;profile=mcp-app"
-        resource = responses[12]["result"]["contents"][0]
+        resource = responses[13]["result"]["contents"][0]
         assert resource["uri"] == resources[0]["uri"]
         assert "并行加速已完成" in resource["text"]
         assert "ui/notifications/tool-result" in resource["text"]

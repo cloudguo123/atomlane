@@ -69,7 +69,7 @@ class PortableAgentPluginTests(unittest.TestCase):
 
     def test_portable_skill_discovery_is_unambiguous(self) -> None:
         skills = sorted(path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md"))
-        self.assertEqual(skills, ["accelerate-local-work"])
+        self.assertEqual(skills, ["accelerate-local-work", "optimize-python-parallelism"])
 
 
 if __name__ == "__main__":

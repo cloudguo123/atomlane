@@ -1,10 +1,15 @@
-# AtomLane 0.10
+# AtomLane 0.11
 
 AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
 the current Mac's resource envelope. It combines conservative effect analysis,
 typed dependencies, native concurrency delegation, Apple-silicon routing,
 bounded scheduling, live progress, and savings accounting.
+
+Version 0.11 adds a separate, non-executing Python Candidate IR. It identifies
+small program-level parallelism candidates and emits source-hash-bound review
+previews, but it never applies those previews or treats static advice as an
+executable Atom plan.
 
 The central rule is:
 
@@ -30,6 +35,9 @@ repairing it.
 - Match concurrency to the current Mac, Docker VM, nested worker demand, memory
   pressure, power mode, load, and thermal conditions.
 - Keep long execution visibly live and report per-run and cumulative savings.
+- Find high-confidence Python ordered-map candidates without importing or
+  executing the target, and make every missing proof or modeled assumption
+  explicit before a source refactor is reviewed.
 
 ## Non-goals
 
@@ -43,6 +51,9 @@ repairing it.
   claimed to receive Metal, GPU, ANE, or media-engine access.
 - The plugin does not enable a global lifecycle hook. Task-internal compilation
   occurs at meaningful execution boundaries under skill guidance.
+- The Python advisor is not a general auto-parallelizing compiler. It does not
+  rewrite arbitrary loops, infer purity from confidence scores, apply patches,
+  execute profilers, or claim modeled projections as measured speedups.
 
 ## Architecture
 
@@ -53,6 +64,12 @@ User task
 Cheap skill preflight
    |
    +---------------- scenario_plan / accelerator / container advice
+   |
+   +---------------- python_parallel_advisor
+   |                    |
+   |                    +-- bounded AST + local call graph
+   |                    +-- effects / GIL / spawn / nesting gates
+   |                    +-- source-hash-bound review preview
    |
    v
 atomic_task_plan
@@ -115,6 +132,61 @@ The compiled representation separates:
 
 The maintained normative details and forward-test cases live in
 `skills/accelerate-local-work/references/atom-ir.md`.
+
+## Program-level Python advisor
+
+The Python advisor is intentionally separate from the command-level Atom IR.
+It accepts an absolute project boundary, optional project-relative `.py`
+paths, optional measured serial hotspot observations, and resource ceilings.
+It reads regular UTF-8 files under strict file, byte, AST-node, candidate, and
+diagnostic limits. Symlink escapes, oversized inputs, malformed source, and
+paths outside the project boundary are rejected or diagnosed. Source modules
+are parsed but never imported or executed.
+
+The Python Candidate IR currently recognizes only ordered one-argument maps:
+
+- `results = [worker(item) for item in items]`;
+- `return [worker(item) for item in items]`;
+- an empty-list initialization followed by
+  `for item in items: results.append(worker(item))`.
+
+Workers must resolve to a same-module top-level function. A conservative local
+call graph propagates global/nonlocal writes, attribute and subscript writes,
+I/O, network, subprocess, database, output, nondeterminism, environment reads,
+dynamic execution, unknown calls, generators, async control, and nested
+functions. Unknown is a hard effect—not an invitation to guess. Import-time
+work, unstable or late worker/helper bindings, reflective namespace access,
+effectful iterable evaluation, complex enclosing control, repeated pool
+creation, loop-target live-out, fewer than two known items, and uncoordinated
+outer/native pools also block a CPU rewrite. The sole supported macOS spawn
+path must be a statically linked top-level `__main__` guard. Review previews
+must own complete physical lines, preserve comments and final-newline state,
+and avoid binding collisions.
+
+Classification and executor selection are distinct:
+
+- pure Python CPU work may become `reviewable_rewrite` with an ordered
+  `ProcessPoolExecutor.map` preview, but only with a statically linked
+  `if __name__ == "__main__"` path suitable for macOS spawn;
+- blocking reads receive thread-pool advice but no patch;
+- network and subprocess batches remain advisory because rate limits,
+  idempotence, external effects, and cancellation are not statically proven;
+- NumPy, SciPy, PyTorch, JAX, Polars, and similar calls prefer native ownership;
+- existing pools are coordinated rather than nested;
+- every other unresolved case remains `blocked`.
+
+A review preview is a syntax-compiled unified diff bound to the source SHA-256,
+candidate location, and recognized pattern. It is invalid after any source
+change and is never applied automatically. Runtime picklability, exception
+equivalence, result order, produced files, peak memory, and performance remain
+validation obligations. Blocked, advisory, and native-owned candidates never
+receive a process-pool speedup projection. Without runtime evidence no speedup
+is estimated. A provided serial hotspot on a rewrite-eligible CPU candidate may
+yield a modeled parallel projection, labeled
+`measured_serial_modeled_parallel` and explicitly not a benchmark.
+
+The full contract is maintained in
+`skills/optimize-python-parallelism/references/python-program-ir.md`.
 
 ### Exact control flow
 
@@ -229,6 +301,9 @@ and memory bandwidth are shared.
 - `atomic_exec`: verify and execute the exact compiled plan and hash.
 - `scenario_plan`: match bounded project/trace evidence to preset optimization
   goals and guardrails; advisory only.
+- `python_parallel_advisor`: parse bounded project-local Python without imports,
+  execution, or writes; return candidate classifications, proof obligations,
+  GIL-aware executor advice, benefit labels, and optional hash-bound previews.
 - `task_parallel_scan`: compatibility advisory scan for caller-declared coarse
   units.
 - `mac_resource_plan`: return observed Mac resources and a concurrency plan.
@@ -307,6 +382,8 @@ The plugin has no third-party runtime dependency and uses the macOS system
 python3 scripts/self_test.py
 python3 "$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py" \
   skills/accelerate-local-work
+python3 "$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py" \
+  skills/optimize-python-parallelism
 ```
 
 Version 0.9.0 adds the immutable Atom IR, typed effect/control planning,
@@ -322,3 +399,7 @@ Version 0.9.2 canonicalizes integral JSON numbers before semantic and envelope
 hashing so immutable plans survive Python/JavaScript MCP round trips without
 weakening tamper detection. It also adds reproducible launch assets, aggregate
 growth evidence, and a real-project benchmark contribution protocol.
+
+Version 0.11.0 adds the non-executing Python Candidate IR, effect and spawn
+proof gates, GIL-aware routing, source-hash-bound review previews, modeled-vs-
+measured benefit labels, a dedicated skill, and public safety-fixture evidence.

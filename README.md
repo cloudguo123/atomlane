@@ -2,9 +2,9 @@
 
 **Parallelize only what is proven safe.**
 
-Safe parallel execution for coding agents: AtomLane makes Codex finish builds,
-tests, Docker, and research pipelines faster on macOS without breaking task
-semantics.
+Safe parallel optimization for coding agents: AtomLane finds reviewable Python
+refactors and makes Codex finish builds, tests, Docker, and research pipelines
+faster on macOS without breaking task semantics.
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -32,6 +32,13 @@ Open a new Codex task, then ask:
 ```text
 Use $accelerate-local-work to inspect this project and run the safe parts in parallel.
 Keep progress visible and report time saved for this run and cumulatively.
+```
+
+For a long-running Python program, ask instead:
+
+```text
+Use $optimize-python-parallelism to inspect scripts/job.py. Do not run or modify
+the target while analyzing it; show proof obligations and a hash-bound preview.
 ```
 
 Requirements: macOS, Codex with plugin and MCP support, and Python 3.10+. Ruby is only needed for Compose YAML analysis; Node.js 20+ is only needed to rebuild the browser indicator.
@@ -69,8 +76,36 @@ shell · package scripts · Make · Compose · tests · builds · declared work
 | Research / papers | Data preparation, validation, figures, document builds | Infers data edges and preserves formal timing/provenance fences |
 | Native builds / tests | Make, compiler drivers, test runners | Delegates to semantic owners and budgets nested workers |
 | Batch media / data / ML | Independent inputs and deterministic merges | Requires disjoint outputs, bounded resources, and explicit merge semantics |
+| Long-running Python | Ordered CPU maps, blocking reads, native kernels, subprocess batches | Never imports or executes targets; unknown effects, shared state, stale hashes, and unsafe spawn paths fail closed |
 
 The scenario catalog includes more than 50 presets covering software, research, containers, media, ML, release, database, and low-level CPU/GPU/I/O work.
+
+## Python parallel refactor advisor
+
+`$optimize-python-parallelism` adds a program-level analysis lane before task
+execution. The `python_parallel_advisor` MCP tool parses bounded project-local
+UTF-8 source with Python's AST; it does not import the module, execute target
+code, install packages, or edit files.
+
+The first supported rewrite shape is deliberately narrow: same-module,
+ordered `worker(item)` maps expressed as a list comprehension, returned list
+comprehension, or append loop. For each candidate AtomLane propagates effects
+through the local call graph, checks loop control and observable ordering,
+requires a macOS-safe `__main__` spawn path for CPU process pools, detects
+existing/native parallelism, budgets nested workers, and returns one of:
+
+- `reviewable_rewrite`: pure CPU candidate with a syntax-checked unified diff;
+- `advisory_only`: I/O or externally constrained work needing human design;
+- `prefer_native`: vectorize or use a library's own GIL-releasing workers;
+- `already_parallel`: coordinate existing pools instead of nesting another;
+- `blocked`: keep serial until every reported hazard is resolved.
+
+Every preview is bound to the exact source SHA-256 and is never applied
+automatically. A measured serial hotspot may produce a modeled projection,
+clearly labeled as not being a benchmark. Acceptance still requires serial vs
+parallel differential tests, deterministic fixtures under macOS `spawn`,
+exception/output checks, memory measurement, and a repeatable performance win.
+See the [Python Candidate IR and proof gates](skills/optimize-python-parallelism/references/python-program-ir.md).
 
 ## Live execution—not a blank spinner
 
@@ -114,6 +149,7 @@ Plans are not translated back into hand-written waves or generic DAG calls. Type
 ## Privacy and authorization
 
 - Project and optional trace inspection are local and bounded.
+- Python advice is static and non-executing; target modules are never imported and rewrite previews never modify files.
 - Trace analysis returns aggregate routing signals—not prompts, reasoning, command bodies, or tool outputs.
 - Parallelism changes timing, never permission. Planning does not authorize new commands, remote mutations, destructive cleanup, or retries.
 - No run result is uploaded automatically. Sharing is explicit and reviewable.

@@ -37,9 +37,11 @@ requirements and must not be used to imply remote hosting.
 
 ## Long description
 
-AtomLane helps Codex find and execute safe concurrency in local
-macOS builds, tests, Docker/Compose graphs, Make targets, paper workflows, and
-batch jobs. It compiles supported entrypoints into a typed Atom IR that keeps
+AtomLane helps Codex find safe program-level Python refactors and execute safe
+concurrency in local macOS builds, tests, Docker/Compose graphs, Make targets,
+paper workflows, and batch jobs. Its Python advisor performs bounded AST and
+effect analysis without importing, executing, or modifying target code, and
+binds any review preview to the exact source hash. It compiles supported entrypoints into a typed Atom IR that keeps
 control flow, artifacts, effects, lifecycle events, source snapshots, and
 resource capacity explicit. Unknown effects and unordered shared writes fail
 closed instead of being guessed safe.
@@ -58,6 +60,9 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 3. Inspect this Make target for hidden file dependencies and parallelize it only if the dataflow and shared outputs are safe.
 4. Profile this research or paper workflow, identify timing-sensitive fences, and separate correctness replays from benchmark-eligible runs.
 5. Explain why this workload was kept serial or delegated to its native runner, including every blocker and resource conflict.
+6. Use the Python advisor on this long-running entrypoint, distinguish CPU,
+   blocking I/O, native-library, and unsafe-effect candidates, and show only
+   source-hash-bound review previews with explicit validation requirements.
 
 ## Positive review cases
 
@@ -96,6 +101,13 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 - Expected behavior: Compile once, execute the exact plan through the PTY live runner, and update elapsed/running/ready/completed/failed values during execution.
 - Expected result: Final atom results, observed peak concurrency, per-run time saved, and cumulative time saved.
 
+### 6. Review a Python ordered CPU map
+
+- Prompt: Inspect a long-running pure Python list-comprehension map and suggest a safe process-pool refactor without running it.
+- Fixture: A module-level pure worker called through a guarded `main`, plus measured serial hotspot metadata.
+- Expected behavior: Parse but never import or execute the target; propagate local effects; require the macOS spawn guard; distinguish the measured serial observation from the modeled parallel projection.
+- Expected result: `reviewable_rewrite`, complete proof obligations, resource ceiling, source hash, and syntax-checked unified diff that is not applied automatically.
+
 ## Negative review cases
 
 ### 1. Unknown effect
@@ -116,9 +128,11 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 - Expected behavior: Reject before launching any atom and require recompilation.
 - Why: The execution contract must match both the immutable plan and current source evidence.
 
-## Initial release notes
+## Current release notes
 
-Initial public submission of a local-first macOS acceleration workflow for
-Codex. It adds typed atomic planning, exact plan-hash execution, Apple-silicon
-resource awareness, native runner delegation, live progress, and honest savings
-reporting. No test credentials or network account are required for local use.
+Version 0.11 adds a non-executing Python Candidate IR, fail-closed effect and
+spawn gates, GIL-aware executor routing, source-hash-bound review previews, and
+public safety-fixture evidence to the existing typed atomic planner, exact
+plan-hash execution, Apple-silicon resource awareness, native delegation, live
+progress, and honest savings reporting. No test credentials or network account
+are required for local use.

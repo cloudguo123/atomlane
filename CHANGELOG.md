@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## 0.11.0 - 2026-09-01
+
+- Added `python_parallel_advisor`, a bounded AST and local-call-graph analyzer
+  that never imports, executes, or modifies target Python code.
+- Added conservative effect, import-time, loop-control, macOS spawn, GIL/native
+  ownership, nested-worker, path-containment, source-size, and resource gates.
+- Added deterministic classifications and syntax-checked, source-hash-bound
+  rewrite previews for a narrow ordered-map subset; previews are review-only
+  and are never applied automatically.
+- Separated measured serial observations from modeled parallel projections and
+  exposed explicit proof obligations and validation requirements.
+- Added the `$optimize-python-parallelism` skill, Python Candidate IR reference,
+  scenario routing, bilingual documentation, public safety fixtures, and a
+  dedicated visual-report section.
+- Added 65 Python-advisor regression cases, bringing the full release suite to
+  112 passing tests, including a pre-parse memory budget and real macOS-compatible
+  `spawn` output equivalence, non-execution, deterministic hashing, effect
+  refusals, path escapes, malformed inputs, and MCP contract coverage.
+
 ## 0.10.1 - 2026-08-27
 
 - Renamed the public GitHub repository from `mac-parallel-accelerator` to

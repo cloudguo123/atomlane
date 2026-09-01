@@ -2,8 +2,9 @@
 
 **只并行已证明安全的任务。**
 
-AtomLane 是面向 AI 编程代理的安全并行执行引擎：让 Codex 在不破坏任务
-语义的前提下，更快完成 Mac 上的构建、测试、Docker 和科研流水线。
+AtomLane 是面向 AI 编程代理的安全并行优化系统：既能找出可审查的 Python
+并行改造候选，也能让 Codex 在不破坏任务语义的前提下，更快完成 Mac 上的
+构建、测试、Docker 和科研流水线。
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -31,6 +32,13 @@ codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
 全过程实时显示进度，并报告本次和累计节约时间。
 ```
 
+遇到长时间运行的 Python 程序，可以说：
+
+```text
+使用 $optimize-python-parallelism 分析 scripts/job.py。分析阶段不要运行、导入
+或修改目标代码；列出证明义务，并给出绑定源码哈希的改造预览。
+```
+
 要求：macOS、支持插件和 MCP 的 Codex、Python 3.10+。只有分析 Compose YAML 时需要 Ruby；只有重新构建浏览器指示器时需要 Node.js 20+。
 
 仓库还通过根目录的 `plugin.json`、`skills/` 与本地 stdio `mcp.json`
@@ -52,8 +60,31 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 | 科研 / 论文 | 数据准备、验证、出图、文稿构建 | 推断数据依赖，保护正式计时和来源证据 |
 | 原生构建 / 测试 | Make、编译器、测试运行器 | 优先委托原生并发，统一预算内外层 worker |
 | 媒体 / 数据 / ML 批处理 | 多输入并行、确定性合并 | 要求输出隔离、资源有界、合并语义明确 |
+| 长时间 Python 程序 | 有序 CPU 映射、阻塞读取、原生内核、子进程批次 | 不导入、不执行目标；未知副作用、共享状态、过期哈希和不安全 spawn 路径一律阻断 |
 
 内置场景目录已覆盖 50 多类软件工程、科研、容器、媒体、机器学习、发布、数据库以及底层 CPU/GPU/I/O 优化目标。
+
+## Python 程序级并行改造顾问
+
+`$optimize-python-parallelism` 会在执行任务之前增加一条程序级分析通道。
+`python_parallel_advisor` MCP 工具只对项目内、大小受限的 UTF-8 源码做 AST
+分析；不会导入模块、运行目标代码、安装依赖或修改文件。
+
+首版只为非常窄、可证明的形态生成改造预览：同模块 `worker(item)` 的有序
+列表推导、直接返回列表推导，以及 `append` 循环。系统会沿本地调用图传播
+副作用，检查循环控制和输出顺序；纯 Python CPU 任务还必须证明 macOS
+`spawn` 所需的 `__main__` 入口安全。最终分类为：
+
+- `reviewable_rewrite`：纯 CPU 候选，附带已通过语法检查的统一 diff；
+- `advisory_only`：I/O 或受外部约束的工作，需要进一步人工设计；
+- `prefer_native`：应优先向量化或使用原生库释放 GIL 的并发；
+- `already_parallel`：已有并发，应统一 worker 预算，避免嵌套超卖；
+- `blocked`：存在未证明风险，继续串行。
+
+改造预览绑定精确源码 SHA-256，永远不会自动应用。即使提供了串行热点耗时，
+收益也只标注为“实测串行 + 建模并行”，不能冒充基准结果。真正采用前仍需做
+串并行差分测试、macOS `spawn` 确定性测试、异常/顺序/产物核对、内存测量和
+重复性能验证。详见 [Python Candidate IR 与证明门槛](skills/optimize-python-parallelism/references/python-program-ir.md)。
 
 ## 真正实时显示
 
@@ -95,6 +126,7 @@ atomic_task_plan
 ## 隐私与权限
 
 - 项目和可选 trace 扫描都在本地、有明确边界。
+- Python 建议只做静态分析；不会导入或执行目标模块，改造预览也不会改写文件。
 - trace 只返回聚合路由信号，不返回提示词、推理、命令正文或工具输出。
 - 并行只改变时间，不扩大权限；不会凭空授权远程操作、破坏性清理或重试。
 - 运行结果不会自动上传；分享必须由用户明确触发并可先审阅。

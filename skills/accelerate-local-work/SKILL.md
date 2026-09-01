@@ -25,6 +25,11 @@ Skip it for conversation, web research, one quick command, tiny work dominated
 by startup, or a known fully serial mutation. Evaluation should be cheap; the
 possibility of parallelism alone does not authorize execution.
 
+If the requested optimization requires changing a long-running Python program
+rather than scheduling its existing commands, route to
+`$optimize-python-parallelism` and `python_parallel_advisor`. Do not treat a
+source rewrite preview as an executable atomic plan.
+
 ## Compile once, execute the exact plan
 
 For local execution covered by this skill, use this invariant:

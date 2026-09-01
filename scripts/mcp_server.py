@@ -37,9 +37,10 @@ from atom_engine import (
     validate_source_snapshots,
 )
 from atom_frontends import compile_entrypoints
+from python_parallel_advisor import AdvisorError, analyze_python_parallelism
 
 SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.10.1"
+SERVER_VERSION = "0.11.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"
@@ -1708,6 +1709,97 @@ def _power_snapshot() -> dict[str, Any]:
     match = re.search(r"(\d+)%", raw)
     if match:
         result["battery_percent"] = int(match.group(1))
+    return result
+
+
+def python_parallel_advisor(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded, non-executing Python source parallelization advice."""
+    allowed_fields = {
+        "project_path",
+        "paths",
+        "hotspots",
+        "max_files",
+        "max_candidates",
+        "max_workers",
+        "estimated_memory_mb_per_worker",
+        "minimum_hotspot_seconds",
+        "execution_context",
+        "responsiveness",
+        "include_rewrite_previews",
+    }
+    if not isinstance(arguments, dict):
+        raise InputError("arguments must be an object")
+    unknown_fields = sorted(set(arguments) - allowed_fields)
+    if unknown_fields:
+        raise InputError("unknown python_parallel_advisor fields: " + ", ".join(unknown_fields))
+    project_text = arguments.get("project_path")
+    if (
+        not isinstance(project_text, str)
+        or not project_text
+        or len(project_text) > 4096
+        or "\x00" in project_text
+        or not os.path.isabs(project_text)
+    ):
+        raise InputError("project_path must be an absolute path")
+    try:
+        project = Path(project_text).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise InputError(f"project_path cannot be resolved: {project_text}") from exc
+    if not project.is_dir():
+        raise InputError(f"project_path does not exist or is not a directory: {project}")
+    responsiveness = arguments.get("responsiveness", "interactive")
+    if not isinstance(responsiveness, str) or responsiveness not in {
+        "interactive",
+        "balanced",
+        "throughput",
+    }:
+        raise InputError("responsiveness must be one of: interactive, balanced, throughput")
+    requested_workers = arguments.get("max_workers")
+    if requested_workers is not None and (
+        isinstance(requested_workers, bool)
+        or not isinstance(requested_workers, int)
+        or not 1 <= requested_workers <= MAX_CONCURRENCY
+    ):
+        raise InputError(f"max_workers must be between 1 and {MAX_CONCURRENCY}")
+    estimated_memory = arguments.get("estimated_memory_mb_per_worker")
+    if estimated_memory is not None and (
+        isinstance(estimated_memory, bool)
+        or not isinstance(estimated_memory, (int, float))
+        or estimated_memory <= 0
+        or estimated_memory > 1_000_000_000
+        or (isinstance(estimated_memory, float) and not math.isfinite(estimated_memory))
+    ):
+        raise InputError("estimated_memory_mb_per_worker must be finite and positive")
+    resource_plan = concurrency_plan(
+        "cpu",
+        requested_workers,
+        None,
+        estimated_memory,
+        responsiveness,
+    )
+    try:
+        result = analyze_python_parallelism(
+            project,
+            paths=arguments.get("paths"),
+            hotspots=arguments.get("hotspots"),
+            max_files=arguments.get("max_files", 128),
+            max_candidates=arguments.get("max_candidates", 32),
+            max_workers=resource_plan["chosen_concurrency"],
+            minimum_hotspot_seconds=arguments.get("minimum_hotspot_seconds", 10.0),
+            execution_context=arguments.get("execution_context", "standalone"),
+            include_rewrite_previews=arguments.get("include_rewrite_previews", True),
+        )
+    except (AdvisorError, OSError) as exc:
+        raise InputError(str(exc)) from exc
+    result["resource_plan"] = resource_plan
+    result["advice_contract"] = {
+        "target_code_executed": False,
+        "target_code_imported": False,
+        "files_modified": False,
+        "rewrite_previews_require_source_hash_match": True,
+        "performance_claim_requires_measured_validation": True,
+        "automatic_patch_application": False,
+    }
     return result
 
 
@@ -3637,6 +3729,58 @@ TOOLS = [
         },
     },
     {
+        "name": "python_parallel_advisor",
+        "description": "Statically inspect bounded project-local Python source for high-confidence ordered-map parallelization candidates. Never imports or executes target code, never modifies files, fails closed on unknown effects, and labels projected savings as modeled until a measured differential benchmark exists.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_path"],
+            "properties": {
+                "project_path": {"type": "string", "minLength": 1, "maxLength": 4096, "description": "Absolute local project directory."},
+                "paths": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 128,
+                    "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+                    "description": "Optional project-local Python paths. Omit for bounded discovery.",
+                },
+                "hotspots": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                        "type": "object",
+                        "required": ["path", "line", "wall_seconds"],
+                        "properties": {
+                            "path": {"type": "string", "minLength": 1, "maxLength": 4096},
+                            "line": {"type": "integer", "minimum": 1, "maximum": 1000000000},
+                            "wall_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000000000},
+                            "item_count": {"type": "integer", "minimum": 1, "maximum": 1000000000},
+                        },
+                        "additionalProperties": False,
+                    },
+                    "description": "Optional caller-observed serial hotspot evidence. The advisor models a projection but does not call it measured parallel performance.",
+                },
+                "max_files": {"type": "integer", "minimum": 1, "maximum": 512, "default": 128},
+                "max_candidates": {"type": "integer", "minimum": 1, "maximum": 128, "default": 32},
+                "max_workers": {"type": "integer", "minimum": 1, "maximum": 64},
+                "estimated_memory_mb_per_worker": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000000000},
+                "minimum_hotspot_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000000000, "default": 10.0},
+                "execution_context": {
+                    "type": "string",
+                    "enum": ["standalone", "atomlane_worker", "native_parallel", "unknown"],
+                    "default": "standalone",
+                    "description": "Used to prevent unbudgeted nested pools.",
+                },
+                "responsiveness": {
+                    "type": "string",
+                    "enum": ["interactive", "balanced", "throughput"],
+                    "default": "interactive",
+                },
+                "include_rewrite_previews": {"type": "boolean", "default": True},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "task_parallel_scan",
         "description": "Compatibility compiler for legacy candidate units. Returns an immutable typed CompiledPlan and plan hash for atomic_exec; it never recommends translating conflict waves into generic executors.",
         "inputSchema": {
@@ -3907,6 +4051,8 @@ async def call_tool(
 ) -> dict[str, Any]:
     if name == "scenario_plan":
         result = scenario_plan(arguments)
+    elif name == "python_parallel_advisor":
+        result = python_parallel_advisor(arguments)
     elif name == "task_parallel_scan":
         result = task_parallel_scan(arguments)
     elif name == "atomic_task_plan":
@@ -4002,6 +4148,10 @@ def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
                     "Recompile after a material plan or source-snapshot change. "
                     "For complex, unfamiliar, multi-stage, or trace-informed project optimization, call scenario_plan "
                     "to select from preset goals and guardrails before constructing work units. "
+                    "For an explicitly requested optimization of a concrete long-running Python entrypoint, call "
+                    "python_parallel_advisor first. It performs bounded static analysis only: it never imports, executes, "
+                    "or edits target code, and its rewrite previews remain conditional until semantic differential tests "
+                    "and a measured benchmark pass. "
                     "For multiple Docker services or builds with different resource needs, call container_resource_plan "
                     "to allocate within the detected Docker Desktop VM envelope. "
                     "The compiler fails closed on unknown control flow, effects, lifecycle, or unordered writes. "

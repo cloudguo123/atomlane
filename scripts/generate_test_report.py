@@ -54,6 +54,11 @@ DOMAIN_META = {
         "description": "Observed task runtimes, duration gates, and cumulative savings history",
         "accent": "#9ae7ff",
     },
+    "test_python_parallel_advisor": {
+        "label": "Python parallel refactor safety",
+        "description": "Non-executing AST analysis, effect gates, spawn semantics, and hash-bound previews",
+        "accent": "#ffb86b",
+    },
 }
 
 
@@ -251,6 +256,90 @@ def load_growth_metrics() -> dict[str, Any]:
     return {"available": True, **metrics}
 
 
+def build_python_advisor_evidence() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run the public static fixtures and retain only sanitized evidence."""
+    from python_parallel_advisor import analyze_python_parallelism
+
+    started = time.perf_counter()
+    fixture_root = ROOT / "benchmarks" / "python-advisor-fixtures"
+    paths = ["must_not_execute.py", "native.py", "pure_cpu.py", "read_io.py", "stateful.py"]
+    fixture_paths = {path: fixture_root / path for path in paths}
+    marker_path = fixture_root / "must-not-exist.marker"
+    before_hashes: dict[str, str] = {}
+    after_hashes: dict[str, str] = {}
+    marker_absent_before = not marker_path.exists()
+    marker_absent_after = False
+    try:
+        before_hashes = {path: sha256(source) for path, source in fixture_paths.items()}
+        result = analyze_python_parallelism(
+            fixture_root,
+            paths=paths,
+            max_workers=4,
+        )
+        after_hashes = {path: sha256(source) for path, source in fixture_paths.items()}
+        marker_absent_after = not marker_path.exists()
+        hashes_unchanged = before_hashes == after_hashes
+        counts = result["summary"]["classification_counts"]
+        previews = [item for item in result["candidates"] if "rewrite_preview" in item]
+        expected = {
+            "reviewable_rewrite": 1,
+            "advisory_only": 1,
+            "blocked": 1,
+            "prefer_native": 1,
+        }
+        passed = (
+            all(counts.get(name) == count for name, count in expected.items())
+            and result["execution_performed"] is False
+            and result["files_modified"] is False
+            and marker_absent_before
+            and marker_absent_after
+            and hashes_unchanged
+            and len(previews) == 1
+            and previews[0]["rewrite_preview"]["source_sha256"] == previews[0]["source_sha256"]
+        )
+        evidence = {
+            "available": True,
+            "analysis_hash": result["analysis_hash"],
+            "analysis_mode": result["analysis_mode"],
+            "files_analyzed": result["summary"]["files_analyzed"],
+            "candidate_count": result["summary"]["candidate_count"],
+            "classification_counts": counts,
+            "rewrite_preview_count": len(previews),
+            "source_hash_bound": bool(previews),
+            "execution_performed": result["execution_performed"],
+            "files_modified": result["files_modified"],
+            "target_code_executed": result["execution_performed"],
+            "target_files_modified": result["files_modified"],
+            "fixture_sha256_before": before_hashes,
+            "fixture_sha256_after": after_hashes,
+            "fixture_hashes_unchanged": hashes_unchanged,
+            "execution_marker_absent": marker_absent_before and marker_absent_after,
+            "benefit_kind": previews[0]["benefit"]["kind"] if previews else "not_available",
+        }
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+        passed = False
+        try:
+            after_hashes = {path: sha256(source) for path, source in fixture_paths.items()}
+        except OSError:
+            after_hashes = {}
+        marker_absent_after = not marker_path.exists()
+        evidence = {
+            "available": False,
+            "error_type": type(exc).__name__,
+            "fixture_sha256_before": before_hashes,
+            "fixture_sha256_after": after_hashes,
+            "fixture_hashes_unchanged": bool(before_hashes) and before_hashes == after_hashes,
+            "execution_marker_absent": marker_absent_before and marker_absent_after,
+        }
+    check = {
+        "name": "Python advisor safety fixtures",
+        "status": "passed" if passed else "failed",
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "returncode": 0 if passed else 1,
+    }
+    return check, evidence
+
+
 def build_report() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     python_sources = sorted(str(path.relative_to(ROOT)) for path in SCRIPTS.glob("*.py"))
@@ -272,6 +361,8 @@ def build_report() -> dict[str, Any]:
         ruff_argv = [sys.executable, "-m", "ruff", "check", "--no-cache", "scripts"]
     checks.append(run_command("Ruff static analysis", ruff_argv))
     checks.append(validate_metadata())
+    advisor_check, advisor_evidence = build_python_advisor_evidence()
+    checks.append(advisor_check)
     checks.append(bundle_check())
 
     status_counts = Counter(test["status"] for test in tests)
@@ -327,6 +418,7 @@ def build_report() -> dict[str, Any]:
         "domains": domain_rows,
         "tests": tests,
         "benchmark": load_long_benchmark(),
+        "python_advisor": advisor_evidence,
         "growth": load_growth_metrics(),
         "scope_note": (
             "This dashboard reports behavioral regression and release-gate results. "
@@ -339,6 +431,7 @@ def render_html(report: dict[str, Any]) -> str:
     data = json.dumps(report, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     overall = report["overall"].upper()
     generated = html.escape(report["generated_at"])
+    verified_test_count = html.escape(str(report.get("summary", {}).get("total", "verified")))
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -349,7 +442,7 @@ def render_html(report: dict[str, Any]) -> str:
   <link rel="canonical" href="https://cloudguo123.github.io/atomlane/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="AtomLane · Verified test report">
-  <meta property="og:description" content="Parallelize only what is proven safe: 44 verified tests and a reproducible five-minute benchmark.">
+  <meta property="og:description" content="Parallelize only what is proven safe: {verified_test_count} verified tests, Python refactor safety fixtures, and a reproducible five-minute benchmark.">
   <meta property="og:url" content="https://cloudguo123.github.io/atomlane/">
   <meta property="og:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <meta property="og:image:width" content="1280">
@@ -412,7 +505,7 @@ def render_html(report: dict[str, Any]) -> str:
 <main class="wrap">
   <nav class="nav"><div class="brand">ATOMLANE / VERIFY</div><div class="navlinks"><a href="https://github.com/cloudguo123/atomlane">Source</a><a href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install</a><a href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">First run</a><a href="https://github.com/cloudguo123/atomlane/discussions">Discuss</a><a href="test-results.json">Raw JSON</a></div></nav>
   <section class="hero">
-    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane compiles local work into verified atomic plans, then runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
+    <div><div class="eyebrow">AtomLane release verification · v<span id="version"></span></div><h1>Parallelize only what is proven safe.</h1><p class="lede">AtomLane finds reviewable Python refactors without executing target code, compiles local work into verified atomic plans, and runs safe concurrency on macOS with visible progress and honest time-savings evidence.</p><div class="actions"><a class="button" href="https://github.com/cloudguo123/atomlane#install-in-two-commands">Install free</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml">Report first run</a><a class="button secondary" href="https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml">Share a benchmark</a></div></div>
     <div class="seal" id="seal"><div class="seal-inner"><div class="rate" id="rate">—</div><div class="seal-label">tests passing</div></div></div>
   </section>
   <div class="grid4" id="metrics"></div>
@@ -420,6 +513,8 @@ def render_html(report: dict[str, Any]) -> str:
   <section class="panel"><img class="demo" src="share/demo.gif" width="960" height="540" alt="Live execution counters and estimated time saved updating during a parallel run"><p class="note">The real PTY runner streams elapsed time, running/ready/completed/failed counters, and current savings throughout long execution.</p></section>
   <div class="section-title"><div><div class="eyebrow">Long-horizon evidence</div><h2>Five-minute parallel benchmark</h2></div><p>Fast regression report retained below</p></div>
   <section class="panel benchmark" id="benchmark"></section>
+  <div class="section-title"><div><div class="eyebrow">Program-level optimization</div><h2>Python refactor safety evidence</h2></div><p>Static fixtures · no target execution</p></div>
+  <section class="panel" id="python-advisor"></section>
   <div class="section-title"><div><div class="eyebrow">Quality gates</div><h2>Release checks</h2></div><p id="overall">{overall}</p></div>
   <section class="checks" id="checks"></section>
   <div class="section-title"><div><div class="eyebrow">Behavioral coverage</div><h2>Verified subsystems</h2></div><p>Every regression grouped by responsibility</p></div>
@@ -477,6 +572,23 @@ if(!b.available){{
   const resource=x.resource||{{}};
   const methodNote='Method: '+String(x.method)+'. Latest run '+String(x.run_id)+' on '+String(resource.machine)+' ('+String(resource.logical_cpus)+' logical CPUs). Source commit '+String(x.commit).slice(0,10)+'.';
   clear('#benchmark',header,metricGrid,comparison,E('h4','','Concurrent task timeline'),lanes,E('p','note',methodNote));
+}}
+
+const pa=d.python_advisor||{{available:false}};
+if(!pa.available){{
+  clear('#python-advisor',E('p','note','Python advisor evidence is unavailable for this report.'));
+}}else{{
+  const counts=pa.classification_counts||{{}};
+  const advisorMetrics=[
+    ['Files analyzed',pa.files_analyzed],
+    ['Candidates',pa.candidate_count],
+    ['Reviewable rewrites',counts.reviewable_rewrite||0],
+    ['Advisory only',counts.advisory_only||0],
+    ['Blocked safely',counts.blocked||0],
+    ['Prefer native',counts.prefer_native||0]
+  ];
+  const contract='Execution performed: '+String(pa.execution_performed)+' · files modified: '+String(pa.files_modified)+' · fixture SHA-256 unchanged: '+String(pa.fixture_hashes_unchanged)+' · execution marker absent: '+String(pa.execution_marker_absent)+' · source-hash-bound preview: '+String(pa.source_hash_bound)+' · benefit label: '+String(pa.benefit_kind)+'.';
+  clear('#python-advisor',add(E('div','benchmark-head'),add(E('div'),E('h3','','Bounded AST analysis passes every public safety fixture'),E('p','','The fixture matrix separates pure CPU maps, read-only I/O, shared state, and native-library work before any rewrite is considered.')),E('span','long-pill',String(pa.analysis_mode))),add(E('div','grid6'),...advisorMetrics.map(item=>valueCard('bench-metric',item[0],item[1]))),E('p','note',contract+' Analysis '+String(pa.analysis_hash)+'.'));
 }}
 
 const maxCheck=Math.max(...d.checks.map(check=>finite(check.duration_ms)),1);

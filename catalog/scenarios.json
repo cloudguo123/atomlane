@@ -899,7 +899,7 @@
         "trace_signatures": ["runtime_parallelism", "vector_kernel"]
       },
       "match_requirements": {"minimum_evidence_sources": 2},
-      "default_execution": {"executor": "mac_resource_plan", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one concurrency hierarchy: either process fan-out or native kernel threads receive the core budget"},
+      "default_execution": {"executor": "host_resource_plan", "profile": "cpu", "initial_concurrency_cap": 4, "isolation": "one concurrency hierarchy: either process fan-out or native kernel threads receive the core budget"},
       "optimization_goals": [
         {"id": "single-thread-hierarchy", "objective": "Choose one top-level parallel hierarchy instead of multiplying process, runtime, BLAS, and OpenMP widths.", "metric": "runnable threads / active cores and CPU efficiency"},
         {"id": "per-worker-thread-budget", "objective": "Derive native thread limits from the chosen worker count and current active cores.", "metric": "throughput without context-switch or thermal regression"},
@@ -1022,7 +1022,7 @@
         "task_keywords": ["零拷贝", "内存复制", "buffer复用", "峰值内存", "zero copy"]
       },
       "match_requirements": {"minimum_content_matches": 1},
-      "default_execution": {"executor": "mac_resource_plan", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "bounded reusable buffers with explicit ownership and per-worker memory estimates"},
+      "default_execution": {"executor": "host_resource_plan", "profile": "mixed", "initial_concurrency_cap": 3, "isolation": "bounded reusable buffers with explicit ownership and per-worker memory estimates"},
       "optimization_goals": [
         {"id": "buffer-copy-accounting", "objective": "Identify unavoidable versus accidental full-buffer copies across parsing, IPC, transforms, and output.", "metric": "bytes copied per input byte"},
         {"id": "buffer-pool-reuse", "objective": "Reuse bounded buffers and temporaries across items when ownership is explicit.", "metric": "allocations and peak resident memory"},
@@ -1285,7 +1285,7 @@
         "trace_signatures": ["ml", "video"]
       },
       "match_requirements": {"minimum_content_matches": 1},
-      "default_execution": {"executor": "mac_resource_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one shared accelerator budget with measured caps, bounded unified memory, and no nested GPU process fan-out"},
+      "default_execution": {"executor": "host_resource_plan", "profile": "accelerator", "initial_concurrency_cap": 2, "isolation": "one shared accelerator budget with measured caps, bounded unified memory, and no nested GPU process fan-out"},
       "optimization_goals": [
         {"id": "accelerator-cap-sweep", "objective": "Measure total throughput at accelerator concurrency one and two before increasing.", "metric": "items per second and p95 latency by cap"},
         {"id": "accelerator-memory-budget", "objective": "Account for model, graph, texture, frame, and temporary-buffer unified memory per worker.", "metric": "peak memory and paging"},

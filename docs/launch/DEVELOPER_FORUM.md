@@ -6,13 +6,13 @@
 
 ## Title
 
-AtomLane: proven-safe local parallelism for Codex on macOS and Windows Preview
+AtomLane: one safety core, tailored execution on macOS Stable and native Windows Preview
 
 ## Post
 
 I built AtomLane after repeatedly hitting a bad tradeoff in AI-generated projects: many build, test, Docker, and research steps look parallel, but splitting shell commands can silently change control flow or race shared state.
 
-AtomLane treats planning like compilation. On macOS it parses supported shell/package/Make/Compose/test entrypoints into a typed Atom IR; its scoped native Windows Preview accepts exact argv and declared PowerShell files while keeping WSL and Docker in separate realms. It preserves success/failure/data/lifecycle edges, models artifacts and resource capacity, and executes only the exact hashed plan. Unknown effects fail closed. For long runs, the live view shows running/ready/completed/failed counts and current estimated savings instead of a blank spinner. Windows adds staged Job Object process-tree containment and optional ConPTY capture.
+AtomLane treats planning like compilation: one typed safety core preserves success/failure/data/lifecycle edges, artifacts, resource capacity, and the exact plan hash, while platform and workload adapters tailor the safe execution route. macOS Stable parses supported shell/package/Make/Compose/test entrypoints; the scoped native Windows Preview accepts exact argv and declared PowerShell files, adds staged Job Object process-tree containment and optional ConPTY capture, and keeps WSL and Docker in separate realms. Unknown effects fail closed. For long runs, the live view shows running/ready/completed/failed counts and current estimated savings instead of a blank spinner.
 
 The public controlled run keeps every workload active for more than five minutes: 20m40s serial equivalent, 5m10s parallel wall time, 15m30s saved, 4.00× observed. The serial equivalent is the sum of observed independent task durations—not a separate 20-minute serial rerun—and it is not a universal speedup claim.
 

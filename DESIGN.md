@@ -1,4 +1,4 @@
-# AtomLane 0.12
+# AtomLane 0.13
 
 AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
@@ -6,6 +6,12 @@ the current platform realm and resource envelope. It combines conservative
 effect analysis, typed dependencies, native concurrency delegation,
 platform-specific supervision, bounded scheduling, live progress, and savings
 accounting.
+
+Version 0.13 makes AtomLane the canonical plugin, marketplace, MCP, event,
+environment, package, and storage identity. It also resolves scenario routes
+against the current execution realm: portable resource advice uses the host
+planner, while Apple-only accelerator goals stay advisory outside native
+macOS instead of naming an unavailable executor.
 
 Version 0.12 adds the native Windows Preview platform adapter while retaining a
 single compiler and scheduler core. Windows plans are bound to their realm,
@@ -424,7 +430,7 @@ merely to benchmark them. Failed, timed-out, and all-skipped invocations do not
 change the ledger; successful negative deltas are reported as overhead and
 credit zero savings. Eligible invocations atomically update a locked statistics
 file, whose saved-seconds total is monotonic. macOS keeps the legacy-compatible path
-`~/Library/Application Support/Codex/Mac Parallel Accelerator/stats.json`;
+`~/Library/Application Support/Codex/AtomLane/stats.json`;
 Windows uses `%LOCALAPPDATA%\AtomLane\stats.json`. Tests override this path.
 
 ## Scenario catalog

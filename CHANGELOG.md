@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## 0.13.0 - 2026-09-02
+
+- Made `atomlane` the canonical plugin, marketplace, MCP, event, environment,
+  package, and storage identity; the public install selector is now
+  `atomlane@atomlane`.
+- Unified public positioning around one universal safety core with
+  platform-native, workload-tailored execution, while retaining the exact
+  support boundary: macOS Stable and native Windows Preview.
+- Added execution-realm-aware scenario routing. Portable resource scenarios
+  now use `host_resource_plan`; Apple-only accelerator goals remain explicit
+  advice outside native macOS and never enter executable high-value targets.
+- Renamed the optional traffic secret to `ATOMLANE_TRAFFIC_TOKEN`, refreshed
+  plugin metadata and launch copy, and updated the repository social card to
+  show both platform statuses.
+- Preserved immutable releases, tags, Git history, and their source-bound
+  evidence rather than rewriting historical provenance.
+
 ## 0.12.0 - 2026-09-01
 
 - Added native Windows Preview behind the same immutable Atom IR and scheduler,

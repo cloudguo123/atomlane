@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Plugin version
-      placeholder: 0.9.2
+      placeholder: 0.13.0
     validations:
       required: true
   - type: dropdown
@@ -51,7 +51,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      placeholder: Mac model, macOS, Python, Codex surface
+      placeholder: Host model, macOS Stable or native Windows Preview, Python, Codex surface
     validations:
       required: true
   - type: checkboxes

@@ -1,7 +1,7 @@
 {
-  "name": "mac-parallel-accelerator",
-  "version": "0.12.0",
-  "description": "AtomLane finds reviewable Python parallelism candidates, compiles semantics-preserving atomic plans, and executes proven-safe concurrency on macOS and Windows Preview.",
+  "name": "atomlane",
+  "version": "0.13.0",
+  "description": "AtomLane combines a universal safety core with platform-native, workload-tailored parallel execution on macOS Stable and native Windows Preview.",
   "author": {
     "name": "cloudguo123",
     "url": "https://github.com/cloudguo123"
@@ -12,6 +12,8 @@
   "keywords": [
     "macos",
     "windows",
+    "cross-platform",
+    "workload-optimization",
     "parallel",
     "scheduler",
     "atomic-planning",
@@ -26,8 +28,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "AtomLane",
-    "shortDescription": "Safe Python refactors and parallel execution",
-    "longDescription": "AtomLane statically finds reviewable Python parallelism candidates without importing or executing target code, then compiles supported entrypoints into immutable hashed atomic plans. It preserves typed control flow and effects, fails closed on unknown hazards, delegates concurrency to native owners when safer, adapts to macOS or native Windows resources, isolates Windows, WSL, and Docker execution realms, and executes exact verified plans with live progress and honestly labeled time savings.",
+    "shortDescription": "Universal-safe, workload-tailored parallelism",
+    "longDescription": "AtomLane uses one typed safety core for control flow, effects, conflicts, resources, hashes, and authorization, then tailors execution to the active platform and workload. It statically finds reviewable Python candidates without importing or executing target code, delegates concurrency to native owners when safer, adapts containment and budgets for macOS Stable or native Windows Preview, isolates Windows, WSL, and Docker realms, and executes exact verified plans with live progress and honestly labeled savings.",
     "developerName": "cloudguo123",
     "category": "Productivity",
     "capabilities": [
@@ -40,6 +42,8 @@
       "Native concurrency delegation",
       "Scenario profiling",
       "Trace-informed routing",
+      "Workload-tailored execution",
+      "Cross-platform safety core",
       "Resource awareness",
       "Windows Job Object process-tree control",
       "Windows ConPTY and UTF-8 pipe progress",

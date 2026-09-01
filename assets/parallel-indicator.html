@@ -153,14 +153,14 @@
 
     render(readHostPayload());
     window.addEventListener("openai:set_globals", (event) => render(readHostPayload(event)));
-    window.addEventListener("mac-parallel-accelerator:tool-input", (event) => renderRunning(event.detail));
-    window.addEventListener("mac-parallel-accelerator:tool-result", (event) => render(event.detail));
-    window.addEventListener("mac-parallel-accelerator:progress", (event) => renderProgress(event.detail));
+    window.addEventListener("atomlane:tool-input", (event) => renderRunning(event.detail));
+    window.addEventListener("atomlane:tool-result", (event) => render(event.detail));
+    window.addEventListener("atomlane:progress", (event) => renderProgress(event.detail));
     window.addEventListener("message", (event) => {
       const message = event?.data;
       if (message?.method === "notifications/progress") renderProgress(message.params);
     });
-    window.addEventListener("mac-parallel-accelerator:tool-cancelled", () => {
+    window.addEventListener("atomlane:tool-cancelled", () => {
       hasHostData = true;
       byId("dot").className = "dot failed";
       byId("state").textContent = "执行已取消";

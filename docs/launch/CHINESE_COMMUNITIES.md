@@ -8,7 +8,7 @@ AtomLane：我给 Codex 写了一个“先证明安全、再并行”的本地�
 
 AI 生成的项目经常会出现一串构建、测试、Docker 或论文流水线任务。它们看起来能并发，但直接拆命令可能破坏 `&&` / `||`、争用 `.next` / JUnit / 数据库 / Docker 卷，或者把 Vitest、BLAS、BuildKit 的内部并发再乘一遍。
 
-AtomLane 的做法更像一个小编译器：在 macOS 稳定版中，先把支持的 shell、package scripts、Make、Compose、测试和构建入口降到带类型的 Atom IR，保留成功、失败、顺序、数据、流、就绪、健康、完成和清理关系，再根据文件副作用、逻辑资源、生命周期和当前主机资源决定谁能同时运行。原生 Windows Preview 支持精确 argv 与完整 PowerShell 文件，使用 Job Object 约束进程树，并把 WSL、Docker 明确隔离为不同执行域。未知副作用直接拒绝，不靠猜。
+AtomLane 的做法更像一个小编译器：一套通用安全内核把任务降到带类型的 Atom IR，统一保留成功、失败、顺序、数据、流、就绪、健康、完成、清理、资源与计划哈希；平台和工作负载适配层再决定具体执行方式。macOS Stable 支持既有的 shell、package scripts、Make、Compose、测试和构建入口；原生 Windows Preview 支持精确 argv 与完整 PowerShell 文件，使用 Job Object 约束进程树，并把 WSL、Docker 明确隔离为不同执行域。未知副作用直接拒绝，不靠猜。
 
 超过十秒的任务会实时显示运行中、就绪、完成、失败数量，以及本次和累计节约时间，不再只有一个空白等待框。
 

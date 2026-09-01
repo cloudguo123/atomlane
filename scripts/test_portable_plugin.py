@@ -76,7 +76,7 @@ class PortableAgentPluginTests(unittest.TestCase):
         )
         citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(version, "0.12.0")
+        self.assertEqual(version, "0.13.0")
         self.assertEqual(package["version"], version)
         self.assertEqual(lock["version"], version)
         self.assertEqual(lock["packages"][""]["version"], version)
@@ -86,6 +86,52 @@ class PortableAgentPluginTests(unittest.TestCase):
         first_release = re.search(r"(?m)^## ([0-9]+\.[0-9]+\.[0-9]+) -", changelog)
         self.assertIsNotNone(first_release)
         self.assertEqual(first_release.group(1), version)
+
+    def test_current_product_surfaces_do_not_publish_legacy_identity(self) -> None:
+        # Changelog and retained v0.12 evidence are immutable historical records.
+        historical_records = {
+            "CHANGELOG.md",
+            "docs/index.html",
+            "docs/test-results.json",
+            "docs/windows-preview-results.json",
+        }
+        ignored_roots = {".git", "node_modules", "__pycache__"}
+        ignored_suffixes = {
+            ".gif",
+            ".ico",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".pyc",
+            ".webp",
+            ".zip",
+        }
+        legacy_markers = (
+            "mac" + "-parallel-accelerator",
+            "mac" + "_parallel_accelerator",
+            "Mac" + " Parallel Accelerator",
+            "MAC" + "_PARALLEL_ACCELERATOR",
+            "MPA" + "_TRAFFIC_TOKEN",
+        )
+        violations: list[str] = []
+
+        for path in ROOT.rglob("*"):
+            if not path.is_file() or path.suffix.lower() in ignored_suffixes:
+                continue
+            relative = path.relative_to(ROOT)
+            if relative.as_posix() in historical_records:
+                continue
+            if any(part in ignored_roots for part in relative.parts):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for marker in legacy_markers:
+                if marker.casefold() in content.casefold():
+                    violations.append(f"{relative.as_posix()}: {marker}")
+
+        self.assertEqual(violations, [])
 
     def test_third_party_notices_match_direct_package_versions(self) -> None:
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
@@ -154,7 +200,7 @@ class PortableAgentPluginTests(unittest.TestCase):
     def test_stdio_server_is_plugin_root_relative_and_closed(self) -> None:
         self.assertEqual(self.mcp["$schema"], MCP_SCHEMA)
         self.assertEqual(set(self.mcp), {"$schema", "mcpServers"})
-        server = self.mcp["mcpServers"]["mac-parallel-accelerator"]
+        server = self.mcp["mcpServers"]["atomlane"]
         self.assertEqual(set(server), {"type", "command", "args", "cwd"})
         self.assertEqual(server["type"], "stdio")
         self.assertEqual(server["command"], "python3")
@@ -216,7 +262,7 @@ class PortableAgentPluginTests(unittest.TestCase):
                     "id": 4,
                     "method": "resources/read",
                     "params": {
-                        "uri": "ui://widget/mac-parallel-indicator-0.12.0.html"
+                        "uri": "ui://widget/atomlane-indicator-0.13.0.html"
                     },
                 },
                 {
@@ -246,7 +292,7 @@ class PortableAgentPluginTests(unittest.TestCase):
                 manifest = json.loads(
                     (plugin_root / manifest_name).read_text(encoding="utf-8")
                 )
-                server = manifest["mcpServers"]["mac-parallel-accelerator"]
+                server = manifest["mcpServers"]["atomlane"]
                 args = [
                     item.replace("${PLUGIN_ROOT}", str(plugin_root))
                     for item in server["args"]

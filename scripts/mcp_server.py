@@ -62,11 +62,11 @@ from windows_job_runner import (
 )
 from windows_runtime import WindowsJobController, WindowsJobError
 
-SERVER_NAME = "mac-parallel-accelerator"
-SERVER_VERSION = "0.12.0"
+SERVER_NAME = "atomlane"
+SERVER_VERSION = "0.13.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
-INDICATOR_RESOURCE_URI = f"ui://widget/mac-parallel-indicator-{SERVER_VERSION}.html"
+INDICATOR_RESOURCE_URI = f"ui://widget/atomlane-indicator-{SERVER_VERSION}.html"
 INDICATOR_MIME_TYPE = "text/html;profile=mcp-app"
 MAX_TASKS = 128
 MAX_CONCURRENCY = 64
@@ -84,7 +84,7 @@ _STATIC_HARDWARE_CACHE: dict[str, Any] | None = None
 
 def _progress_interval_seconds() -> float:
     try:
-        return max(0.1, float(os.environ.get("MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL", "1")))
+        return max(0.1, float(os.environ.get("ATOMLANE_PROGRESS_INTERVAL", "1")))
     except ValueError:
         return 1.0
 
@@ -119,7 +119,7 @@ def _indicator_resource_meta() -> dict[str, Any]:
 def _indicator_resource() -> dict[str, Any]:
     return {
         "uri": INDICATOR_RESOURCE_URI,
-        "name": "mac_parallel_accelerator_indicator",
+        "name": "atomlane_indicator",
         "title": "AtomLane 实时执行指示器",
         "description": "并行执行状态与加速倍数卡片。",
         "mimeType": INDICATOR_MIME_TYPE,
@@ -488,11 +488,61 @@ def _content_probe_matches(
     return matches
 
 
+def _resolve_scenario_execution(
+    default_execution: dict[str, Any],
+    environment: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve a catalog executor for the current execution realm.
+
+    Scenario matching is intentionally advisory, but it must not recommend an
+    executor that is known to be unavailable on the active host.  The legacy
+    ``mac_resource_plan`` name is a portable alias, so non-macOS realms receive
+    the platform-neutral spelling.  Apple accelerator routing has no generic
+    substitute: outside native macOS its goals remain visible as advice while
+    executable routing is withheld.
+    """
+
+    resolved = dict(default_execution)
+    catalog_executor = resolved.get("executor")
+    execution_realm = str(environment.get("boundary") or "unknown")
+    is_macos_native = execution_realm == "macos_native"
+    selected_executor = catalog_executor
+    status = "applicable"
+    reason = "The catalog executor is available in the current execution realm."
+
+    if catalog_executor == "mac_resource_plan" and not is_macos_native:
+        selected_executor = "host_resource_plan"
+        status = "adapted"
+        reason = (
+            "The portable host-resource planner replaces its legacy macOS alias "
+            f"in the {execution_realm} realm."
+        )
+    elif catalog_executor == "mac_accelerator_plan" and not is_macos_native:
+        selected_executor = None
+        status = "advisory_only"
+        reason = (
+            "Apple-specific accelerator routing is unavailable in the "
+            f"{execution_realm} realm; keep these goals advisory until a concrete "
+            "platform-native accelerator owner is detected and validated."
+        )
+
+    resolved["executor"] = selected_executor
+    resolved["platform_resolution"] = {
+        "execution_realm": execution_realm,
+        "catalog_executor": catalog_executor,
+        "selected_executor": selected_executor,
+        "status": status,
+        "reason": reason,
+    }
+    return resolved
+
+
 def _scenario_match(
     scenario: dict[str, Any],
     inventory: dict[str, Any],
     task_hint: str,
     history: dict[str, Any],
+    environment: dict[str, Any],
 ) -> dict[str, Any] | None:
     detectors = scenario.get("detectors") or {}
     evidence: list[dict[str, Any]] = []
@@ -653,7 +703,9 @@ def _scenario_match(
         "confidence": round(confidence, 3),
         "confidence_label": "high" if confidence >= 0.72 else "medium" if confidence >= 0.45 else "exploratory",
         "evidence": evidence,
-        "default_execution": scenario["default_execution"],
+        "default_execution": _resolve_scenario_execution(
+            scenario["default_execution"], environment
+        ),
         "optimization_goals": scenario["optimization_goals"],
         "guardrails": scenario["guardrails"],
     }
@@ -693,10 +745,16 @@ def scenario_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         if include_history
         else {"available": False, "session_count": 0, "reason": "trace history was not requested"}
     )
+    environment = execution_environment()
     matches = [
         match
         for scenario in catalog["scenarios"]
-        if (match := _scenario_match(scenario, inventory, task_hint, history)) is not None
+        if (
+            match := _scenario_match(
+                scenario, inventory, task_hint, history, environment
+            )
+        )
+        is not None
         and match["confidence"] >= float(minimum_confidence)
     ]
     matches.sort(
@@ -710,6 +768,7 @@ def scenario_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     selected = matches[:max_scenarios]
     flattened_targets: list[dict[str, Any]] = []
     for match in selected:
+        platform_resolution = match["default_execution"]["platform_resolution"]
         for goal in match["optimization_goals"]:
             flattened_targets.append(
                 {
@@ -719,6 +778,8 @@ def scenario_plan(arguments: dict[str, Any]) -> dict[str, Any]:
                     "mode": match["mode"],
                     "layer": match["layer"],
                     "executor": match["default_execution"]["executor"],
+                    "execution_status": platform_resolution["status"],
+                    "execution_realm": platform_resolution["execution_realm"],
                     **goal,
                 }
             )
@@ -728,9 +789,18 @@ def scenario_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     high_value = [
         target["id"]
         for target in flattened_targets
-        if target["mode"] in {"parallel", "conditional"} and target["confidence"] >= 0.45
+        if target["mode"] in {"parallel", "conditional"}
+        and target["confidence"] >= 0.45
+        and target["executor"] is not None
+        and target["execution_status"] != "advisory_only"
     ]
     serial_guards = [match["id"] for match in selected if match["mode"] == "serial_guardrail"]
+    advisory_only = [
+        match["id"]
+        for match in selected
+        if match["default_execution"]["platform_resolution"]["status"]
+        == "advisory_only"
+    ]
     return {
         "catalog": {
             "schema_version": catalog.get("schema_version"),
@@ -754,13 +824,18 @@ def scenario_plan(arguments: dict[str, Any]) -> dict[str, Any]:
             "matched_scenario_count": len(selected),
             "high_value_target_ids": high_value,
             "serial_guardrail_scenario_ids": serial_guards,
+            "advisory_only_scenario_ids": advisory_only,
             "matched_layer_counts": dict(
                 sorted(Counter(match["layer"] for match in selected).items())
             ),
             "recommended_first_step": (
                 "Build isolated work units for the highest-confidence parallel scenario, then execute with live progress."
                 if high_value
-                else "Keep work serial until at least two independent, substantial units and isolated outputs are identified."
+                else (
+                    "Keep platform-specific accelerator goals advisory until a concrete native backend is detected and validated."
+                    if advisory_only
+                    else "Keep work serial until at least two independent, substantial units and isolated outputs are identified."
+                )
             ),
         },
         "global_guardrails": catalog.get("global_guardrails") or [],

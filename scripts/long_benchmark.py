@@ -606,8 +606,8 @@ async def run_benchmark(
     progress = ProgressCapture()
     with tempfile.TemporaryDirectory(prefix="mpa-long-benchmark-") as temp_dir:
         stats_path = pathlib.Path(temp_dir) / "isolated-stats.json"
-        old_stats = os.environ.get("MAC_PARALLEL_ACCELERATOR_STATS_PATH")
-        os.environ["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = str(stats_path)
+        old_stats = os.environ.get("ATOMLANE_STATS_PATH")
+        os.environ["ATOMLANE_STATS_PATH"] = str(stats_path)
         try:
             execution = await mcp_server.run_parallel(
                 {
@@ -624,9 +624,9 @@ async def run_benchmark(
             )
         finally:
             if old_stats is None:
-                os.environ.pop("MAC_PARALLEL_ACCELERATOR_STATS_PATH", None)
+                os.environ.pop("ATOMLANE_STATS_PATH", None)
             else:
-                os.environ["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = old_stats
+                os.environ["ATOMLANE_STATS_PATH"] = old_stats
 
     commit = os.environ.get("GITHUB_SHA") or _git_commit()
     github_run_id = os.environ.get("GITHUB_RUN_ID")

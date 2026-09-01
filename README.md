@@ -2,10 +2,13 @@
 
 **Parallelize only what is proven safe.**
 
-Safe parallel optimization for coding agents: AtomLane finds reviewable Python
-refactors and makes Codex finish builds, tests, Docker, and research pipelines
-faster without breaking task semantics. macOS is stable; native Windows support
-is available as a fail-closed Preview.
+**Universal safety core. Platform-native execution. Workload-tailored acceleration.**
+
+AtomLane is a cross-platform parallelism compiler and runtime for coding agents.
+Its shared typed core proves dependencies and preserves task semantics; its
+adapters tailor discovery, containment, and resource budgets to each supported
+workload and execution realm. macOS is Stable. Native Windows is a scoped,
+fail-closed Preview.
 
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
@@ -22,11 +25,8 @@ is available as a fail-closed Preview.
 
 ```bash
 codex plugin marketplace add cloudguo123/atomlane
-codex plugin add mac-parallel-accelerator@mac-parallel-accelerator
+codex plugin add atomlane@atomlane
 ```
-
-`mac-parallel-accelerator` remains the technical plugin ID during the AtomLane
-brand migration, so existing installs and links keep working.
 
 Open a new Codex task, then ask:
 
@@ -42,7 +42,7 @@ Use $optimize-python-parallelism to inspect scripts/job.py. Do not run or modify
 the target while analyzing it; show proof obligations and a hash-bound preview.
 ```
 
-Requirements: macOS, or the scoped native Windows Preview, Codex with plugin
+Requirements: macOS Stable, or the scoped native Windows Preview, Codex with plugin
 and MCP support, and Python 3.10+ available as the `python3` command on `PATH`
 (`python3 --version` must succeed). The current
 [Python Install Manager](https://docs.python.org/3/using/windows.html#python-install-manager)
@@ -56,6 +56,31 @@ The repository also conforms to the vendor-neutral
 [Agent Plugins 1.0.0](https://agent-plugins.org/) package layout through its
 root `plugin.json`, `skills/`, and local-stdio `mcp.json`. Codex-native clients
 continue to use `.codex-plugin/plugin.json` and `.mcp.json`.
+
+## One core, tailored at three layers
+
+“Universal” does not mean guessing that every task or platform is supported.
+It means every admitted task passes the same typed safety contract. “Tailored”
+means the route, containment, and concurrency budget change with the real
+platform and workload.
+
+| Layer | Universal contract | Tailored behavior |
+| --- | --- | --- |
+| Safety | Typed Atom IR, immutable plan hash, effect/conflict checks, authorization boundaries, live progress, and savings accounting | Unsupported semantics fail closed instead of being translated approximately |
+| Platform | One planner and scheduler across supported native realms | macOS uses POSIX process groups and Apple-silicon probes/backends; native Windows Preview uses NT path rules, Job Objects, UTF-8 pipes, optional ConPTY, and whole-file PowerShell atoms |
+| Workload | The same proof gate for independence, ordering, outputs, and resources | Build/test tools keep semantic ownership; Docker uses daemon/VM budgets; research keeps timing fences; Python routing distinguishes CPU, blocking I/O, native kernels, existing pools, and unsafe effects |
+
+WSL, native Windows, macOS, and Docker are distinct execution realms. AtomLane
+recompiles for the active realm and never presents one host's proof or resource
+budget as portable evidence for another.
+
+| Capability | macOS Stable | Native Windows Preview |
+| --- | --- | --- |
+| Shared core | Atom IR, hashes, effect/conflict checks, scheduler, live progress, savings ledger | The same core and proof rules |
+| Automatic entrypoints | Supported shell, package, Make, Compose, test, and build frontends | Exact argv and declared whole-file `.ps1`; shell/package/Make/Compose/`.cmd`/`.bat` automatic lowering is not yet supported |
+| Process boundary | POSIX session/process group | Staged kill-on-close Job Object for the supervisor and normally inherited target tree |
+| Terminal/output | Bounded pipes and live runner | Separate UTF-8 pipes or output-only ConPTY; ConPTY stdin is rejected |
+| Published evidence | macOS 14 CI and retained five-minute benchmark | Windows Server 2025 CI and separate five-minute benchmark; not Windows 11 Desktop UI proof |
 
 ## Why this exists
 
@@ -78,14 +103,14 @@ shell · package scripts · Make · Compose · tests · builds · declared work
 
 ## What it accelerates
 
-| Project situation | Optimization target | Safety boundary |
-| --- | --- | --- |
-| Web / TypeScript | Quality gates, package graphs, browser matrices | Preserves success gates; isolates `.next`, coverage, JUnit, and caches |
-| Docker / Compose | Multi-image builds, health DAGs, test matrices | Honors VM CPU/memory envelope, ports, volumes, readiness, and migrations |
-| Research / papers | Data preparation, validation, figures, document builds | Infers data edges and preserves formal timing/provenance fences |
-| Native builds / tests | Make, compiler drivers, test runners | Delegates to semantic owners and budgets nested workers |
-| Batch media / data / ML | Independent inputs and deterministic merges | Requires disjoint outputs, bounded resources, and explicit merge semantics |
-| Long-running Python | Ordered CPU maps, blocking reads, native kernels, subprocess batches | Never imports or executes targets; unknown effects, shared state, stale hashes, and unsafe spawn paths fail closed |
+| Project situation | Optimization target | Platform route | Safety boundary |
+| --- | --- | --- | --- |
+| Web / TypeScript | Quality gates, package graphs, browser matrices | macOS automatic frontends; Windows explicit argv/PowerShell atoms | Preserves success gates; isolates `.next`, coverage, JUnit, and caches |
+| Docker / Compose | Multi-image builds, health DAGs, test matrices | macOS Compose frontend; Windows Preview exposes Linux-daemon resource advice but not native Compose lowering | Honors VM CPU/memory envelope, ports, volumes, readiness, and migrations |
+| Research / papers | Data preparation, validation, figures, document builds | macOS frontends; Windows explicit stage atoms | Infers data edges and preserves formal timing/provenance fences |
+| Native builds / tests | Make, compiler drivers, test runners | Platform-supported frontends or exact native argv | Delegates to semantic owners and budgets nested workers |
+| Batch media / data / ML | Independent inputs and deterministic merges | Exact isolated argv on both native realms; Apple-only backends stay advisory off macOS | Requires disjoint outputs, bounded resources, and explicit merge semantics |
+| Long-running Python | Ordered CPU maps, blocking reads, native kernels, subprocess batches | Static advisor supports both; CPU previews use explicit portable `spawn` | Never imports or executes targets; unknown effects, shared state, stale hashes, and unsafe spawn paths fail closed |
 
 The scenario catalog includes more than 50 presets covering software, research, containers, media, ML, release, database, and low-level CPU/GPU/I/O work.
 

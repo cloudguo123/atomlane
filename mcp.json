@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
-    "mac-parallel-accelerator": {
+    "atomlane": {
       "type": "stdio",
       "command": "python3",
       "args": [

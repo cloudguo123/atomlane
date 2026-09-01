@@ -435,7 +435,7 @@ if os.name == "nt":
                 "[mcp_server._record_time_saved(0.5) for _ in range(8)]"
             )
             environment = os.environ.copy()
-            environment["MAC_PARALLEL_ACCELERATOR_STATS_PATH"] = str(stats)
+            environment["ATOMLANE_STATS_PATH"] = str(stats)
             processes = [
                 subprocess.Popen(
                     [sys.executable, "-c", program],
@@ -885,8 +885,8 @@ if os.name == "nt":
                 }
                 for index in range(2)
             ]
-            previous = os.environ.get("MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL")
-            os.environ["MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL"] = "0.2"
+            previous = os.environ.get("ATOMLANE_PROGRESS_INTERVAL")
+            os.environ["ATOMLANE_PROGRESS_INTERVAL"] = "0.2"
             try:
                 with mock.patch.object(
                     mcp_server, "concurrency_plan", side_effect=two_worker_plan
@@ -903,9 +903,9 @@ if os.name == "nt":
                     )
             finally:
                 if previous is None:
-                    os.environ.pop("MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL", None)
+                    os.environ.pop("ATOMLANE_PROGRESS_INTERVAL", None)
                 else:
-                    os.environ["MAC_PARALLEL_ACCELERATOR_PROGRESS_INTERVAL"] = previous
+                    os.environ["ATOMLANE_PROGRESS_INTERVAL"] = previous
             self.assertEqual(result["summary"]["peak_concurrency"], 2)
             self.assertTrue(
                 any(

@@ -6,7 +6,9 @@ Show HN: AtomLane – Parallelize only what is proven safe
 
 ## Text
 
-AtomLane is an MIT-licensed Codex plugin for safely shortening local build, test, Docker, research, and batch workflows.
+AtomLane is an MIT-licensed Codex plugin built around one universal safety core, platform-native execution, and workload-tailored acceleration for local build, test, Docker, research, and batch workflows.
+
+Platform status is deliberately asymmetric: macOS is Stable; native Windows is a scoped Preview for exact argv and declared PowerShell-file atoms, while WSL and Docker remain separate execution realms. Windows does not yet claim automatic shell/package/Make/Compose lowering or Windows 11 Desktop UI proof.
 
 The main idea is to treat concurrency planning as compilation instead of splitting command strings. Supported entrypoints are lowered to a typed Atom IR containing control edges, artifact access, non-file effects, lifecycle events, capacity claims, and source snapshots. The executor accepts only the exact compiled plan and hash; unknown effects and unsupported lifecycle contracts fail closed.
 

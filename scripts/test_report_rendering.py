@@ -804,6 +804,10 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("Windows evidence is not canonical LF JSON", workflow)
         self.assertIn("self evidence must not contain a recursive hash or URL", workflow)
         self.assertIn("refs/heads/main", workflow)
+        self.assertIn(
+            "if: always() && matrix.os == 'windows-2025' && matrix.python == '3.13'",
+            workflow,
+        )
 
     def test_windows_benchmark_requires_observed_five_minute_native_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

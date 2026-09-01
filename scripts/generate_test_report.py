@@ -2246,6 +2246,17 @@ def main() -> int:
                 "overall": report["overall"],
                 "tests": report["summary"]["total"],
                 "passed": report["summary"]["passed"],
+                "failed_checks": [
+                    check["name"]
+                    for check in report["checks"]
+                    if check["status"] not in {"passed", "skipped"}
+                ],
+                "non_passing_tests": [
+                    {"id": test["id"], "status": test["status"]}
+                    for test in report["tests"]
+                    if test["status"]
+                    not in {"passed", "skipped", "expected_failure"}
+                ],
                 "output": str(args.output),
             }
         )

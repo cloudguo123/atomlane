@@ -292,18 +292,20 @@ def validate_external_benchmarks() -> dict[str, Any]:
 
 
 def bundle_check() -> dict[str, Any]:
-    if not (ROOT / "node_modules").is_dir() or shutil.which("npm") is None:
+    node = shutil.which("node")
+    if not (ROOT / "node_modules").is_dir() or node is None:
         return {
             "name": "Reproducible UI bundle",
             "status": "skipped",
             "duration_ms": 0.0,
             "returncode": 0,
         }
-    build = run_command("Reproducible UI bundle", ["npm", "run", "build:indicator"])
+    build_argv = [node, "scripts/build_indicator.mjs"]
+    build = run_command("Reproducible UI bundle", build_argv)
     if build["status"] == "passed":
         bundle = ROOT / "assets" / "parallel-indicator-host.bundle.js"
         first_digest = sha256(bundle)
-        second = run_command("Reproducible UI bundle", ["npm", "run", "build:indicator"])
+        second = run_command("Reproducible UI bundle", build_argv)
         build["duration_ms"] = round(build["duration_ms"] + second["duration_ms"], 2)
         if second["status"] != "passed" or sha256(bundle) != first_digest:
             build["status"] = "failed"

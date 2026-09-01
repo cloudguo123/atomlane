@@ -110,6 +110,37 @@ def _macos_benchmark_report(commit: str = "a" * 40) -> dict[str, object]:
 
 
 class ReportRenderingTests(unittest.TestCase):
+    def test_bundle_check_invokes_node_without_a_platform_shell_shim(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "node_modules").mkdir()
+            passed = {
+                "name": "Reproducible UI bundle",
+                "status": "passed",
+                "duration_ms": 1.0,
+                "returncode": 0,
+            }
+            with (
+                mock.patch.object(generate_test_report, "ROOT", root),
+                mock.patch.object(
+                    generate_test_report.shutil, "which", return_value="/tool/node"
+                ),
+                mock.patch.object(
+                    generate_test_report, "run_command", side_effect=[dict(passed), dict(passed)]
+                ) as run_command,
+                mock.patch.object(generate_test_report, "sha256", return_value="digest"),
+            ):
+                result = generate_test_report.bundle_check()
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(
+            [call.args[1] for call in run_command.call_args_list],
+            [
+                ["/tool/node", "scripts/build_indicator.mjs"],
+                ["/tool/node", "scripts/build_indicator.mjs"],
+            ],
+        )
+
     def test_public_runner_label_never_exposes_runner_name(self) -> None:
         with mock.patch.dict(
             "os.environ",

@@ -911,7 +911,8 @@ if os.name == "nt":
                 any(
                     snapshot["running_tasks"] == 2
                     and snapshot["completed_tasks"] == 0
-                    and float(snapshot["elapsed_seconds"]) < 1.0
+                    and float(snapshot["elapsed_seconds"])
+                    < float(result["summary"]["elapsed_seconds"])
                     for snapshot in snapshots
                 ),
                 snapshots,

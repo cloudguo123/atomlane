@@ -3,14 +3,14 @@
   "aggregation_scope": "execution_realm",
   "latest_realm": "windows_native",
   "latest": {
-    "run_id": "33553400964-attempt-1@windows_native",
-    "generated_at": "2026-09-01T20:12:20+00:00",
-    "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+    "run_id": "33570155387-attempt-1@windows_native",
+    "generated_at": "2026-09-01T23:20:40+00:00",
+    "commit": "8b04135567df8445db54d3b92091e3f341162112",
     "status": "passed",
     "method": "controlled-duration low-load parallel execution",
     "minimum_task_seconds": 300.0,
     "target_task_seconds": 310.0,
-    "observed_minimum_task_seconds": 310.000792,
+    "observed_minimum_task_seconds": 310.001142,
     "minimum_duration_met": true,
     "worker_evidence_complete": true,
     "worker_duration_tolerance_seconds": 6.2,
@@ -22,22 +22,22 @@
         "scenario": "artifact-hash",
         "label": "Artifact hashing and integrity verification",
         "status": "succeeded",
-        "duration_seconds": 310.000956,
-        "outer_duration_seconds": 310.373845,
-        "duration_drift_seconds": 0.372889,
+        "duration_seconds": 310.001142,
+        "outer_duration_seconds": 310.413045,
+        "duration_drift_seconds": 0.411903,
         "worker_evidence_valid": true,
         "worker_evidence_errors": [],
-        "iterations": 1379,
-        "work_units": 722993152
+        "iterations": 1377,
+        "work_units": 721944576
       },
       {
         "id": "planner-json",
         "scenario": "planner-json",
         "label": "Atom-plan serialization and validation",
         "status": "succeeded",
-        "duration_seconds": 310.00096,
-        "outer_duration_seconds": 310.350506,
-        "duration_drift_seconds": 0.349546,
+        "duration_seconds": 310.001321,
+        "outer_duration_seconds": 310.390649,
+        "duration_drift_seconds": 0.389328,
         "worker_evidence_valid": true,
         "worker_evidence_errors": [],
         "iterations": 1544,
@@ -48,42 +48,42 @@
         "scenario": "isolated-io",
         "label": "Isolated snapshot write/read verification",
         "status": "succeeded",
-        "duration_seconds": 310.001177,
-        "outer_duration_seconds": 310.342866,
-        "duration_drift_seconds": 0.341689,
+        "duration_seconds": 310.001841,
+        "outer_duration_seconds": 310.380529,
+        "duration_drift_seconds": 0.378688,
         "worker_evidence_valid": true,
         "worker_evidence_errors": [],
-        "iterations": 1453,
-        "work_units": 95223808
+        "iterations": 1451,
+        "work_units": 95092736
       },
       {
         "id": "scheduler-sim",
         "scenario": "scheduler-sim",
         "label": "Capacity-aware scheduler simulation",
         "status": "succeeded",
-        "duration_seconds": 310.000792,
-        "outer_duration_seconds": 310.334374,
-        "duration_drift_seconds": 0.333582,
+        "duration_seconds": 310.001632,
+        "outer_duration_seconds": 310.367599,
+        "duration_drift_seconds": 0.365967,
         "worker_evidence_valid": true,
         "worker_evidence_errors": [],
-        "iterations": 1543,
-        "work_units": 98752
+        "iterations": 1542,
+        "work_units": 98688
       }
     ],
     "parallel": {
-      "wall_time_seconds": 310.37569,
+      "wall_time_seconds": 310.415202,
       "peak_concurrency": 4,
       "chosen_concurrency": 4
     },
     "serial_equivalent": {
-      "seconds": 1240.003885,
+      "seconds": 1240.005936,
       "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
     },
     "savings": {
-      "seconds": 929.628195,
-      "percent": 74.9698,
-      "speedup_multiplier": 3.9952,
-      "parallel_efficiency": 0.9988
+      "seconds": 929.590734,
+      "percent": 74.9666,
+      "speedup_multiplier": 3.9947,
+      "parallel_efficiency": 0.9987
     },
     "resource": {
       "profile": "io",
@@ -99,7 +99,7 @@
       "architecture": "amd64",
       "execution_realm": "windows_native",
       "runner_name": "github-actions-github-hosted",
-      "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964"
+      "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387"
     },
     "runner": {
       "name": "github-actions-github-hosted",
@@ -107,7 +107,7 @@
       "os": "Windows",
       "architecture": "X64"
     },
-    "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964",
+    "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
     "progress_samples": [
       {
         "elapsed_seconds": 0.0,
@@ -134,211 +134,211 @@
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 0.032,
+        "elapsed_seconds": 0.034,
         "running_tasks": 3,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 0.008,
+        "estimated_saved_seconds": 0.01,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 0.041,
+        "elapsed_seconds": 0.047,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 0.024,
+        "estimated_saved_seconds": 0.035,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 15.087,
+        "elapsed_seconds": 15.141,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 45.163,
+        "estimated_saved_seconds": 45.317,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 30.175,
+        "elapsed_seconds": 30.248,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 90.428,
+        "estimated_saved_seconds": 90.639,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 45.295,
+        "elapsed_seconds": 45.338,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 135.787,
+        "estimated_saved_seconds": 135.909,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 60.364,
+        "elapsed_seconds": 60.452,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 180.993,
+        "estimated_saved_seconds": 181.251,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 75.465,
+        "elapsed_seconds": 75.523,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 226.296,
+        "estimated_saved_seconds": 226.464,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 90.564,
+        "elapsed_seconds": 90.668,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 271.593,
+        "estimated_saved_seconds": 271.898,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 105.629,
+        "elapsed_seconds": 105.809,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 316.788,
+        "estimated_saved_seconds": 317.321,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 120.693,
+        "elapsed_seconds": 120.934,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 361.982,
+        "estimated_saved_seconds": 362.696,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 135.741,
+        "elapsed_seconds": 136.033,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 407.125,
+        "estimated_saved_seconds": 407.993,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 150.806,
+        "elapsed_seconds": 151.119,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 452.319,
+        "estimated_saved_seconds": 453.252,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 165.906,
+        "elapsed_seconds": 166.255,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 497.621,
+        "estimated_saved_seconds": 498.659,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 181.009,
+        "elapsed_seconds": 181.347,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 542.929,
+        "estimated_saved_seconds": 543.936,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 196.082,
+        "elapsed_seconds": 196.371,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 588.148,
+        "estimated_saved_seconds": 589.009,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 211.174,
+        "elapsed_seconds": 211.49,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 633.424,
+        "estimated_saved_seconds": 634.365,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 226.223,
+        "elapsed_seconds": 226.633,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 678.57,
+        "estimated_saved_seconds": 679.792,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 241.322,
+        "elapsed_seconds": 241.734,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 723.868,
+        "estimated_saved_seconds": 725.097,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 256.425,
+        "elapsed_seconds": 256.855,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 769.178,
+        "estimated_saved_seconds": 770.459,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 271.525,
+        "elapsed_seconds": 271.939,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 814.477,
+        "estimated_saved_seconds": 815.712,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 286.603,
+        "elapsed_seconds": 287.004,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 859.71,
+        "estimated_saved_seconds": 860.905,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 301.662,
+        "elapsed_seconds": 302.089,
         "running_tasks": 4,
         "completed_tasks": 0,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 904.889,
+        "estimated_saved_seconds": 906.161,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 310.375,
+        "elapsed_seconds": 310.414,
         "running_tasks": 3,
         "completed_tasks": 1,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 931.026,
+        "estimated_saved_seconds": 931.136,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 310.375,
+        "elapsed_seconds": 310.415,
         "running_tasks": 2,
         "completed_tasks": 2,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 931.026,
+        "estimated_saved_seconds": 931.137,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 310.375,
+        "elapsed_seconds": 310.415,
         "running_tasks": 1,
         "completed_tasks": 3,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 931.026,
+        "estimated_saved_seconds": 931.137,
         "savings_eligible": true
       },
       {
-        "elapsed_seconds": 310.375,
+        "elapsed_seconds": 310.415,
         "running_tasks": 0,
         "completed_tasks": 4,
         "failed_tasks": 0,
-        "estimated_saved_seconds": 931.026,
+        "estimated_saved_seconds": 931.137,
         "savings_eligible": true
       }
     ]
@@ -433,25 +433,43 @@
       "serial_equivalent_seconds": 1240.003885,
       "saved_seconds": 929.628195,
       "speedup_multiplier": 3.9952
+    },
+    {
+      "run_id": "33570155387-attempt-1@windows_native",
+      "generated_at": "2026-09-01T23:20:40+00:00",
+      "commit": "8b04135567df8445db54d3b92091e3f341162112",
+      "status": "passed",
+      "execution_realm": "windows_native",
+      "runner": {
+        "name": "github-actions-github-hosted",
+        "environment": "github-hosted",
+        "os": "Windows",
+        "architecture": "X64"
+      },
+      "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+      "wall_time_seconds": 310.415202,
+      "serial_equivalent_seconds": 1240.005936,
+      "saved_seconds": 929.590734,
+      "speedup_multiplier": 3.9947
     }
   ],
   "cumulative": {
-    "run_count": 5,
-    "parallel_wall_seconds": 1551.988427,
-    "serial_equivalent_seconds": 6200.021287,
-    "saved_seconds": 4648.03286
+    "run_count": 6,
+    "parallel_wall_seconds": 1862.403629,
+    "serial_equivalent_seconds": 7440.027223,
+    "saved_seconds": 5577.623594
   },
   "realms": {
     "windows_native": {
       "latest": {
-        "run_id": "33553400964-attempt-1@windows_native",
-        "generated_at": "2026-09-01T20:12:20+00:00",
-        "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+        "run_id": "33570155387-attempt-1@windows_native",
+        "generated_at": "2026-09-01T23:20:40+00:00",
+        "commit": "8b04135567df8445db54d3b92091e3f341162112",
         "status": "passed",
         "method": "controlled-duration low-load parallel execution",
         "minimum_task_seconds": 300.0,
         "target_task_seconds": 310.0,
-        "observed_minimum_task_seconds": 310.000792,
+        "observed_minimum_task_seconds": 310.001142,
         "minimum_duration_met": true,
         "worker_evidence_complete": true,
         "worker_duration_tolerance_seconds": 6.2,
@@ -463,22 +481,22 @@
             "scenario": "artifact-hash",
             "label": "Artifact hashing and integrity verification",
             "status": "succeeded",
-            "duration_seconds": 310.000956,
-            "outer_duration_seconds": 310.373845,
-            "duration_drift_seconds": 0.372889,
+            "duration_seconds": 310.001142,
+            "outer_duration_seconds": 310.413045,
+            "duration_drift_seconds": 0.411903,
             "worker_evidence_valid": true,
             "worker_evidence_errors": [],
-            "iterations": 1379,
-            "work_units": 722993152
+            "iterations": 1377,
+            "work_units": 721944576
           },
           {
             "id": "planner-json",
             "scenario": "planner-json",
             "label": "Atom-plan serialization and validation",
             "status": "succeeded",
-            "duration_seconds": 310.00096,
-            "outer_duration_seconds": 310.350506,
-            "duration_drift_seconds": 0.349546,
+            "duration_seconds": 310.001321,
+            "outer_duration_seconds": 310.390649,
+            "duration_drift_seconds": 0.389328,
             "worker_evidence_valid": true,
             "worker_evidence_errors": [],
             "iterations": 1544,
@@ -489,42 +507,42 @@
             "scenario": "isolated-io",
             "label": "Isolated snapshot write/read verification",
             "status": "succeeded",
-            "duration_seconds": 310.001177,
-            "outer_duration_seconds": 310.342866,
-            "duration_drift_seconds": 0.341689,
+            "duration_seconds": 310.001841,
+            "outer_duration_seconds": 310.380529,
+            "duration_drift_seconds": 0.378688,
             "worker_evidence_valid": true,
             "worker_evidence_errors": [],
-            "iterations": 1453,
-            "work_units": 95223808
+            "iterations": 1451,
+            "work_units": 95092736
           },
           {
             "id": "scheduler-sim",
             "scenario": "scheduler-sim",
             "label": "Capacity-aware scheduler simulation",
             "status": "succeeded",
-            "duration_seconds": 310.000792,
-            "outer_duration_seconds": 310.334374,
-            "duration_drift_seconds": 0.333582,
+            "duration_seconds": 310.001632,
+            "outer_duration_seconds": 310.367599,
+            "duration_drift_seconds": 0.365967,
             "worker_evidence_valid": true,
             "worker_evidence_errors": [],
-            "iterations": 1543,
-            "work_units": 98752
+            "iterations": 1542,
+            "work_units": 98688
           }
         ],
         "parallel": {
-          "wall_time_seconds": 310.37569,
+          "wall_time_seconds": 310.415202,
           "peak_concurrency": 4,
           "chosen_concurrency": 4
         },
         "serial_equivalent": {
-          "seconds": 1240.003885,
+          "seconds": 1240.005936,
           "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
         },
         "savings": {
-          "seconds": 929.628195,
-          "percent": 74.9698,
-          "speedup_multiplier": 3.9952,
-          "parallel_efficiency": 0.9988
+          "seconds": 929.590734,
+          "percent": 74.9666,
+          "speedup_multiplier": 3.9947,
+          "parallel_efficiency": 0.9987
         },
         "resource": {
           "profile": "io",
@@ -540,7 +558,7 @@
           "architecture": "amd64",
           "execution_realm": "windows_native",
           "runner_name": "github-actions-github-hosted",
-          "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964"
+          "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387"
         },
         "runner": {
           "name": "github-actions-github-hosted",
@@ -548,7 +566,7 @@
           "os": "Windows",
           "architecture": "X64"
         },
-        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964",
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
         "progress_samples": [
           {
             "elapsed_seconds": 0.0,
@@ -575,211 +593,211 @@
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 0.032,
+            "elapsed_seconds": 0.034,
             "running_tasks": 3,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 0.008,
+            "estimated_saved_seconds": 0.01,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 0.041,
+            "elapsed_seconds": 0.047,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 0.024,
+            "estimated_saved_seconds": 0.035,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 15.087,
+            "elapsed_seconds": 15.141,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 45.163,
+            "estimated_saved_seconds": 45.317,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 30.175,
+            "elapsed_seconds": 30.248,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 90.428,
+            "estimated_saved_seconds": 90.639,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 45.295,
+            "elapsed_seconds": 45.338,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 135.787,
+            "estimated_saved_seconds": 135.909,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 60.364,
+            "elapsed_seconds": 60.452,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 180.993,
+            "estimated_saved_seconds": 181.251,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 75.465,
+            "elapsed_seconds": 75.523,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 226.296,
+            "estimated_saved_seconds": 226.464,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 90.564,
+            "elapsed_seconds": 90.668,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 271.593,
+            "estimated_saved_seconds": 271.898,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 105.629,
+            "elapsed_seconds": 105.809,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 316.788,
+            "estimated_saved_seconds": 317.321,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 120.693,
+            "elapsed_seconds": 120.934,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 361.982,
+            "estimated_saved_seconds": 362.696,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 135.741,
+            "elapsed_seconds": 136.033,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 407.125,
+            "estimated_saved_seconds": 407.993,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 150.806,
+            "elapsed_seconds": 151.119,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 452.319,
+            "estimated_saved_seconds": 453.252,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 165.906,
+            "elapsed_seconds": 166.255,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 497.621,
+            "estimated_saved_seconds": 498.659,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 181.009,
+            "elapsed_seconds": 181.347,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 542.929,
+            "estimated_saved_seconds": 543.936,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 196.082,
+            "elapsed_seconds": 196.371,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 588.148,
+            "estimated_saved_seconds": 589.009,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 211.174,
+            "elapsed_seconds": 211.49,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 633.424,
+            "estimated_saved_seconds": 634.365,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 226.223,
+            "elapsed_seconds": 226.633,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 678.57,
+            "estimated_saved_seconds": 679.792,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 241.322,
+            "elapsed_seconds": 241.734,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 723.868,
+            "estimated_saved_seconds": 725.097,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 256.425,
+            "elapsed_seconds": 256.855,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 769.178,
+            "estimated_saved_seconds": 770.459,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 271.525,
+            "elapsed_seconds": 271.939,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 814.477,
+            "estimated_saved_seconds": 815.712,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 286.603,
+            "elapsed_seconds": 287.004,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 859.71,
+            "estimated_saved_seconds": 860.905,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 301.662,
+            "elapsed_seconds": 302.089,
             "running_tasks": 4,
             "completed_tasks": 0,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 904.889,
+            "estimated_saved_seconds": 906.161,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 310.375,
+            "elapsed_seconds": 310.414,
             "running_tasks": 3,
             "completed_tasks": 1,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 931.026,
+            "estimated_saved_seconds": 931.136,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 310.375,
+            "elapsed_seconds": 310.415,
             "running_tasks": 2,
             "completed_tasks": 2,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 931.026,
+            "estimated_saved_seconds": 931.137,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 310.375,
+            "elapsed_seconds": 310.415,
             "running_tasks": 1,
             "completed_tasks": 3,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 931.026,
+            "estimated_saved_seconds": 931.137,
             "savings_eligible": true
           },
           {
-            "elapsed_seconds": 310.375,
+            "elapsed_seconds": 310.415,
             "running_tasks": 0,
             "completed_tasks": 4,
             "failed_tasks": 0,
-            "estimated_saved_seconds": 931.026,
+            "estimated_saved_seconds": 931.137,
             "savings_eligible": true
           }
         ]
@@ -874,13 +892,31 @@
           "serial_equivalent_seconds": 1240.003885,
           "saved_seconds": 929.628195,
           "speedup_multiplier": 3.9952
+        },
+        {
+          "run_id": "33570155387-attempt-1@windows_native",
+          "generated_at": "2026-09-01T23:20:40+00:00",
+          "commit": "8b04135567df8445db54d3b92091e3f341162112",
+          "status": "passed",
+          "execution_realm": "windows_native",
+          "runner": {
+            "name": "github-actions-github-hosted",
+            "environment": "github-hosted",
+            "os": "Windows",
+            "architecture": "X64"
+          },
+          "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+          "wall_time_seconds": 310.415202,
+          "serial_equivalent_seconds": 1240.005936,
+          "saved_seconds": 929.590734,
+          "speedup_multiplier": 3.9947
         }
       ],
       "cumulative": {
-        "run_count": 5,
-        "parallel_wall_seconds": 1551.988427,
-        "serial_equivalent_seconds": 6200.021287,
-        "saved_seconds": 4648.03286
+        "run_count": 6,
+        "parallel_wall_seconds": 1862.403629,
+        "serial_equivalent_seconds": 7440.027223,
+        "saved_seconds": 5577.623594
       }
     }
   }

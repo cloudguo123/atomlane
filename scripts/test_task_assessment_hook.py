@@ -68,6 +68,7 @@ class TaskAssessmentHookTests(unittest.TestCase):
             timeout=5,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
+        completed.stdout.encode("ascii")
         output = json.loads(completed.stdout)
         self.assertTrue(output["continue"])
         self.assertEqual(

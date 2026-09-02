@@ -112,7 +112,9 @@ def main() -> int:
     event = _read_event()
     if event is None:
         return 0
-    json.dump(assessment_output(event["prompt"]), sys.stdout, ensure_ascii=False)
+    # ASCII-only JSON keeps the protocol stable through Windows cmd.exe and
+    # legacy console code pages; JSON consumers recover the original Unicode.
+    json.dump(assessment_output(event["prompt"]), sys.stdout, ensure_ascii=True)
     sys.stdout.write("\n")
     return 0
 

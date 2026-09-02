@@ -2,8 +2,9 @@
 
 ## Supported versions
 
-Security fixes are applied to the latest released version. Version 0.12.x is
-the currently supported release line.
+Security fixes are applied to the latest published release line. Earlier
+release lines may receive fixes at the maintainers' discretion, but are not
+considered supported unless explicitly stated otherwise.
 
 ## Reporting a vulnerability
 

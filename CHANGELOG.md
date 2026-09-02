@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## 0.14.0 - 2026-09-02
+
+- Moved current project-owned source to the OSI-approved Mozilla Public
+  License 2.0 while keeping personal, research, educational, and commercial
+  use open and free.
+- Preserved `0.13.0` and all earlier grants under their original MIT terms,
+  with an explicit immutable commit boundary and retained license text.
+- Added clear licensing, trademark, contribution, and third-party boundaries
+  so future optional commercial terms or separately licensed capabilities do
+  not weaken rights already granted to the community.
+- Updated plugin manifests, skills, public reports, and launch material to use
+  one consistent MPL-2.0 identity. No existing community capability was moved
+  behind an account or paid tier.
+
 ## 0.13.0 - 2026-09-02
 
 - Made `atomlane` the canonical plugin, marketplace, MCP, event, environment,

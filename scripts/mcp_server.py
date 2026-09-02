@@ -63,7 +63,7 @@ from windows_job_runner import (
 from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "atomlane"
-SERVER_VERSION = "0.13.0"
+SERVER_VERSION = "0.14.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/atomlane-indicator-{SERVER_VERSION}.html"

@@ -1866,7 +1866,7 @@ def render_html(report: dict[str, Any]) -> str:
             "softwareVersion": str(report["version"]),
             "codeRepository": "https://github.com/cloudguo123/atomlane",
             "url": "https://cloudguo123.github.io/atomlane/",
-            "license": "https://opensource.org/license/mit",
+            "license": "https://www.mozilla.org/MPL/2.0/",
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
         },
         ensure_ascii=False,

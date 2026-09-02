@@ -42,9 +42,10 @@ indicator and are not Python runtime dependencies.
 Exact package integrity hashes and transitive build inputs are recorded in
 `package-lock.json`; the reviewed bundle closure and license-file mappings have
 one machine-readable source of truth in
-`third_party/bundle-dependencies.json`. The repository's MIT license applies to
-original project code; third-party components remain under their respective
-licenses. The UI uses the normal `@modelcontextprotocol/ext-apps` entrypoint so
+`third_party/bundle-dependencies.json`. MPL-2.0 applies to current original
+project code, while releases through `0.13.0` retain their historical MIT
+grant; third-party components remain under their respective licenses. The UI
+uses the normal `@modelcontextprotocol/ext-apps` entrypoint so
 its SDK, Zod, and Zod-to-JSON-Schema versions are explicit package-lock inputs;
 it does not ship the dependency-vendored `app-with-deps` entrypoint. The build
 fails if the emitted metafile package closure changes. Complete upstream

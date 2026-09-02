@@ -19,6 +19,11 @@ are all `atomlane` or `AtomLane`, according to the field's naming convention.
 Previous identifiers belong only to immutable releases, tags, and Git history;
 do not repeat them in current product copy or installation instructions.
 
+The project source license does not grant permission to present a fork or
+modified distribution as an official AtomLane release. Use the name
+nominatively and follow [TRADEMARKS.md](TRADEMARKS.md) for forks, integrations,
+domains, packages, and services.
+
 ## Message hierarchy
 
 1. Lead with the safety promise: **Parallelize only what is proven safe.**

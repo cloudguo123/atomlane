@@ -76,10 +76,12 @@ class PortableAgentPluginTests(unittest.TestCase):
         )
         citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(version, "0.13.0")
+        self.assertEqual(version, "0.14.0")
         self.assertEqual(package["version"], version)
+        self.assertEqual(package["license"], "MPL-2.0")
         self.assertEqual(lock["version"], version)
         self.assertEqual(lock["packages"][""]["version"], version)
+        self.assertEqual(lock["packages"][""]["license"], package["license"])
         self.assertEqual(mcp_server.SERVER_VERSION, version)
         self.assertIn(f'version: "{version}"', ui_source)
         self.assertRegex(citation, rf"(?m)^version: {re.escape(version)}$")
@@ -87,8 +89,40 @@ class PortableAgentPluginTests(unittest.TestCase):
         self.assertIsNotNone(first_release)
         self.assertEqual(first_release.group(1), version)
 
+    def test_current_license_and_legacy_boundary_are_explicit(self) -> None:
+        license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+        legacy_text = (ROOT / "LICENSES" / "MIT-legacy.txt").read_text(
+            encoding="utf-8"
+        )
+        licensing = (ROOT / "LICENSING.md").read_text(encoding="utf-8")
+        notice = (ROOT / "NOTICE").read_text(encoding="utf-8")
+        citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+        report_generator = (ROOT / "scripts" / "generate_test_report.py").read_text(
+            encoding="utf-8"
+        )
+        codex = json.loads(
+            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(self.manifest["license"], "MPL-2.0")
+        self.assertEqual(codex["license"], "MPL-2.0")
+        self.assertTrue(
+            license_text.startswith("Mozilla Public License Version 2.0")
+        )
+        self.assertTrue(legacy_text.startswith("MIT License"))
+        self.assertIn("0.13.0", licensing)
+        self.assertIn("a25827da0844bb1f9d895c582f8bd741c37c953c", licensing)
+        self.assertIn("Mozilla Public License", notice)
+        self.assertRegex(citation, r"(?m)^license: MPL-2\.0$")
+        self.assertIn('"https://www.mozilla.org/MPL/2.0/"', report_generator)
+        for skill in (ROOT / "skills").glob("*/SKILL.md"):
+            with self.subTest(skill=skill.parent.name):
+                self.assertRegex(
+                    skill.read_text(encoding="utf-8"),
+                    r"(?m)^license: MPL-2\.0$",
+                )
+
     def test_current_product_surfaces_do_not_publish_legacy_identity(self) -> None:
-        # Changelog and retained v0.12 evidence are immutable historical records.
+        # Changelog and retained source-bound evidence are historical records.
         historical_records = {
             "CHANGELOG.md",
             "docs/index.html",
@@ -262,7 +296,10 @@ class PortableAgentPluginTests(unittest.TestCase):
                     "id": 4,
                     "method": "resources/read",
                     "params": {
-                        "uri": "ui://widget/atomlane-indicator-0.13.0.html"
+                        "uri": (
+                            "ui://widget/atomlane-indicator-"
+                            f"{self.manifest['version']}.html"
+                        )
                     },
                 },
                 {

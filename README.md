@@ -14,10 +14,16 @@ fail-closed Preview.
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
 [![Five-minute benchmark](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
 [![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/cloudguo123/atomlane?color=80b7ff)](https://github.com/cloudguo123/atomlane/discussions)
 
 [中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/atomlane/) · [Report first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
+
+**Open source under MPL-2.0—free for personal, research, educational, and
+commercial use.** The current community release requires no AtomLane account
+or payment. Possible future alternative commercial licensing or separately
+licensed capabilities will not change the terms of code already released
+under MPL-2.0. [Licensing details](LICENSING.md)
 
 ![AtomLane controlled five-minute parallel benchmark](assets/growth/social-preview.svg)
 
@@ -269,4 +275,4 @@ Try it on one real task, then share the sanitized result card or submit a benchm
 
 [Report your first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Open a benchmark report](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml) · [Ask a question](https://github.com/cloudguo123/atomlane/discussions) · [View the roadmap](ROADMAP.md)
 
-[MIT licensed](LICENSE) · [Privacy](PRIVACY.md) · [Terms](TERMS.md)
+[MPL-2.0](LICENSE) · [Licensing](LICENSING.md) · [Trademarks](TRADEMARKS.md) · [Privacy](PRIVACY.md) · [Terms](TERMS.md)

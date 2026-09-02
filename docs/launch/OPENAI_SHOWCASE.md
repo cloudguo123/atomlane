@@ -46,7 +46,7 @@ Built iteratively with Codex, from live parallel commands to typed Atom and Pyth
 
 ### Project description
 
-AtomLane accelerates local Codex workflows only when independence is provable. One typed core preserves control flow, artifacts, effects, resources, plan hashes, and authorization. Platform and workload adapters tailor the safe route: macOS Stable supports selected shell, build, test, Docker/Compose, Make, paper, and batch work; native Windows Preview supports exact argv and declared PowerShell files, with Job Object containment and WSL/Docker kept as separate realms. The bounded Python advisor never imports or executes target modules. It propagates effects, checks GIL/native ownership and explicit-spawn safety, and emits source-hash-bound review previews only for a narrow ordered-map subset. Unknown semantics fail closed. Long runs show live progress plus per-run and cumulative savings. The public dashboard reports safety fixtures and separate source-bound five-minute evidence for macOS and native Windows. Local-first and MIT licensed.
+AtomLane accelerates local Codex work only when independence is proven. Its typed core preserves control flow, artifacts, effects, resources, hashes, and authorization. Platform/workload adapters tailor the safe route: macOS Stable supports selected shell, build, test, Docker/Compose, Make, paper, and batch work; native Windows Preview supports exact argv and PowerShell files with Job Object containment, while WSL/Docker stay separate realms. The Python advisor never imports or runs targets. It propagates effects, checks GIL/native ownership and spawn safety, and emits hash-bound previews for a narrow ordered-map subset. Unknown semantics fail closed. Long runs show live progress and per-run/cumulative savings. The public dashboard reports safety fixtures and separate five-minute macOS/Windows evidence. Local-first and MPL-2.0 open source, free for personal, research, education, and commercial use.
 
 ## What problem does it solve?
 
@@ -64,7 +64,7 @@ The public test dashboard retains a controlled five-minute run: four independent
 
 ## Open-source status
 
-MIT licensed. macOS Stable plus a scoped native Windows Preview, Python 3.10+, and no third-party Python runtime dependency. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
+MPL-2.0 open source, free for personal, research, educational, and commercial use. Releases through 0.13.0 retain their historical MIT grants. macOS Stable plus a scoped native Windows Preview, Python 3.10+, and no third-party Python runtime dependency. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
 
 ## Submission boundary
 

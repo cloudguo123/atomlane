@@ -54,7 +54,8 @@ ready successors without wave barriers, preserves failure propagation, adapts
 containment and resource budgets to the current realm, and delegates
 concurrency to workload-native owners when safer. Long
 runs show live running, ready, completed, and failed counts together with
-per-run and cumulative estimated time saved. The project is MIT licensed,
+per-run and cumulative estimated time saved. The project is open source under
+MPL-2.0, free for personal, research, educational, and commercial use,
 local-first, and backed by public tests and reproducible benchmark evidence.
 
 ## Starter prompts
@@ -134,11 +135,9 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 
 ## Current release notes
 
-Version 0.12 introduces a fail-closed native Windows Preview while preserving
-the macOS Stable path and shared typed core. It adds Windows resource probes,
-staged Job Object process-tree containment, optional ConPTY capture, NT path
-conflict rules, whole-file PowerShell planning, explicit native/WSL/Docker
-realms, and portable `spawn` proof obligations for Python previews. Public CI,
-native evidence, and separate five-minute macOS and Windows benchmark artifacts
-are linked from the live report. No test credentials or network account are
-required for local use.
+Version 0.14 adopts MPL-2.0 for current project-owned source while preserving
+all MIT grants through 0.13.0. The community release remains open source and
+free for personal, research, educational, and commercial use; it requires no
+AtomLane account. macOS remains Stable and native Windows remains a scoped,
+fail-closed Preview. Public CI, native evidence, and separate five-minute
+macOS and Windows benchmark artifacts are linked from the live report.

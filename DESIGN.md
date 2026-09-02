@@ -1,4 +1,4 @@
-# AtomLane 0.13
+# AtomLane 0.14
 
 AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
@@ -6,6 +6,11 @@ the current platform realm and resource envelope. It combines conservative
 effect analysis, typed dependencies, native concurrency delegation,
 platform-specific supervision, bounded scheduling, live progress, and savings
 accounting.
+
+Version 0.14 moves current project-owned source to MPL-2.0 while preserving
+all historical MIT grants through 0.13.0. The community release remains free
+for personal, research, educational, and commercial use; licensing and
+trademark boundaries are explicit and do not change the runtime contract.
 
 Version 0.13 makes AtomLane the canonical plugin, marketplace, MCP, event,
 environment, package, and storage identity. It also resolves scenario routes

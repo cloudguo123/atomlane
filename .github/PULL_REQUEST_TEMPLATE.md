@@ -16,3 +16,4 @@ Describe the smallest observable change.
 - [ ] Indicator bundle remains reproducible when touched
 - [ ] Public report regenerated when its inputs changed
 - [ ] No private project data, credentials, traces, prompts, or logs included
+- [ ] I have the right to submit this work under MPL-2.0 as described in `CONTRIBUTING.md`

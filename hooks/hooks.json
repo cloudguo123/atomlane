@@ -1,0 +1,19 @@
+{
+  "description": "Runs a fast, read-only AtomLane preflight on every submitted task. It never executes project commands or blocks the prompt.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I -S \"${PLUGIN_ROOT}/scripts/task_assessment_hook.py\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\scripts\\task-assessment-hook.cmd\"",
+            "timeout": 3,
+            "statusMessage": "AtomLane is assessing safe acceleration",
+            "additionalContextLimit": 512
+          }
+        ]
+      }
+    ]
+  }
+}

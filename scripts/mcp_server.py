@@ -63,11 +63,18 @@ from windows_job_runner import (
 from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "atomlane"
-SERVER_VERSION = "0.14.0"
+SERVER_VERSION = "0.15.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/atomlane-indicator-{SERVER_VERSION}.html"
 INDICATOR_MIME_TYPE = "text/html;profile=mcp-app"
+INDICATOR_RESOURCE_URI_RE = re.compile(
+    r"ui://widget/atomlane-indicator-"
+    r"(?:0|[1-9][0-9]{0,5})\."
+    r"(?:0|[1-9][0-9]{0,5})\."
+    r"(?:0|[1-9][0-9]{0,5})\.html",
+    re.ASCII,
+)
 MAX_TASKS = 128
 MAX_CONCURRENCY = 64
 MAX_ARGV_ITEMS = 256
@@ -125,6 +132,15 @@ def _indicator_resource() -> dict[str, Any]:
         "mimeType": INDICATOR_MIME_TYPE,
         "_meta": _indicator_resource_meta(),
     }
+
+
+def _is_indicator_resource_uri(uri: Any) -> bool:
+    """Accept versioned AtomLane indicator aliases retained by an older task."""
+    return (
+        isinstance(uri, str)
+        and len(uri) <= 96
+        and INDICATOR_RESOURCE_URI_RE.fullmatch(uri) is not None
+    )
 
 
 def _indicator_html() -> str:
@@ -4987,15 +5003,28 @@ def _progress_callback(progress_token: Any) -> Any | None:
     return send
 
 
-def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
+def response_for(message: Any) -> dict[str, Any] | None:
+    if not isinstance(message, dict):
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "Invalid Request"},
+        }
     request_id = message.get("id")
     method = message.get("method")
     if request_id is None:
         return None
     try:
         if method == "initialize":
+            params = message.get("params", {})
+            if not isinstance(params, dict):
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32602, "message": "Invalid params"},
+                }
             result = {
-                "protocolVersion": message.get("params", {}).get("protocolVersion", "2024-11-05"),
+                "protocolVersion": params.get("protocolVersion", "2024-11-05"),
                 "capabilities": {
                     "tools": {"listChanged": False},
                     "resources": {"subscribe": False, "listChanged": False},
@@ -5027,13 +5056,24 @@ def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
         elif method == "resources/list":
             result = {"resources": [_indicator_resource()]}
         elif method == "resources/read":
-            uri = message.get("params", {}).get("uri")
-            if uri != INDICATOR_RESOURCE_URI:
-                raise InputError(f"unknown resource: {uri}")
+            params = message.get("params")
+            if not isinstance(params, dict) or not isinstance(params.get("uri"), str):
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32602, "message": "Invalid params"},
+                }
+            uri = params["uri"]
+            if not _is_indicator_resource_uri(uri):
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32002, "message": "Resource not found"},
+                }
             result = {
                 "contents": [
                     {
-                        "uri": INDICATOR_RESOURCE_URI,
+                        "uri": uri,
                         "mimeType": INDICATOR_MIME_TYPE,
                         "text": _indicator_html(),
                         "_meta": _indicator_resource_meta(),
@@ -5044,6 +5084,12 @@ def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {"resourceTemplates": []}
         elif method == "tools/call":
             params = message.get("params", {})
+            if not isinstance(params, dict):
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32602, "message": "Invalid params"},
+                }
             arguments = params.get("arguments") or {}
             if not isinstance(arguments, dict):
                 raise InputError("tool arguments must be an object")
@@ -5064,12 +5110,24 @@ def response_for(message: dict[str, Any]) -> dict[str, Any] | None:
             }
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
     except InputError as exc:
+        if method != "tools/call":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32602, "message": "Invalid params"},
+            }
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {"content": [{"type": "text", "text": str(exc)}], "isError": True},
         }
     except Exception as exc:  # noqa: BLE001 - JSON-RPC boundary must return structured errors.
+        if method != "tools/call":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32603, "message": "Internal error"},
+            }
         return {
             "jsonrpc": "2.0",
             "id": request_id,

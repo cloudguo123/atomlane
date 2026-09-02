@@ -233,9 +233,9 @@ def exclusive_file_lock(path: Path) -> Iterator[BinaryIO]:
         if platform.system() == "Windows":
             import msvcrt
 
-            if handle.seek(0, os.SEEK_END) == 0:
-                handle.write(b"\0")
-                handle.flush()
+            # Windows byte-range locks may extend beyond EOF. Concurrent first-
+            # time callers can both observe an empty file; a delayed sentinel
+            # write can then fail after another caller locks byte zero.
             # CRT LK_LOCK performs its own coarse retry loop and can surface
             # EDEADLK under same-process contention. Keep retry policy bounded
             # and scheduler-friendly in Python instead.

@@ -30,7 +30,15 @@ codex plugin marketplace add cloudguo123/atomlane
 codex plugin add atomlane@atomlane
 ```
 
-安装后新建一个 Codex 任务，然后直接说：
+安装或升级后要新建一个 Codex 任务。Codex 会在 **Hooks** 中列出 AtomLane
+自带的任务评估 Hook；它第一次运行前，需要用户检查并信任这份确切定义。信任后，
+每次提交任务都会显示三类只读预检结果之一：直接执行路径、到执行边界再检查、可能
+适合并行但必须先做安全计划。这个 Hook 只读取当前提交的提示词，不扫描项目、不执行
+命令、不拦截任务，也不把“看起来能并行”冒充成安全证明；真正的判断仍由 Skill 与
+原子计划根据真实入口、副作用、依赖、平台和资源完成。详见
+[Hooks 与实时指示器说明](docs/HOOKS.zh-CN.md)。
+
+之后可以直接说：
 
 ```text
 使用 $accelerate-local-work 扫描这个项目，把确认安全的工作并行执行。
@@ -52,9 +60,11 @@ codex plugin add atomlane@atomlane
 不等同于已证明 Windows 11 Desktop UI 集成。Windows 用户请先阅读
 [Windows Preview 说明](docs/WINDOWS_PREVIEW.md)。
 
-仓库还通过根目录的 `plugin.json`、`skills/` 与本地 stdio `mcp.json`
-兼容厂商中立的 [Agent Plugins 1.0.0](https://agent-plugins.org/) 标准；
-Codex 原生客户端仍使用 `.codex-plugin/plugin.json` 和 `.mcp.json`。
+可安装包采用 Codex 原生结构：`.codex-plugin/plugin.json`、`.mcp.json`、
+`skills/` 与 `hooks/hooks.json` 会作为一个整体发布；根目录 `mcp.json` 仍可作为
+厂商中立的本地 stdio 配置单独使用。本版有意不再附带根目录 Agent Plugins 清单，
+因为当前 Codex 会把它识别成另一种包格式，并在它存在时跳过插件内置的生命周期
+Hook。
 
 ## 一套内核，三层定制
 

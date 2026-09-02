@@ -75,6 +75,14 @@ DOMAIN_META = {
         ),
         "accent": "#b7f079",
     },
+    "test_task_assessment_hook": {
+        "label": "Visible task-assessment hook",
+        "description": (
+            "Fail-open command protocol, conservative routing, prompt isolation, "
+            "and cross-platform launch configuration"
+        ),
+        "accent": "#f7d774",
+    },
     "test_report_rendering": {
         "label": "Public report integrity",
         "description": "Source-bound evidence, privacy-safe labels, and honest platform claims",

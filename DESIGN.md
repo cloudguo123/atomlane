@@ -59,6 +59,8 @@ repairing it.
 - Find high-confidence Python ordered-map candidates without importing or
   executing the target, and make every missing proof or modeled assumption
   explicit before a source refactor is reviewed.
+- Make the per-prompt acceleration preflight visible while keeping it advisory,
+  deterministic, read-only, and separate from the proof-carrying planner.
 
 ## Non-goals
 
@@ -70,8 +72,10 @@ repairing it.
 - Docker cpusets are not presented as stable Apple performance-core or
   efficiency-core affinity, and ordinary Docker Desktop containers are not
   claimed to receive Metal, GPU, ANE, or media-engine access.
-- The plugin does not enable a global lifecycle hook. Task-internal compilation
-  occurs at meaningful execution boundaries under skill guidance.
+- The lifecycle hook is not an auto-executor, policy bypass, project scanner, or
+  proof of independence. It classifies only the submitted prompt and cannot
+  authorize, block, rewrite, or run project work. Task-internal compilation
+  still occurs at meaningful execution boundaries under skill guidance.
 - The Python advisor is not a general auto-parallelizing compiler. It does not
   rewrite arbitrary loops, infer purity from confidence scores, apply patches,
   execute profilers, or claim modeled projections as measured speedups.
@@ -82,7 +86,12 @@ repairing it.
 User task
    |
    v
-Cheap skill preflight
+Read-only UserPromptSubmit hook
+   |
+   +---------------- direct / inspect / likely candidate (visible advice only)
+   |
+   v
+Skill execution-boundary preflight
    |
    +---------------- scenario_plan / accelerator / container advice
    |

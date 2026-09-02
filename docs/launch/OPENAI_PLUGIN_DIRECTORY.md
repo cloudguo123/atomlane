@@ -15,10 +15,13 @@ review this project as a skills-only local Codex workflow. Do not submit a
 skills-only snapshot until its bundled local scripts and fallback execution
 path have been tested independently of the plugin's MCP registration.
 
-The root `plugin.json` and `mcp.json` separately implement the vendor-neutral
-Agent Plugins 1.0.0 layout, which permits local stdio MCP. That portable
-compatibility does not override the OpenAI Platform portal's public-MCP review
-requirements and must not be used to imply remote hosting.
+The installable package uses the Codex-native manifest, skills, local MCP
+configuration, and bundled hook. The root `mcp.json` can also be used as an
+optional vendor-neutral local-stdio configuration, but this release does not
+claim simultaneous Agent Plugins package conformance: current Codex releases
+suppress bundled lifecycle hooks when a root Agent Plugins manifest is present.
+None of these local configurations overrides the OpenAI Platform portal's
+public-MCP review requirements or implies remote hosting.
 
 ## Listing information
 

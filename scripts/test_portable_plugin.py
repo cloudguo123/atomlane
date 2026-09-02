@@ -8,22 +8,23 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import mcp_server
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 
 
-class PortableAgentPluginTests(unittest.TestCase):
+class CodexPluginPackagingTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+        self.manifest = json.loads(
+            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
         self.mcp = json.loads((ROOT / "mcp.json").read_text(encoding="utf-8"))
 
-    def test_manifest_uses_closed_agent_plugins_v1_shape(self) -> None:
+    def test_codex_manifest_uses_a_closed_component_shape(self) -> None:
         allowed = {
-            "$schema",
             "name",
             "version",
             "description",
@@ -32,9 +33,10 @@ class PortableAgentPluginTests(unittest.TestCase):
             "repository",
             "license",
             "keywords",
-            "extensions",
+            "skills",
+            "interface",
+            "mcpServers",
         }
-        self.assertEqual(self.manifest["$schema"], PLUGIN_SCHEMA)
         self.assertLessEqual(set(self.manifest), allowed)
         self.assertRegex(
             self.manifest["name"],
@@ -43,29 +45,48 @@ class PortableAgentPluginTests(unittest.TestCase):
         self.assertNotIn("--", self.manifest["name"])
         self.assertNotIn("..", self.manifest["name"])
 
-    def test_portable_and_codex_manifests_share_identity(self) -> None:
-        codex = json.loads(
-            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
-        )
-        for field in (
-            "name",
-            "version",
-            "description",
-            "author",
-            "homepage",
-            "repository",
-            "license",
-        ):
-            self.assertEqual(self.manifest[field], codex[field])
+    def test_codex_manifest_assets_and_prompts_are_valid(self) -> None:
         for asset_field in ("composerIcon", "logo"):
-            asset = codex["interface"][asset_field]
+            asset = self.manifest["interface"][asset_field]
             self.assertTrue(asset.startswith("./"))
             self.assertTrue((ROOT / asset.removeprefix("./")).is_file())
-        prompts = codex["interface"]["defaultPrompt"]
+        prompts = self.manifest["interface"]["defaultPrompt"]
         self.assertLessEqual(len(prompts), 3)
         self.assertTrue(all(1 <= len(prompt) <= 128 for prompt in prompts))
         self.assertTrue(any("$accelerate-local-work" in prompt for prompt in prompts))
         self.assertTrue(any("$optimize-python-parallelism" in prompt for prompt in prompts))
+
+    def test_codex_plugin_bundles_a_non_blocking_task_assessment_hook(self) -> None:
+        hook_path = ROOT / "hooks" / "hooks.json"
+        config = json.loads(hook_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(config["hooks"]), {"UserPromptSubmit"})
+        groups = config["hooks"]["UserPromptSubmit"]
+        self.assertEqual(len(groups), 1)
+        self.assertNotIn("matcher", groups[0])
+        handlers = groups[0]["hooks"]
+        self.assertEqual(len(handlers), 1)
+        handler = handlers[0]
+        self.assertEqual(handler["type"], "command")
+        self.assertIn("${PLUGIN_ROOT}/scripts/task_assessment_hook.py", handler["command"])
+        self.assertIn("python3 -I -S", handler["command"])
+        self.assertEqual(
+            handler["commandWindows"],
+            '"${PLUGIN_ROOT}\\scripts\\task-assessment-hook.cmd"',
+        )
+        self.assertEqual(handler["additionalContextLimit"], 512)
+        self.assertNotIn("decision", hook_path.read_text(encoding="utf-8"))
+        self.assertTrue((ROOT / "scripts" / "task_assessment_hook.py").is_file())
+        windows_launcher = ROOT / "scripts" / "task-assessment-hook.cmd"
+        self.assertTrue(windows_launcher.is_file())
+        launcher_text = windows_launcher.read_text(encoding="utf-8")
+        launcher_lines = launcher_text.splitlines()
+        self.assertLess(
+            launcher_lines.index("where python3 >nul 2>nul"),
+            launcher_lines.index("where py >nul 2>nul"),
+        )
+        self.assertIn("python3 -I -S", launcher_text)
+        self.assertIn("py -3 -I -S", launcher_text)
+        self.assertIn("python -I -S", launcher_text)
 
     def test_release_version_is_consistent_across_every_published_surface(self) -> None:
         version = self.manifest["version"]
@@ -76,7 +97,7 @@ class PortableAgentPluginTests(unittest.TestCase):
         )
         citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(version, "0.14.0")
+        self.assertEqual(version, "0.15.0")
         self.assertEqual(package["version"], version)
         self.assertEqual(package["license"], "MPL-2.0")
         self.assertEqual(lock["version"], version)
@@ -89,6 +110,103 @@ class PortableAgentPluginTests(unittest.TestCase):
         self.assertIsNotNone(first_release)
         self.assertEqual(first_release.group(1), version)
 
+    def test_indicator_resource_keeps_versioned_aliases_backward_compatible(self) -> None:
+        for uri in (
+            mcp_server.INDICATOR_RESOURCE_URI,
+            "ui://widget/atomlane-indicator-0.13.0.html",
+        ):
+            with self.subTest(uri=uri):
+                response = mcp_server.response_for(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "resources/read",
+                        "params": {"uri": uri},
+                    }
+                )
+                self.assertIsNotNone(response)
+                self.assertNotIn("error", response)
+                resource = response["result"]["contents"][0]
+                self.assertEqual(resource["uri"], uri)
+                self.assertEqual(resource["mimeType"], mcp_server.INDICATOR_MIME_TYPE)
+                self.assertIn("AtomLane", resource["text"])
+
+    def test_indicator_resource_rejects_non_atomlane_and_malformed_uris(self) -> None:
+        for uri in (
+            "ui://widget/another-app-0.13.0.html",
+            "ui://widget/atomlane-indicator.html",
+            "ui://widget/atomlane-indicator-0.13.html",
+            "ui://widget/atomlane-indicator-00.13.0.html",
+            "ui://widget/atomlane-indicator-0.13.0-beta.1.html",
+            "ui://widget/atomlane-indicator-0.13.0+local.html",
+            "ui://widget/atomlane-indicator-0.13.0.html?x=1",
+            "ui://widget/atomlane-indicator-0.13.0.html#x",
+            "ui://widget/atomlane-indicator-0.13.0.html/extra",
+            "file://widget/atomlane-indicator-0.13.0.html",
+            "ui://widget/atomlane-indicator-9999999.0.0.html",
+            None,
+            13,
+        ):
+            with self.subTest(uri=uri):
+                response = mcp_server.response_for(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "resources/read",
+                        "params": {"uri": uri},
+                    }
+                )
+                self.assertIsNotNone(response)
+                expected_code = -32602 if not isinstance(uri, str) else -32002
+                self.assertEqual(response["error"]["code"], expected_code)
+                self.assertNotIn("result", response)
+
+    def test_resource_protocol_errors_never_use_tool_result_shape(self) -> None:
+        for params in (None, [], {}, {"uri": None}):
+            with self.subTest(params=params):
+                response = mcp_server.response_for(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "resources/read",
+                        "params": params,
+                    }
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+                self.assertNotIn("result", response)
+
+        with mock.patch.object(
+            mcp_server,
+            "_indicator_html",
+            side_effect=OSError("private path must not leak"),
+        ):
+            response = mcp_server.response_for(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": {"uri": mcp_server.INDICATOR_RESOURCE_URI},
+                }
+            )
+        self.assertEqual(
+            response,
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "error": {"code": -32603, "message": "Internal error"},
+            },
+        )
+
+    def test_non_object_jsonrpc_request_is_rejected_without_crashing(self) -> None:
+        self.assertEqual(
+            mcp_server.response_for([]),
+            {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32600, "message": "Invalid Request"},
+            },
+        )
+
     def test_current_license_and_legacy_boundary_are_explicit(self) -> None:
         license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
         legacy_text = (ROOT / "LICENSES" / "MIT-legacy.txt").read_text(
@@ -100,11 +218,7 @@ class PortableAgentPluginTests(unittest.TestCase):
         report_generator = (ROOT / "scripts" / "generate_test_report.py").read_text(
             encoding="utf-8"
         )
-        codex = json.loads(
-            (ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
-        )
         self.assertEqual(self.manifest["license"], "MPL-2.0")
-        self.assertEqual(codex["license"], "MPL-2.0")
         self.assertTrue(
             license_text.startswith("Mozilla Public License Version 2.0")
         )
@@ -264,12 +378,16 @@ class PortableAgentPluginTests(unittest.TestCase):
         )
         self.assertTrue((ROOT / ".codex-plugin" / "plugin.json").is_file())
         self.assertTrue((ROOT / ".mcp.json").is_file())
+        self.assertFalse(
+            (ROOT / "plugin.json").exists(),
+            "a root Agent Plugin manifest makes current Codex skip bundled hooks",
+        )
 
     def test_packaged_manifests_launch_from_a_unicode_space_path(self) -> None:
         with tempfile.TemporaryDirectory(prefix="AtomLane 包 release ") as directory:
             plugin_root = pathlib.Path(directory) / "plugin copy"
             plugin_root.mkdir()
-            for source_name in ("scripts", "assets", "catalog", "third_party"):
+            for source_name in ("scripts", "assets", "catalog", "third_party", "hooks"):
                 shutil.copytree(
                     ROOT / source_name,
                     plugin_root / source_name,
@@ -305,6 +423,14 @@ class PortableAgentPluginTests(unittest.TestCase):
                 {
                     "jsonrpc": "2.0",
                     "id": 5,
+                    "method": "resources/read",
+                    "params": {
+                        "uri": "ui://widget/atomlane-indicator-0.13.0.html"
+                    },
+                },
+                {
+                    "jsonrpc": "2.0",
+                    "id": 6,
                     "method": "tools/call",
                     "params": {
                         "name": "parallel_exec",
@@ -353,8 +479,12 @@ class PortableAgentPluginTests(unittest.TestCase):
                     for line in completed.stdout.splitlines()
                     if (item := json.loads(line)).get("id") is not None
                 }
-                self.assertEqual(set(responses), {1, 2, 3, 4, 5})
-                self.assertIn("manifest-ok", responses[5]["result"]["content"][0]["text"])
+                self.assertEqual(set(responses), {1, 2, 3, 4, 5, 6})
+                self.assertEqual(
+                    responses[5]["result"]["contents"][0]["uri"],
+                    "ui://widget/atomlane-indicator-0.13.0.html",
+                )
+                self.assertIn("manifest-ok", responses[6]["result"]["content"][0]["text"])
 
 
 if __name__ == "__main__":

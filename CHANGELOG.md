@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## 0.15.0 - 2026-09-02
+
+- Added a real plugin-bundled `UserPromptSubmit` hook so AtomLane appears in
+  Codex Hooks and performs a fast, visible, advisory assessment on every task.
+  The hook never executes project commands, blocks a prompt, or treats a
+  lexical candidate as proof that parallelism is safe. Its Python interpreter
+  starts in isolated, no-site mode on macOS and Windows.
+- Kept selection workload-aware: direct requests stay direct, ambiguous local
+  work is inspected at the first execution boundary, and likely parallel work
+  is routed through the existing atomic planner and live progress contract.
+- Made the MCP App indicator backward-compatible with versioned resource URIs
+  cached by older tasks, including `0.13.0`, while continuing to reject
+  unrelated or malformed resources.
+- Corrected invalid `resources/read` failures to use a JSON-RPC error instead
+  of a tool-result payload, preventing the host-side `Unexpected response
+  type` failure mode even for malformed parameters or internal resource errors.
+- Removed the root Agent Plugins manifest because current Codex releases
+  classify that package format separately and suppress its bundled lifecycle
+  hooks. The Codex-native manifest, skills, MCP configuration, and hook remain
+  packaged together; root `mcp.json` remains available as an optional portable
+  local-stdio configuration.
+
 ## 0.14.0 - 2026-09-02
 
 - Moved current project-owned source to the OSI-approved Mozilla Public

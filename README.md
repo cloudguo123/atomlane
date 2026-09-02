@@ -34,7 +34,17 @@ codex plugin marketplace add cloudguo123/atomlane
 codex plugin add atomlane@atomlane
 ```
 
-Open a new Codex task, then ask:
+Open a new Codex task after installation or upgrade. Codex will list AtomLane's
+bundled task-assessment hook in **Hooks** and require a one-time review of its
+exact definition before it can run. Once trusted, every submitted task shows one
+of three advisory preflight results: direct path, inspect at the execution
+boundary, or likely parallel candidate. The hook reads only the submitted prompt;
+it does not scan the project, execute commands, block the prompt, or claim that
+parallelism is safe. The skill and atomic planner make that decision later from
+real entrypoints, effects, dependencies, platform, and resources. See the
+[Hooks and live indicator guide](docs/HOOKS.md).
+
+You can then ask explicitly:
 
 ```text
 Use $accelerate-local-work to inspect this project and run the safe parts in parallel.
@@ -58,10 +68,12 @@ release evidence currently comes from the `windows-2025` CI image; it does not
 establish Windows 11 Desktop UI integration. See the
 [Windows Preview guide](docs/WINDOWS_PREVIEW.md) before using Windows workflows.
 
-The repository also conforms to the vendor-neutral
-[Agent Plugins 1.0.0](https://agent-plugins.org/) package layout through its
-root `plugin.json`, `skills/`, and local-stdio `mcp.json`. Codex-native clients
-continue to use `.codex-plugin/plugin.json` and `.mcp.json`.
+The installable package is Codex-native: `.codex-plugin/plugin.json`,
+`.mcp.json`, `skills/`, and `hooks/hooks.json` ship as one unit. The root
+`mcp.json` remains an optional vendor-neutral local-stdio configuration. This
+release intentionally does not include a root Agent Plugins manifest because
+current Codex releases classify that format separately and suppress bundled
+lifecycle hooks when it is present.
 
 ## One core, tailored at three layers
 

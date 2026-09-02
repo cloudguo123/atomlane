@@ -1,6 +1,6 @@
 {
   "name": "atomlane",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "AtomLane combines a universal safety core with platform-native, workload-tailored parallel execution on macOS Stable and native Windows Preview.",
   "author": {
     "name": "cloudguo123",
@@ -39,6 +39,8 @@
       "Typed effect analysis",
       "Plan hash verification",
       "In-task work discovery",
+      "Visible per-prompt acceleration assessment",
+      "Advisory lifecycle hook",
       "Native concurrency delegation",
       "Scenario profiling",
       "Trace-informed routing",

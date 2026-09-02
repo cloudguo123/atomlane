@@ -13,6 +13,18 @@ Thanks for helping make safe local acceleration more useful.
 
 Use GitHub Discussions for design questions and an issue for reproducible defects. Security reports belong in the private process described in [SECURITY.md](SECURITY.md).
 
+## Contribution licensing
+
+Unless separately agreed in writing, contributions intentionally submitted
+for inclusion in AtomLane are provided under MPL-2.0. Contributors retain
+copyright in their work and represent that they have the right to submit it.
+
+Opening a pull request does not by itself grant rights to relicense a
+contribution under a separate proprietary license. If alternative licensing
+of a contribution is ever needed, the maintainer will request explicit
+agreement before using it on those terms. No copyright assignment is
+currently required.
+
 ## Development checks
 
 ```bash

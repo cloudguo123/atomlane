@@ -1,16 +1,20 @@
 # Terms of use
 
-These terms apply to AtomLane. The project is open-source
-software distributed under the [MIT License](LICENSE). If these terms conflict
-with that license for the software itself, the MIT License controls.
+These terms apply to AtomLane. Current project-owned source is open-source
+software distributed under the [Mozilla Public License 2.0](LICENSE).
+Historical releases keep the licenses under which they were published, as
+documented in [LICENSING.md](LICENSING.md). If these terms conflict with an
+applicable source-code license, that license controls for the software itself.
 
 ## Local software, not a hosted service
 
 AtomLane runs locally on macOS Stable or within the documented native Windows
 Preview boundary. The maintainers do not
 operate a hosted execution service, user account system, or paid plan for this
-project. The software does not automatically upload project files, commands,
-Codex conversations, traces, or benchmark results.
+community release. The software does not automatically upload project files,
+commands, Codex conversations, traces, or benchmark results. Possible future
+commercial terms, support, or separately licensed capabilities do not change
+rights already granted under MPL-2.0.
 
 ## User responsibility
 
@@ -23,7 +27,7 @@ restricted actions.
 ## No warranty
 
 The software is provided “as is,” without warranty of any kind, as stated in
-the MIT License. Performance varies by workload, hardware, system load, and
+MPL-2.0. Performance varies by workload, hardware, system load, and
 toolchain. Published benchmark results describe their stated fixtures and are
 not a guarantee of speedup for another project.
 

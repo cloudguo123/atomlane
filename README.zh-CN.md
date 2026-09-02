@@ -13,8 +13,13 @@ Preview。
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
 [![五分钟基准](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
 [![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
+[![许可：MPL-2.0](https://img.shields.io/badge/许可-MPL--2.0-blue.svg)](LICENSE)
 
 [English](README.md) · [在线报告](https://cloudguo123.github.io/atomlane/) · [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
+
+**采用 MPL-2.0 开源许可，个人、科研、教育及商业使用均免费。** 当前社区版本
+无需 AtomLane 账户或付费。未来可能提供替代商业授权或独立许可的扩展能力，但
+不会改变已经按照 MPL-2.0 发布代码的许可。[查看许可说明](LICENSING.md)
 
 ![AtomLane 受控五分钟并行基准测试](assets/growth/social-preview.svg)
 
@@ -195,4 +200,4 @@ atomic_task_plan
 
 [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml) · [参与讨论](https://github.com/cloudguo123/atomlane/discussions) · [查看路线图](ROADMAP.md) · [品牌规范](BRAND.md) · [贡献代码](CONTRIBUTING.md)
 
-[MIT 许可](LICENSE) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)
+[MPL-2.0 许可](LICENSE) · [许可说明](LICENSING.md) · [商标政策](TRADEMARKS.md) · [隐私说明](PRIVACY.md) · [使用条款](TERMS.md)

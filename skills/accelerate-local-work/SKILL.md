@@ -1,7 +1,7 @@
 ---
 name: accelerate-local-work
 description: Use AtomLane to compile and execute safe atomic parallel plans on macOS and native Windows Preview for worthwhile independent argv tasks, dependency DAGs, supported platform entrypoints, or Apple-silicon operators. Use at task start or an execution boundary when structured local work may contain two or more worthwhile units; skip plain answers, one quick command, and work whose effects cannot be safely bounded.
-license: MIT
+license: MPL-2.0
 ---
 
 # AtomLane: Accelerate Local Work

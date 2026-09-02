@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "atomlane",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "AtomLane combines a universal safety core with platform-native, workload-tailored parallel execution on macOS Stable and native Windows Preview.",
   "author": {
     "name": "cloudguo123",
@@ -9,7 +9,7 @@
   },
   "homepage": "https://cloudguo123.github.io/atomlane/",
   "repository": "https://github.com/cloudguo123/atomlane",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "keywords": [
     "agent-plugins",
     "agent-skills",

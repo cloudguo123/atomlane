@@ -1,7 +1,7 @@
 ---
 name: optimize-python-parallelism
 description: Analyze and, when the task authorizes source optimization, refactor a concrete long-running Python entrypoint containing repeated independent work. Use for explicit Python speedup or parallelization requests and evidence-backed long-running entrypoints; skip ordinary Python edits, test execution alone, short scripts, and projects that merely contain Python files.
-license: MIT
+license: MPL-2.0
 ---
 
 # AtomLane Python Advisor

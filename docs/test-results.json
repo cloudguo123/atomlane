@@ -3,7 +3,7 @@
   "report_role": "dashboard",
   "project": "AtomLane",
   "version": "0.13.0",
-  "generated_at": "2026-09-01T23:11:07+00:00",
+  "generated_at": "2026-09-02T05:54:04+00:00",
   "overall": "passed",
   "summary": {
     "total": 209,
@@ -16,12 +16,12 @@
     "pass_rate": 100.0,
     "checks_passed": 9,
     "checks_total": 9,
-    "elapsed_ms": 5335.82
+    "elapsed_ms": 10196.58
   },
   "source": {
-    "commit": "1fb977ffcbe2c62b4b4ba9fb80c9a4aa69597c89",
-    "commit_short": "1fb977ffcb",
-    "branch": "brand/atomlane-universal-tailored",
+    "commit": "8b04135567df8445db54d3b92091e3f341162112",
+    "commit_short": "8b04135567",
+    "branch": "docs/atomlane-0.13-evidence",
     "repository": "cloudguo123/atomlane",
     "clean": true
   },
@@ -40,58 +40,58 @@
     {
       "name": "Python bytecode compilation",
       "status": "passed",
-      "duration_ms": 140.0,
+      "duration_ms": 125.05,
       "returncode": 0
     },
     {
       "name": "Regression suite",
       "status": "passed",
-      "duration_ms": 2704.16,
+      "duration_ms": 2858.75,
       "returncode": 0
     },
     {
       "name": "End-to-end MCP self-test",
       "status": "passed",
-      "duration_ms": 2258.76,
+      "duration_ms": 4163.48,
       "returncode": 0
     },
     {
       "name": "Ruff static analysis",
       "status": "passed",
-      "duration_ms": 54.69,
+      "duration_ms": 1449.19,
       "returncode": 0
     },
     {
       "name": "Manifest & catalog integrity",
       "status": "passed",
-      "duration_ms": 1.45,
+      "duration_ms": 1.73,
       "returncode": 0
     },
     {
       "name": "External benchmark JSON Schema",
       "status": "passed",
-      "duration_ms": 16.38,
+      "duration_ms": 16.67,
       "returncode": 0
     },
     {
       "name": "Python advisor safety fixtures",
       "status": "passed",
-      "duration_ms": 4.15,
+      "duration_ms": 3.88,
       "returncode": 0
     },
     {
       "name": "Reproducible UI bundle",
       "status": "passed",
-      "duration_ms": 131.92,
+      "duration_ms": 1525.86,
       "returncode": 0
     },
     {
       "name": "Clean source provenance",
       "status": "passed",
-      "duration_ms": 24.31,
+      "duration_ms": 51.97,
       "returncode": 0,
       "unexpected_dirty_path_count": 0,
-      "allowed_evidence_input_count": 0
+      "allowed_evidence_input_count": 3
     }
   ],
   "domains": [
@@ -105,7 +105,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 2,
-      "duration_ms": 22.63
+      "duration_ms": 22.34
     },
     {
       "label": "Static workload frontends",
@@ -117,7 +117,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 80.91
+      "duration_ms": 80.89
     },
     {
       "label": "MCP runtime & live execution",
@@ -129,7 +129,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 663.22
+      "duration_ms": 771.46
     },
     {
       "label": "Cross-platform contract",
@@ -141,7 +141,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 100.6
+      "duration_ms": 108.03
     },
     {
       "label": "External evidence schema",
@@ -153,7 +153,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 4.11
+      "duration_ms": 3.94
     },
     {
       "label": "Windows runtime contracts",
@@ -165,7 +165,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 69.48
+      "duration_ms": 64.05
     },
     {
       "label": "Plugin packaging & portability",
@@ -177,7 +177,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 938.78
+      "duration_ms": 889.14
     },
     {
       "label": "Public report integrity",
@@ -189,7 +189,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 26.1
+      "duration_ms": 27.27
     },
     {
       "label": "Indicator bundle security",
@@ -201,7 +201,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 6.14
+      "duration_ms": 6.6
     },
     {
       "label": "Growth assets & evidence sharing",
@@ -213,7 +213,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 1.02
+      "duration_ms": 1.14
     },
     {
       "label": "Privacy-safe growth metrics",
@@ -225,7 +225,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 0.72
+      "duration_ms": 0.83
     },
     {
       "label": "Long-horizon benchmark evidence",
@@ -237,7 +237,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 0.71
+      "duration_ms": 0.68
     },
     {
       "label": "Pages evidence selection",
@@ -249,7 +249,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 2.7
+      "duration_ms": 2.25
     },
     {
       "label": "Python parallel refactor safety",
@@ -261,7 +261,7 @@
       "failed": 0,
       "errors": 0,
       "skipped": 0,
-      "duration_ms": 704.99
+      "duration_ms": 759.24
     }
   ],
   "tests": [
@@ -273,7 +273,7 @@
       "name": "test_atom_conpty_stdin_fails_closed_even_when_empty",
       "title": "atom conpty stdin fails closed even when empty",
       "status": "passed",
-      "duration_ms": 1.21
+      "duration_ms": 0.7
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_atom_stdin_is_bounded_preserved_and_hash_bound",
@@ -283,7 +283,7 @@
       "name": "test_atom_stdin_is_bounded_preserved_and_hash_bound",
       "title": "atom stdin is bounded preserved and hash bound",
       "status": "passed",
-      "duration_ms": 3.07
+      "duration_ms": 2.65
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_capacity_claims_are_never_overcommitted",
@@ -293,7 +293,7 @@
       "name": "test_capacity_claims_are_never_overcommitted",
       "title": "capacity claims are never overcommitted",
       "status": "passed",
-      "duration_ms": 1.38
+      "duration_ms": 1.35
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_event_scheduler_releases_successor_without_wave_barrier",
@@ -303,7 +303,7 @@
       "name": "test_event_scheduler_releases_successor_without_wave_barrier",
       "title": "event scheduler releases successor without wave barrier",
       "status": "passed",
-      "duration_ms": 1.07
+      "duration_ms": 1.06
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_explicit_data_order_makes_overwrite_read_safe",
@@ -313,7 +313,7 @@
       "name": "test_explicit_data_order_makes_overwrite_read_safe",
       "title": "explicit data order makes overwrite read safe",
       "status": "passed",
-      "duration_ms": 1.0
+      "duration_ms": 1.02
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_file_roots_overlap_descendants_on_every_path_flavor",
@@ -323,7 +323,7 @@
       "name": "test_file_roots_overlap_descendants_on_every_path_flavor",
       "title": "file roots overlap descendants on every path flavor",
       "status": "passed",
-      "duration_ms": 0.23
+      "duration_ms": 0.48
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_fusion_split_and_native_delegate_suggestions_are_explicit",
@@ -333,7 +333,7 @@
       "name": "test_fusion_split_and_native_delegate_suggestions_are_explicit",
       "title": "fusion split and native delegate suggestions are explicit",
       "status": "passed",
-      "duration_ms": 0.76
+      "duration_ms": 0.92
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_lower_exact_data_edges_combines_same_direction_resources",
@@ -343,7 +343,7 @@
       "name": "test_lower_exact_data_edges_combines_same_direction_resources",
       "title": "lower exact data edges combines same direction resources",
       "status": "passed",
-      "duration_ms": 0.73
+      "duration_ms": 0.88
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_lower_exact_data_edges_handles_bidirectional_flow",
@@ -353,7 +353,7 @@
       "name": "test_lower_exact_data_edges_handles_bidirectional_flow",
       "title": "lower exact data edges handles bidirectional flow",
       "status": "passed",
-      "duration_ms": 0.73
+      "duration_ms": 0.71
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_macos_casefold_and_hardlink_aliases_fail_closed",
@@ -363,7 +363,7 @@
       "name": "test_macos_casefold_and_hardlink_aliases_fail_closed",
       "title": "macos casefold and hardlink aliases fail closed",
       "status": "passed",
-      "duration_ms": 2.7
+      "duration_ms": 2.16
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_native_windows_future_outputs_resolve_existing_reparse_ancestor",
@@ -393,7 +393,7 @@
       "name": "test_nested_parallelism_is_budgeted_or_outer_serialized",
       "title": "nested parallelism is budgeted or outer serialized",
       "status": "passed",
-      "duration_ms": 1.07
+      "duration_ms": 1.24
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_plan_hash_and_schedule_ignore_input_permutation",
@@ -403,7 +403,7 @@
       "name": "test_plan_hash_and_schedule_ignore_input_permutation",
       "title": "plan hash and schedule ignore input permutation",
       "status": "passed",
-      "duration_ms": 2.61
+      "duration_ms": 2.69
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_source_snapshot_detects_toctou_write",
@@ -423,7 +423,7 @@
       "name": "test_unknown_effect_is_a_hard_execution_blocker",
       "title": "unknown effect is a hard execution blocker",
       "status": "passed",
-      "duration_ms": 0.5
+      "duration_ms": 0.64
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_unordered_write_conflict_is_serialized_and_ineligible",
@@ -433,7 +433,7 @@
       "name": "test_unordered_write_conflict_is_serialized_and_ineligible",
       "title": "unordered write conflict is serialized and ineligible",
       "status": "passed",
-      "duration_ms": 0.86
+      "duration_ms": 0.93
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_windows_drive_unc_and_extended_paths_cannot_bypass_conflicts",
@@ -443,7 +443,7 @@
       "name": "test_windows_drive_unc_and_extended_paths_cannot_bypass_conflicts",
       "title": "windows drive unc and extended paths cannot bypass conflicts",
       "status": "passed",
-      "duration_ms": 2.82
+      "duration_ms": 3.03
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_windows_relative_and_absolute_paths_share_lexical_rules",
@@ -453,7 +453,7 @@
       "name": "test_windows_relative_and_absolute_paths_share_lexical_rules",
       "title": "windows relative and absolute paths share lexical rules",
       "status": "passed",
-      "duration_ms": 0.58
+      "duration_ms": 0.45
     },
     {
       "id": "test_atom_engine.AtomEngineTests.test_windows_unc_and_extended_namespaces_normalize_or_fail_closed",
@@ -463,7 +463,7 @@
       "name": "test_windows_unc_and_extended_namespaces_normalize_or_fail_closed",
       "title": "windows unc and extended namespaces normalize or fail closed",
       "status": "passed",
-      "duration_ms": 0.23
+      "duration_ms": 0.35
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_mapping_syntax_profiles_completion_and_leases",
@@ -473,7 +473,7 @@
       "name": "test_mapping_syntax_profiles_completion_and_leases",
       "title": "mapping syntax profiles completion and leases",
       "status": "passed",
-      "duration_ms": 27.99
+      "duration_ms": 32.25
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_missing_healthcheck_and_profile_dependency_fail_closed",
@@ -483,7 +483,7 @@
       "name": "test_missing_healthcheck_and_profile_dependency_fail_closed",
       "title": "missing healthcheck and profile dependency fail closed",
       "status": "passed",
-      "duration_ms": 43.97
+      "duration_ms": 39.27
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_safe_ruby_environment_is_minimal_and_platform_native",
@@ -493,7 +493,7 @@
       "name": "test_safe_ruby_environment_is_minimal_and_platform_native",
       "title": "safe ruby environment is minimal and platform native",
       "status": "passed",
-      "duration_ms": 0.46
+      "duration_ms": 0.48
     },
     {
       "id": "test_atom_frontends.ComposeFrontendTests.test_safe_yaml_parser_pins_utf8_transport",
@@ -513,7 +513,7 @@
       "name": "test_python_argparse_dataflow_repairs_sibling_prerequisites",
       "title": "python argparse dataflow repairs sibling prerequisites",
       "status": "passed",
-      "duration_ms": 2.92
+      "duration_ms": 2.65
     },
     {
       "id": "test_atom_frontends.MakeFrontendTests.test_static_discovery_never_executes_shell_and_recipe_is_atomic",
@@ -523,7 +523,7 @@
       "name": "test_static_discovery_never_executes_shell_and_recipe_is_atomic",
       "title": "static discovery never executes shell and recipe is atomic",
       "status": "passed",
-      "duration_ms": 1.1
+      "duration_ms": 1.06
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_npm_test_lifecycle_and_recursive_expansion",
@@ -533,7 +533,7 @@
       "name": "test_npm_test_lifecycle_and_recursive_expansion",
       "title": "npm test lifecycle and recursive expansion",
       "status": "passed",
-      "duration_ms": 1.71
+      "duration_ms": 1.89
     },
     {
       "id": "test_atom_frontends.PackageFrontendTests.test_recursive_cycle_collapses_fail_closed",
@@ -543,7 +543,7 @@
       "name": "test_recursive_cycle_collapses_fail_closed",
       "title": "recursive cycle collapses fail closed",
       "status": "passed",
-      "duration_ms": 0.63
+      "duration_ms": 0.71
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_exact_success_and_order_edges",
@@ -553,7 +553,7 @@
       "name": "test_exact_success_and_order_edges",
       "title": "exact success and order edges",
       "status": "passed",
-      "duration_ms": 0.46
+      "duration_ms": 0.66
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_literal_inner_worker_count_is_bounded",
@@ -563,7 +563,7 @@
       "name": "test_literal_inner_worker_count_is_bounded",
       "title": "literal inner worker count is bounded",
       "status": "passed",
-      "duration_ms": 0.25
+      "duration_ms": 0.4
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_native_windows_gate_is_separate_from_portable_parser_contracts",
@@ -573,7 +573,7 @@
       "name": "test_native_windows_gate_is_separate_from_portable_parser_contracts",
       "title": "native windows gate is separate from portable parser contracts",
       "status": "passed",
-      "duration_ms": 0.3
+      "duration_ms": 0.35
     },
     {
       "id": "test_atom_frontends.ShellFrontendTests.test_unsupported_shell_regions_are_one_opaque_island",
@@ -583,7 +583,7 @@
       "name": "test_unsupported_shell_regions_are_one_opaque_island",
       "title": "unsupported shell regions are one opaque island",
       "status": "passed",
-      "duration_ms": 0.32
+      "duration_ms": 0.37
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_collect_keeps_only_aggregate_signals",
@@ -593,7 +593,7 @@
       "name": "test_collect_keeps_only_aggregate_signals",
       "title": "collect keeps only aggregate signals",
       "status": "passed",
-      "duration_ms": 0.37
+      "duration_ms": 0.48
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_labeled_issue_count_fails_closed_on_unexpected_shape",
@@ -603,7 +603,7 @@
       "name": "test_labeled_issue_count_fails_closed_on_unexpected_shape",
       "title": "labeled issue count fails closed on unexpected shape",
       "status": "passed",
-      "duration_ms": 0.18
+      "duration_ms": 0.19
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_missing_file_starts_empty_history",
@@ -613,7 +613,7 @@
       "name": "test_missing_file_starts_empty_history",
       "title": "missing file starts empty history",
       "status": "passed",
-      "duration_ms": 0.16
+      "duration_ms": 0.15
     },
     {
       "id": "test_collect_github_metrics.GithubMetricsTests.test_previous_authenticated_traffic_can_be_identified",
@@ -643,7 +643,7 @@
       "name": "test_share_outputs_are_machine_readable_and_honestly_labeled",
       "title": "share outputs are machine readable and honestly labeled",
       "status": "passed",
-      "duration_ms": 0.87
+      "duration_ms": 0.84
     },
     {
       "id": "test_growth_assets.GrowthAssetTests.test_showcase_payload_keeps_safe_form_length_margins",
@@ -653,7 +653,7 @@
       "name": "test_showcase_payload_keeps_safe_form_length_margins",
       "title": "showcase payload keeps safe form length margins",
       "status": "passed",
-      "duration_ms": 0.11
+      "duration_ms": 0.26
     },
     {
       "id": "test_growth_assets.GrowthAssetTests.test_social_preview_has_exact_dimensions_and_metrics",
@@ -673,7 +673,7 @@
       "name": "test_failed_run_is_latest_but_never_enters_cumulative",
       "title": "failed run is latest but never enters cumulative",
       "status": "passed",
-      "duration_ms": 0.11
+      "duration_ms": 0.09
     },
     {
       "id": "test_long_benchmark.LongBenchmarkTests.test_history_and_cumulative_are_separate_per_realm",
@@ -723,7 +723,7 @@
       "name": "test_summary_records_observed_runtime_and_windows_provenance",
       "title": "summary records observed runtime and windows provenance",
       "status": "passed",
-      "duration_ms": 0.06
+      "duration_ms": 0.05
     },
     {
       "id": "test_long_benchmark.LongBenchmarkTests.test_worker_completion_is_required_and_controls_duration_gate",
@@ -743,7 +743,7 @@
       "name": "test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor",
       "title": "atomic executor rejects lifecycle edges it cannot honor",
       "status": "passed",
-      "duration_ms": 300.24
+      "duration_ms": 330.1
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_pipe_stdin_round_trips_unicode_and_eof",
@@ -753,7 +753,7 @@
       "name": "test_atomic_pipe_stdin_round_trips_unicode_and_eof",
       "title": "atomic pipe stdin round trips unicode and eof",
       "status": "passed",
-      "duration_ms": 93.36
+      "duration_ms": 149.33
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
@@ -763,7 +763,7 @@
       "name": "test_atomic_plan_hash_covers_scheduler_and_resource_envelope",
       "title": "atomic plan hash covers scheduler and resource envelope",
       "status": "passed",
-      "duration_ms": 40.12
+      "duration_ms": 43.65
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
@@ -773,7 +773,7 @@
       "name": "test_atomic_plan_hash_survives_javascript_numeric_roundtrip",
       "title": "atomic plan hash survives javascript numeric roundtrip",
       "status": "passed",
-      "duration_ms": 41.36
+      "duration_ms": 43.9
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_failed_or_empty_run_never_credits_savings",
@@ -783,7 +783,7 @@
       "name": "test_failed_or_empty_run_never_credits_savings",
       "title": "failed or empty run never credits savings",
       "status": "passed",
-      "duration_ms": 1.3
+      "duration_ms": 1.1
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_live_console_emits_periodic_unchanged_state",
@@ -793,7 +793,7 @@
       "name": "test_live_console_emits_periodic_unchanged_state",
       "title": "live console emits periodic unchanged state",
       "status": "passed",
-      "duration_ms": 0.16
+      "duration_ms": 0.23
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_non_utf8_output_reports_replacement_instead_of_claiming_utf8",
@@ -803,7 +803,7 @@
       "name": "test_non_utf8_output_reports_replacement_instead_of_claiming_utf8",
       "title": "non utf8 output reports replacement instead of claiming utf8",
       "status": "passed",
-      "duration_ms": 10.9
+      "duration_ms": 12.39
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_output_is_bounded_during_read",
@@ -813,7 +813,7 @@
       "name": "test_output_is_bounded_during_read",
       "title": "output is bounded during read",
       "status": "passed",
-      "duration_ms": 13.27
+      "duration_ms": 14.26
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_progress_marks_savings_ineligible_after_failure",
@@ -823,7 +823,7 @@
       "name": "test_progress_marks_savings_ineligible_after_failure",
       "title": "progress marks savings ineligible after failure",
       "status": "passed",
-      "duration_ms": 0.26
+      "duration_ms": 0.3
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_raw_task_stdin_rejects_invalid_utf8_text",
@@ -833,7 +833,7 @@
       "name": "test_raw_task_stdin_rejects_invalid_utf8_text",
       "title": "raw task stdin rejects invalid utf8 text",
       "status": "passed",
-      "duration_ms": 0.21
+      "duration_ms": 0.25
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_reverse_order_failure_propagates_to_fixed_point",
@@ -843,7 +843,7 @@
       "name": "test_reverse_order_failure_propagates_to_fixed_point",
       "title": "reverse order failure propagates to fixed point",
       "status": "passed",
-      "duration_ms": 51.73
+      "duration_ms": 55.85
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_side_effect_timeout_has_unknown_outcome",
@@ -853,7 +853,7 @@
       "name": "test_side_effect_timeout_has_unknown_outcome",
       "title": "side effect timeout has unknown outcome",
       "status": "passed",
-      "duration_ms": 54.15
+      "duration_ms": 62.73
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_successful_overhead_keeps_cumulative_savings_monotonic",
@@ -863,7 +863,7 @@
       "name": "test_successful_overhead_keeps_cumulative_savings_monotonic",
       "title": "successful overhead keeps cumulative savings monotonic",
       "status": "passed",
-      "duration_ms": 1.36
+      "duration_ms": 1.1
     },
     {
       "id": "test_mcp_runtime.RuntimeTests.test_timeout_covers_blocked_stdin_delivery",
@@ -873,7 +873,7 @@
       "name": "test_timeout_covers_blocked_stdin_delivery",
       "title": "timeout covers blocked stdin delivery",
       "status": "passed",
-      "duration_ms": 54.8
+      "duration_ms": 56.27
     },
     {
       "id": "test_pages_evidence_selector.PagesEvidenceSelectorTests.test_every_trust_field_fails_closed",
@@ -883,7 +883,7 @@
       "name": "test_every_trust_field_fails_closed",
       "title": "every trust field fails closed",
       "status": "passed",
-      "duration_ms": 0.18
+      "duration_ms": 0.13
     },
     {
       "id": "test_pages_evidence_selector.PagesEvidenceSelectorTests.test_missing_or_oversized_payload_fails_closed",
@@ -893,7 +893,7 @@
       "name": "test_missing_or_oversized_payload_fails_closed",
       "title": "missing or oversized payload fails closed",
       "status": "passed",
-      "duration_ms": 1.99
+      "duration_ms": 1.68
     },
     {
       "id": "test_pages_evidence_selector.PagesEvidenceSelectorTests.test_valid_selector_is_narrow_and_nul_delimited",
@@ -903,7 +903,7 @@
       "name": "test_valid_selector_is_narrow_and_nul_delimited",
       "title": "valid selector is narrow and nul delimited",
       "status": "passed",
-      "duration_ms": 0.53
+      "duration_ms": 0.44
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_conpty_process_limit_policy_is_fail_closed",
@@ -923,7 +923,7 @@
       "name": "test_exclusive_stats_lock_never_loses_threaded_updates",
       "title": "exclusive stats lock never loses threaded updates",
       "status": "passed",
-      "duration_ms": 6.31
+      "duration_ms": 6.26
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_explicit_windows_path_resolution_is_hermetic_and_quote_strict",
@@ -943,7 +943,7 @@
       "name": "test_machine_snapshot_declares_sources_and_execution_boundary",
       "title": "machine snapshot declares sources and execution boundary",
       "status": "passed",
-      "duration_ms": 39.91
+      "duration_ms": 42.2
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_platform_contract_is_bound_into_immutable_plan",
@@ -953,7 +953,7 @@
       "name": "test_platform_contract_is_bound_into_immutable_plan",
       "title": "platform contract is bound into immutable plan",
       "status": "passed",
-      "duration_ms": 37.36
+      "duration_ms": 40.89
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_scenario_catalog_uses_portable_resource_planner_names",
@@ -963,7 +963,7 @@
       "name": "test_scenario_catalog_uses_portable_resource_planner_names",
       "title": "scenario catalog uses portable resource planner names",
       "status": "passed",
-      "duration_ms": 0.66
+      "duration_ms": 0.96
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_scenario_execution_keeps_apple_acceleration_advisory_off_macos",
@@ -1003,7 +1003,7 @@
       "name": "test_stats_path_uses_native_atomlane_directories",
       "title": "stats path uses native atomlane directories",
       "status": "passed",
-      "duration_ms": 0.47
+      "duration_ms": 0.52
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_brokered_realms_are_never_claimed_as_job_contained",
@@ -1013,7 +1013,7 @@
       "name": "test_windows_brokered_realms_are_never_claimed_as_job_contained",
       "title": "windows brokered realms are never claimed as job contained",
       "status": "passed",
-      "duration_ms": 0.02
+      "duration_ms": 0.03
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_capabilities_publish_preview_constraints",
@@ -1023,7 +1023,7 @@
       "name": "test_windows_capabilities_publish_preview_constraints",
       "title": "windows capabilities publish preview constraints",
       "status": "passed",
-      "duration_ms": 0.11
+      "duration_ms": 0.12
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_hardware_snapshot_never_exposes_computer_name",
@@ -1033,7 +1033,7 @@
       "name": "test_windows_hardware_snapshot_never_exposes_computer_name",
       "title": "windows hardware snapshot never exposes computer name",
       "status": "passed",
-      "duration_ms": 0.32
+      "duration_ms": 0.35
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_scenario_plan_does_not_emit_apple_accelerator_executor",
@@ -1043,7 +1043,7 @@
       "name": "test_windows_scenario_plan_does_not_emit_apple_accelerator_executor",
       "title": "windows scenario plan does not emit apple accelerator executor",
       "status": "passed",
-      "duration_ms": 11.59
+      "duration_ms": 12.29
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_scenario_plan_uses_portable_host_resource_executor",
@@ -1053,7 +1053,7 @@
       "name": "test_windows_scenario_plan_uses_portable_host_resource_executor",
       "title": "windows scenario plan uses portable host resource executor",
       "status": "passed",
-      "duration_ms": 2.0
+      "duration_ms": 2.26
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_stats_lock_has_a_bounded_contention_deadline",
@@ -1063,7 +1063,7 @@
       "name": "test_windows_stats_lock_has_a_bounded_contention_deadline",
       "title": "windows stats lock has a bounded contention deadline",
       "status": "passed",
-      "duration_ms": 0.49
+      "duration_ms": 0.66
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_stats_lock_propagates_non_contention_errors",
@@ -1073,7 +1073,7 @@
       "name": "test_windows_stats_lock_propagates_non_contention_errors",
       "title": "windows stats lock propagates non contention errors",
       "status": "passed",
-      "duration_ms": 0.44
+      "duration_ms": 0.54
     },
     {
       "id": "test_platform_adapter.PlatformAdapterTests.test_windows_stats_lock_retries_expected_contention",
@@ -1083,7 +1083,7 @@
       "name": "test_windows_stats_lock_retries_expected_contention",
       "title": "windows stats lock retries expected contention",
       "status": "passed",
-      "duration_ms": 0.41
+      "duration_ms": 0.44
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_browser_bundle_dependencies_have_exact_license_payloads",
@@ -1093,7 +1093,7 @@
       "name": "test_browser_bundle_dependencies_have_exact_license_payloads",
       "title": "browser bundle dependencies have exact license payloads",
       "status": "passed",
-      "duration_ms": 1.27
+      "duration_ms": 3.38
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_codex_package_excludes_local_run_and_scratch_data",
@@ -1103,7 +1103,7 @@
       "name": "test_codex_package_excludes_local_run_and_scratch_data",
       "title": "codex package excludes local run and scratch data",
       "status": "passed",
-      "duration_ms": 0.1
+      "duration_ms": 0.18
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_current_product_surfaces_do_not_publish_legacy_identity",
@@ -1113,7 +1113,7 @@
       "name": "test_current_product_surfaces_do_not_publish_legacy_identity",
       "title": "current product surfaces do not publish legacy identity",
       "status": "passed",
-      "duration_ms": 144.29
+      "duration_ms": 161.97
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_manifest_uses_closed_agent_plugins_v1_shape",
@@ -1133,7 +1133,7 @@
       "name": "test_packaged_manifests_launch_from_a_unicode_space_path",
       "title": "packaged manifests launch from a unicode space path",
       "status": "passed",
-      "duration_ms": 791.48
+      "duration_ms": 721.96
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_portable_and_codex_manifests_share_identity",
@@ -1143,7 +1143,7 @@
       "name": "test_portable_and_codex_manifests_share_identity",
       "title": "portable and codex manifests share identity",
       "status": "passed",
-      "duration_ms": 0.34
+      "duration_ms": 0.27
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_portable_skill_discovery_is_unambiguous",
@@ -1153,7 +1153,7 @@
       "name": "test_portable_skill_discovery_is_unambiguous",
       "title": "portable skill discovery is unambiguous",
       "status": "passed",
-      "duration_ms": 0.37
+      "duration_ms": 0.29
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_release_version_is_consistent_across_every_published_surface",
@@ -1163,7 +1163,7 @@
       "name": "test_release_version_is_consistent_across_every_published_surface",
       "title": "release version is consistent across every published surface",
       "status": "passed",
-      "duration_ms": 0.51
+      "duration_ms": 0.67
     },
     {
       "id": "test_portable_plugin.PortableAgentPluginTests.test_stdio_server_is_plugin_root_relative_and_closed",
@@ -1193,7 +1193,7 @@
       "name": "test_existing_external_results_remain_valid",
       "title": "existing external results remain valid",
       "status": "passed",
-      "duration_ms": 0.13
+      "duration_ms": 0.2
     },
     {
       "id": "test_project_benchmark_schema.ProjectBenchmarkSchemaTests.test_platform_realm_and_backend_combinations_fail_closed",
@@ -1203,7 +1203,7 @@
       "name": "test_platform_realm_and_backend_combinations_fail_closed",
       "title": "platform realm and backend combinations fail closed",
       "status": "passed",
-      "duration_ms": 0.49
+      "duration_ms": 0.47
     },
     {
       "id": "test_project_benchmark_schema.ProjectBenchmarkSchemaTests.test_valid_macos_windows_and_wsl_results",
@@ -1213,7 +1213,7 @@
       "name": "test_valid_macos_windows_and_wsl_results",
       "title": "valid macos windows and wsl results",
       "status": "passed",
-      "duration_ms": 1.99
+      "duration_ms": 1.83
     },
     {
       "id": "test_project_benchmark_schema.ProjectBenchmarkSchemaTests.test_version_commit_and_repetition_floor_are_enforced",
@@ -1223,7 +1223,7 @@
       "name": "test_version_commit_and_repetition_floor_are_enforced",
       "title": "version commit and repetition floor are enforced",
       "status": "passed",
-      "duration_ms": 0.14
+      "duration_ms": 0.13
     },
     {
       "id": "test_project_benchmark_schema.ProjectBenchmarkSchemaTests.test_windows_evidence_is_required_and_terminal_semantics_match",
@@ -1233,7 +1233,7 @@
       "name": "test_windows_evidence_is_required_and_terminal_semantics_match",
       "title": "windows evidence is required and terminal semantics match",
       "status": "passed",
-      "duration_ms": 1.0
+      "duration_ms": 0.96
     },
     {
       "id": "test_project_benchmark_schema.ProjectBenchmarkSchemaTests.test_windows_memory_floor_and_broker_boundary_are_enforced",
@@ -1243,7 +1243,7 @@
       "name": "test_windows_memory_floor_and_broker_boundary_are_enforced",
       "title": "windows memory floor and broker boundary are enforced",
       "status": "passed",
-      "duration_ms": 0.36
+      "duration_ms": 0.35
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_augmented_live_out_blocks_rewrite",
@@ -1253,7 +1253,7 @@
       "name": "test_append_loop_augmented_live_out_blocks_rewrite",
       "title": "append loop augmented live out blocks rewrite",
       "status": "passed",
-      "duration_ms": 1.68
+      "duration_ms": 2.2
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_external_or_reflective_target_binding_blocks_rewrite",
@@ -1263,7 +1263,7 @@
       "name": "test_append_loop_external_or_reflective_target_binding_blocks_rewrite",
       "title": "append loop external or reflective target binding blocks rewrite",
       "status": "passed",
-      "duration_ms": 3.56
+      "duration_ms": 3.7
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_preserves_order_with_executor_map",
@@ -1273,7 +1273,7 @@
       "name": "test_append_loop_preserves_order_with_executor_map",
       "title": "append loop preserves order with executor map",
       "status": "passed",
-      "duration_ms": 1.45
+      "duration_ms": 1.64
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_reaching_definition_rejects_destructuring_rebind",
@@ -1283,7 +1283,7 @@
       "name": "test_append_loop_reaching_definition_rejects_destructuring_rebind",
       "title": "append loop reaching definition rejects destructuring rebind",
       "status": "passed",
-      "duration_ms": 1.0
+      "duration_ms": 1.14
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_append_loop_variable_live_out_blocks_rewrite",
@@ -1293,7 +1293,7 @@
       "name": "test_append_loop_variable_live_out_blocks_rewrite",
       "title": "append loop variable live out blocks rewrite",
       "status": "passed",
-      "duration_ms": 0.98
+      "duration_ms": 1.05
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_boolean_numeric_limits_are_rejected",
@@ -1313,7 +1313,7 @@
       "name": "test_callable_identity_and_guard_mutations_block_spawn_rewrite",
       "title": "callable identity and guard mutations block spawn rewrite",
       "status": "passed",
-      "duration_ms": 4.01
+      "duration_ms": 4.11
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_candidate_limit_reports_only_actual_truncation",
@@ -1323,7 +1323,7 @@
       "name": "test_candidate_limit_reports_only_actual_truncation",
       "title": "candidate limit reports only actual truncation",
       "status": "passed",
-      "duration_ms": 2.08
+      "duration_ms": 2.07
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_class_scope_and_repeated_pool_creation_are_not_rewriteable",
@@ -1333,7 +1333,7 @@
       "name": "test_class_scope_and_repeated_pool_creation_are_not_rewriteable",
       "title": "class scope and repeated pool creation are not rewriteable",
       "status": "passed",
-      "duration_ms": 1.57
+      "duration_ms": 1.74
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_core_rejects_non_boolean_preview_and_oversized_input_arrays",
@@ -1343,7 +1343,7 @@
       "name": "test_core_rejects_non_boolean_preview_and_oversized_input_arrays",
       "title": "core rejects non boolean preview and oversized input arrays",
       "status": "passed",
-      "duration_ms": 0.33
+      "duration_ms": 0.51
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_deep_ast_is_reported_without_crashing",
@@ -1353,7 +1353,7 @@
       "name": "test_deep_ast_is_reported_without_crashing",
       "title": "deep ast is reported without crashing",
       "status": "passed",
-      "duration_ms": 13.48
+      "duration_ms": 13.82
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_definition_time_effects_block_spawn_preview",
@@ -1363,7 +1363,7 @@
       "name": "test_definition_time_effects_block_spawn_preview",
       "title": "definition time effects block spawn preview",
       "status": "passed",
-      "duration_ms": 2.42
+      "duration_ms": 2.94
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_dense_valid_source_is_rejected_before_ast_construction",
@@ -1373,7 +1373,7 @@
       "name": "test_dense_valid_source_is_rejected_before_ast_construction",
       "title": "dense valid source is rejected before ast construction",
       "status": "passed",
-      "duration_ms": 26.87
+      "duration_ms": 28.42
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_discovery_skips_virtualenv_and_is_sorted",
@@ -1383,7 +1383,7 @@
       "name": "test_discovery_skips_virtualenv_and_is_sorted",
       "title": "discovery skips virtualenv and is sorted",
       "status": "passed",
-      "duration_ms": 2.87
+      "duration_ms": 2.88
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_dunder_name_rebinding_cannot_fake_spawn_guard",
@@ -1393,7 +1393,7 @@
       "name": "test_dunder_name_rebinding_cannot_fake_spawn_guard",
       "title": "dunder name rebinding cannot fake spawn guard",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 1.06
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_emitted_diff_applies_and_matches_serial_execution",
@@ -1403,7 +1403,7 @@
       "name": "test_emitted_diff_applies_and_matches_serial_execution",
       "title": "emitted diff applies and matches serial execution",
       "status": "passed",
-      "duration_ms": 105.22
+      "duration_ms": 114.73
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_emitted_diff_applies_to_crlf_source_as_exact_utf8_bytes",
@@ -1413,7 +1413,7 @@
       "name": "test_emitted_diff_applies_to_crlf_source_as_exact_utf8_bytes",
       "title": "emitted diff applies to crlf source as exact utf8 bytes",
       "status": "passed",
-      "duration_ms": 11.94
+      "duration_ms": 12.25
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_environment_read_fails_closed",
@@ -1423,7 +1423,7 @@
       "name": "test_environment_read_fails_closed",
       "title": "environment read fails closed",
       "status": "passed",
-      "duration_ms": 1.29
+      "duration_ms": 1.34
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_explicit_termination_and_assertions_block_spawn_rewrite",
@@ -1433,7 +1433,7 @@
       "name": "test_explicit_termination_and_assertions_block_spawn_rewrite",
       "title": "explicit termination and assertions block spawn rewrite",
       "status": "passed",
-      "duration_ms": 2.26
+      "duration_ms": 2.62
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_file_read_is_advisory_only",
@@ -1443,7 +1443,7 @@
       "name": "test_file_read_is_advisory_only",
       "title": "file read is advisory only",
       "status": "passed",
-      "duration_ms": 0.89
+      "duration_ms": 1.07
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_free_name_worker_import_subscript_write_and_module_annotation_fail_closed",
@@ -1453,7 +1453,7 @@
       "name": "test_free_name_worker_import_subscript_write_and_module_annotation_fail_closed",
       "title": "free name worker import subscript write and module annotation fail closed",
       "status": "passed",
-      "duration_ms": 2.9
+      "duration_ms": 3.04
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_global_write_fails_closed",
@@ -1463,7 +1463,7 @@
       "name": "test_global_write_fails_closed",
       "title": "global write fails closed",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.91
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_import_requires_spawn_safety_review_without_importing_target",
@@ -1473,7 +1473,7 @@
       "name": "test_import_requires_spawn_safety_review_without_importing_target",
       "title": "import requires spawn safety review without importing target",
       "status": "passed",
-      "duration_ms": 0.83
+      "duration_ms": 1.02
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_invalid_hotspot_numbers_are_rejected",
@@ -1483,7 +1483,7 @@
       "name": "test_invalid_hotspot_numbers_are_rejected",
       "title": "invalid hotspot numbers are rejected",
       "status": "passed",
-      "duration_ms": 0.53
+      "duration_ms": 0.52
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_iterable_proof_rejects_intervening_control_flow_rebind",
@@ -1493,7 +1493,7 @@
       "name": "test_iterable_proof_rejects_intervening_control_flow_rebind",
       "title": "iterable proof rejects intervening control flow rebind",
       "status": "passed",
-      "duration_ms": 1.1
+      "duration_ms": 1.23
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_iterable_proof_rejects_shadowed_materializer_builtin",
@@ -1503,7 +1503,7 @@
       "name": "test_iterable_proof_rejects_shadowed_materializer_builtin",
       "title": "iterable proof rejects shadowed materializer builtin",
       "status": "passed",
-      "duration_ms": 0.97
+      "duration_ms": 1.12
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_lazy_or_unresolved_iterable_blocks_cpu_rewrite",
@@ -1513,7 +1513,7 @@
       "name": "test_lazy_or_unresolved_iterable_blocks_cpu_rewrite",
       "title": "lazy or unresolved iterable blocks cpu rewrite",
       "status": "passed",
-      "duration_ms": 0.81
+      "duration_ms": 0.84
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_main_guard_proof_rejects_deferred_else_async_and_generator_calls",
@@ -1523,7 +1523,7 @@
       "name": "test_main_guard_proof_rejects_deferred_else_async_and_generator_calls",
       "title": "main guard proof rejects deferred else async and generator calls",
       "status": "passed",
-      "duration_ms": 2.84
+      "duration_ms": 2.92
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_dispatch_returns_matching_structured_and_text_content",
@@ -1533,7 +1533,7 @@
       "name": "test_mcp_dispatch_returns_matching_structured_and_text_content",
       "title": "mcp dispatch returns matching structured and text content",
       "status": "passed",
-      "duration_ms": 41.26
+      "duration_ms": 43.54
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_one_worker_resource_plan_withholds_process_benefit",
@@ -1543,7 +1543,7 @@
       "name": "test_mcp_one_worker_resource_plan_withholds_process_benefit",
       "title": "mcp one worker resource plan withholds process benefit",
       "status": "passed",
-      "duration_ms": 1.27
+      "duration_ms": 1.53
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_rejects_non_absolute_project_path",
@@ -1563,7 +1563,7 @@
       "name": "test_mcp_runtime_rejects_schema_bypasses",
       "title": "mcp runtime rejects schema bypasses",
       "status": "passed",
-      "duration_ms": 290.03
+      "duration_ms": 306.83
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_mcp_schema_is_closed_and_explicitly_non_executing",
@@ -1573,7 +1573,7 @@
       "name": "test_mcp_schema_is_closed_and_explicitly_non_executing",
       "title": "mcp schema is closed and explicitly non executing",
       "status": "passed",
-      "duration_ms": 0.23
+      "duration_ms": 0.33
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_measured_hotspot_is_distinguished_from_modeled_projection",
@@ -1583,7 +1583,7 @@
       "name": "test_measured_hotspot_is_distinguished_from_modeled_projection",
       "title": "measured hotspot is distinguished from modeled projection",
       "status": "passed",
-      "duration_ms": 1.86
+      "duration_ms": 1.77
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_final_newline_never_produces_a_malformed_diff",
@@ -1593,7 +1593,7 @@
       "name": "test_missing_final_newline_never_produces_a_malformed_diff",
       "title": "missing final newline never produces a malformed diff",
       "status": "passed",
-      "duration_ms": 0.77
+      "duration_ms": 0.96
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_main_guard_is_conditional_and_has_no_patch",
@@ -1603,7 +1603,7 @@
       "name": "test_missing_main_guard_is_conditional_and_has_no_patch",
       "title": "missing main guard is conditional and has no patch",
       "status": "passed",
-      "duration_ms": 0.72
+      "duration_ms": 1.19
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_missing_project_root_is_reported_as_advisor_error",
@@ -1613,7 +1613,7 @@
       "name": "test_missing_project_root_is_reported_as_advisor_error",
       "title": "missing project root is reported as advisor error",
       "status": "passed",
-      "duration_ms": 0.21
+      "duration_ms": 0.34
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_module_global_read_fails_closed_for_spawn_semantics",
@@ -1623,7 +1623,7 @@
       "name": "test_module_global_read_fails_closed_for_spawn_semantics",
       "title": "module global read fails closed for spawn semantics",
       "status": "passed",
-      "duration_ms": 1.01
+      "duration_ms": 1.17
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_native_or_existing_parallelism_avoids_nested_pool",
@@ -1633,7 +1633,7 @@
       "name": "test_native_or_existing_parallelism_avoids_nested_pool",
       "title": "native or existing parallelism avoids nested pool",
       "status": "passed",
-      "duration_ms": 1.04
+      "duration_ms": 1.27
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_network_and_subprocess_are_advice_not_patches",
@@ -1643,7 +1643,7 @@
       "name": "test_network_and_subprocess_are_advice_not_patches",
       "title": "network and subprocess are advice not patches",
       "status": "passed",
-      "duration_ms": 1.6
+      "duration_ms": 1.72
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_no_runtime_evidence_never_invents_speedup",
@@ -1653,7 +1653,7 @@
       "name": "test_no_runtime_evidence_never_invents_speedup",
       "title": "no runtime evidence never invents speedup",
       "status": "passed",
-      "duration_ms": 1.27
+      "duration_ms": 1.25
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_one_worker_and_low_benefit_never_emit_process_rewrite",
@@ -1663,7 +1663,7 @@
       "name": "test_one_worker_and_low_benefit_never_emit_process_rewrite",
       "title": "one worker and low benefit never emit process rewrite",
       "status": "passed",
-      "duration_ms": 1.81
+      "duration_ms": 1.95
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_outer_parallel_context_blocks_nested_rewrite",
@@ -1673,7 +1673,7 @@
       "name": "test_outer_parallel_context_blocks_nested_rewrite",
       "title": "outer parallel context blocks nested rewrite",
       "status": "passed",
-      "duration_ms": 0.88
+      "duration_ms": 0.94
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_output_is_deterministic_and_source_hash_bound",
@@ -1683,7 +1683,7 @@
       "name": "test_output_is_deterministic_and_source_hash_bound",
       "title": "output is deterministic and source hash bound",
       "status": "passed",
-      "duration_ms": 2.95
+      "duration_ms": 3.25
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_oversized_source_is_rejected_before_an_unbounded_read",
@@ -1693,7 +1693,7 @@
       "name": "test_oversized_source_is_rejected_before_an_unbounded_read",
       "title": "oversized source is rejected before an unbounded read",
       "status": "passed",
-      "duration_ms": 0.8
+      "duration_ms": 0.85
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_path_escape_and_symlink_escape_are_rejected",
@@ -1703,7 +1703,7 @@
       "name": "test_path_escape_and_symlink_escape_are_rejected",
       "title": "path escape and symlink escape are rejected",
       "status": "passed",
-      "duration_ms": 0.87
+      "duration_ms": 1.03
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_preview_refuses_shared_physical_source_lines",
@@ -1713,7 +1713,7 @@
       "name": "test_preview_refuses_shared_physical_source_lines",
       "title": "preview refuses shared physical source lines",
       "status": "passed",
-      "duration_ms": 1.64
+      "duration_ms": 1.92
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_process_specific_dynamic_values_block_spawn_rewrite",
@@ -1723,7 +1723,7 @@
       "name": "test_process_specific_dynamic_values_block_spawn_rewrite",
       "title": "process specific dynamic values block spawn rewrite",
       "status": "passed",
-      "duration_ms": 3.02
+      "duration_ms": 3.55
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_pure_ordered_map_emits_hash_bound_process_preview",
@@ -1733,7 +1733,7 @@
       "name": "test_pure_ordered_map_emits_hash_bound_process_preview",
       "title": "pure ordered map emits hash bound process preview",
       "status": "passed",
-      "duration_ms": 1.2
+      "duration_ms": 1.3
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_aliases_do_not_collide_with_function_parameters",
@@ -1743,7 +1743,7 @@
       "name": "test_rewrite_aliases_do_not_collide_with_function_parameters",
       "title": "rewrite aliases do not collide with function parameters",
       "status": "passed",
-      "duration_ms": 1.08
+      "duration_ms": 1.86
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_does_not_discard_internal_comments",
@@ -1753,7 +1753,7 @@
       "name": "test_rewrite_does_not_discard_internal_comments",
       "title": "rewrite does not discard internal comments",
       "status": "passed",
-      "duration_ms": 0.83
+      "duration_ms": 1.07
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_does_not_emit_control_characters_in_diff_headers",
@@ -1763,7 +1763,7 @@
       "name": "test_rewrite_does_not_emit_control_characters_in_diff_headers",
       "title": "rewrite does not emit control characters in diff headers",
       "status": "passed",
-      "duration_ms": 0.26
+      "duration_ms": 0.35
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_preserves_shebang_and_encoding_cookie_before_import",
@@ -1773,7 +1773,7 @@
       "name": "test_rewrite_preserves_shebang_and_encoding_cookie_before_import",
       "title": "rewrite preserves shebang and encoding cookie before import",
       "status": "passed",
-      "duration_ms": 0.99
+      "duration_ms": 1.2
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_rewrite_uses_collision_resistant_executor_and_pool_names",
@@ -1783,7 +1783,7 @@
       "name": "test_rewrite_uses_collision_resistant_executor_and_pool_names",
       "title": "rewrite uses collision resistant executor and pool names",
       "status": "passed",
-      "duration_ms": 1.15
+      "duration_ms": 1.3
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_same_module_function_values_block_spawn_rewrite",
@@ -1793,7 +1793,7 @@
       "name": "test_same_module_function_values_block_spawn_rewrite",
       "title": "same module function values block spawn rewrite",
       "status": "passed",
-      "duration_ms": 1.52
+      "duration_ms": 1.71
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_shadowed_builtin_is_not_treated_as_pure",
@@ -1803,7 +1803,7 @@
       "name": "test_shadowed_builtin_is_not_treated_as_pure",
       "title": "shadowed builtin is not treated as pure",
       "status": "passed",
-      "duration_ms": 0.89
+      "duration_ms": 1.29
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_single_item_is_not_a_rewrite_candidate",
@@ -1813,7 +1813,7 @@
       "name": "test_single_item_is_not_a_rewrite_candidate",
       "title": "single item is not a rewrite candidate",
       "status": "passed",
-      "duration_ms": 0.83
+      "duration_ms": 1.17
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_source_read_does_not_follow_a_post_validation_symlink_swap",
@@ -1823,7 +1823,7 @@
       "name": "test_source_read_does_not_follow_a_post_validation_symlink_swap",
       "title": "source read does not follow a post validation symlink swap",
       "status": "passed",
-      "duration_ms": 1.05
+      "duration_ms": 1.61
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_spawn_fixture_preserves_order_and_values",
@@ -1833,7 +1833,7 @@
       "name": "test_spawn_fixture_preserves_order_and_values",
       "title": "spawn fixture preserves order and values",
       "status": "passed",
-      "duration_ms": 88.19
+      "duration_ms": 95.48
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_spawn_import_rejects_guard_only_names_and_module_target_mutation",
@@ -1843,7 +1843,7 @@
       "name": "test_spawn_import_rejects_guard_only_names_and_module_target_mutation",
       "title": "spawn import rejects guard only names and module target mutation",
       "status": "passed",
-      "duration_ms": 2.71
+      "duration_ms": 3.09
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_sync_worker_calling_async_helper_is_not_process_rewriteable",
@@ -1853,7 +1853,7 @@
       "name": "test_sync_worker_calling_async_helper_is_not_process_rewriteable",
       "title": "sync worker calling async helper is not process rewriteable",
       "status": "passed",
-      "duration_ms": 0.91
+      "duration_ms": 0.94
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_syntax_utf8_and_size_failures_are_structured",
@@ -1863,7 +1863,7 @@
       "name": "test_syntax_utf8_and_size_failures_are_structured",
       "title": "syntax utf8 and size failures are structured",
       "status": "passed",
-      "duration_ms": 1.51
+      "duration_ms": 2.36
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_top_level_import_side_effect_blocks_process_rewrite_without_executing",
@@ -1873,7 +1873,7 @@
       "name": "test_top_level_import_side_effect_blocks_process_rewrite_without_executing",
       "title": "top level import side effect blocks process rewrite without executing",
       "status": "passed",
-      "duration_ms": 1.07
+      "duration_ms": 1.04
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_transitive_helper_rebindings_block_rewrite",
@@ -1883,7 +1883,7 @@
       "name": "test_transitive_helper_rebindings_block_rewrite",
       "title": "transitive helper rebindings block rewrite",
       "status": "passed",
-      "duration_ms": 4.73
+      "duration_ms": 4.94
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_unknown_call_fails_closed",
@@ -1893,7 +1893,7 @@
       "name": "test_unknown_call_fails_closed",
       "title": "unknown call fails closed",
       "status": "passed",
-      "duration_ms": 0.81
+      "duration_ms": 0.82
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_unknown_receiver_method_fails_closed",
@@ -1903,7 +1903,7 @@
       "name": "test_unknown_receiver_method_fails_closed",
       "title": "unknown receiver method fails closed",
       "status": "passed",
-      "duration_ms": 0.8
+      "duration_ms": 0.78
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_windows_target_caps_process_rewrite_at_platform_limit",
@@ -1913,7 +1913,7 @@
       "name": "test_windows_target_caps_process_rewrite_at_platform_limit",
       "title": "windows target caps process rewrite at platform limit",
       "status": "passed",
-      "duration_ms": 40.26
+      "duration_ms": 45.13
     },
     {
       "id": "test_python_parallel_advisor.PythonParallelAdvisorTests.test_worker_and_main_rebindings_block_rewrite",
@@ -1923,7 +1923,7 @@
       "name": "test_worker_and_main_rebindings_block_rewrite",
       "title": "worker and main rebindings block rewrite",
       "status": "passed",
-      "duration_ms": 4.79
+      "duration_ms": 4.99
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_bundle_check_invokes_node_without_a_platform_shell_shim",
@@ -1933,7 +1933,7 @@
       "name": "test_bundle_check_invokes_node_without_a_platform_shell_shim",
       "title": "bundle check invokes node without a platform shell shim",
       "status": "passed",
-      "duration_ms": 0.56
+      "duration_ms": 0.58
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_ci_generates_explicit_native_windows_self_report",
@@ -1943,7 +1943,7 @@
       "name": "test_ci_generates_explicit_native_windows_self_report",
       "title": "ci generates explicit native windows self report",
       "status": "passed",
-      "duration_ms": 0.08
+      "duration_ms": 0.09
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_json_evidence_canonicalizer_is_lf_and_rejects_ambiguous_json",
@@ -1953,7 +1953,7 @@
       "name": "test_json_evidence_canonicalizer_is_lf_and_rejects_ambiguous_json",
       "title": "json evidence canonicalizer is lf and rejects ambiguous json",
       "status": "passed",
-      "duration_ms": 0.76
+      "duration_ms": 1.12
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_macos_benchmark_accepts_only_complete_source_bound_evidence",
@@ -1963,7 +1963,7 @@
       "name": "test_macos_benchmark_accepts_only_complete_source_bound_evidence",
       "title": "macos benchmark accepts only complete source bound evidence",
       "status": "passed",
-      "duration_ms": 0.75
+      "duration_ms": 1.05
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_macos_benchmark_artifact_cli_requires_exact_commit",
@@ -1973,7 +1973,7 @@
       "name": "test_macos_benchmark_artifact_cli_requires_exact_commit",
       "title": "macos benchmark artifact cli requires exact commit",
       "status": "passed",
-      "duration_ms": 1.73
+      "duration_ms": 1.72
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_macos_benchmark_gate_rejects_incomplete_or_forged_evidence",
@@ -1983,7 +1983,7 @@
       "name": "test_macos_benchmark_gate_rejects_incomplete_or_forged_evidence",
       "title": "macos benchmark gate rejects incomplete or forged evidence",
       "status": "passed",
-      "duration_ms": 1.24
+      "duration_ms": 1.27
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_native_windows_report_role_fails_closed_off_windows",
@@ -2033,7 +2033,7 @@
       "name": "test_public_runner_label_never_exposes_runner_name",
       "title": "public runner label never exposes runner name",
       "status": "passed",
-      "duration_ms": 0.22
+      "duration_ms": 0.2
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_python_advisor_evidence_fails_when_execution_marker_exists",
@@ -2043,7 +2043,7 @@
       "name": "test_python_advisor_evidence_fails_when_execution_marker_exists",
       "title": "python advisor evidence fails when execution marker exists",
       "status": "passed",
-      "duration_ms": 4.99
+      "duration_ms": 5.1
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_python_advisor_evidence_is_non_executing_and_hash_stable",
@@ -2053,7 +2053,7 @@
       "name": "test_python_advisor_evidence_is_non_executing_and_hash_stable",
       "title": "python advisor evidence is non executing and hash stable",
       "status": "passed",
-      "duration_ms": 3.23
+      "duration_ms": 3.28
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_report_domains_cover_every_discovered_regression_module",
@@ -2083,7 +2083,7 @@
       "name": "test_source_provenance_allows_only_restored_evidence_inputs",
       "title": "source provenance allows only restored evidence inputs",
       "status": "passed",
-      "duration_ms": 0.15
+      "duration_ms": 0.14
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_windows_benchmark_cli_reports_nested_success_status",
@@ -2093,7 +2093,7 @@
       "name": "test_windows_benchmark_cli_reports_nested_success_status",
       "title": "windows benchmark cli reports nested success status",
       "status": "passed",
-      "duration_ms": 0.33
+      "duration_ms": 0.32
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_windows_benchmark_rejects_incomplete_or_forged_worker_evidence",
@@ -2103,7 +2103,7 @@
       "name": "test_windows_benchmark_rejects_incomplete_or_forged_worker_evidence",
       "title": "windows benchmark rejects incomplete or forged worker evidence",
       "status": "passed",
-      "duration_ms": 4.67
+      "duration_ms": 4.83
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_windows_benchmark_requires_observed_five_minute_native_evidence",
@@ -2123,7 +2123,7 @@
       "name": "test_windows_evidence_rejects_recursive_or_inconsistent_self_summaries",
       "title": "windows evidence rejects recursive or inconsistent self summaries",
       "status": "passed",
-      "duration_ms": 4.77
+      "duration_ms": 5.05
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_windows_evidence_requires_a_native_windows_report",
@@ -2133,7 +2133,7 @@
       "name": "test_windows_evidence_requires_a_native_windows_report",
       "title": "windows evidence requires a native windows report",
       "status": "passed",
-      "duration_ms": 1.32
+      "duration_ms": 1.23
     },
     {
       "id": "test_report_rendering.ReportRenderingTests.test_windows_evidence_self_summary_is_canonical_and_non_recursive",
@@ -2143,7 +2143,7 @@
       "name": "test_windows_evidence_self_summary_is_canonical_and_non_recursive",
       "title": "windows evidence self summary is canonical and non recursive",
       "status": "passed",
-      "duration_ms": 0.08
+      "duration_ms": 0.07
     },
     {
       "id": "test_ui_bundle_security.UiBundleSecurityTests.test_bundle_contains_no_dynamic_code_evaluation",
@@ -2153,7 +2153,7 @@
       "name": "test_bundle_contains_no_dynamic_code_evaluation",
       "title": "bundle contains no dynamic code evaluation",
       "status": "passed",
-      "duration_ms": 6.14
+      "duration_ms": 6.6
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_case_insensitive_environment_merge_prefers_task_spelling",
@@ -2173,7 +2173,7 @@
       "name": "test_conpty_explicit_stdin_fails_at_both_launch_boundaries",
       "title": "conpty explicit stdin fails at both launch boundaries",
       "status": "passed",
-      "duration_ms": 0.35
+      "duration_ms": 0.37
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_conpty_reader_fails_closed_on_zero_progress",
@@ -2183,7 +2183,7 @@
       "name": "test_conpty_reader_fails_closed_on_zero_progress",
       "title": "conpty reader fails closed on zero progress",
       "status": "passed",
-      "duration_ms": 0.1
+      "duration_ms": 0.13
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_conpty_reader_marshals_output_sink_failure",
@@ -2203,7 +2203,7 @@
       "name": "test_conpty_thread_reclamation_has_a_hard_deadline",
       "title": "conpty thread reclamation has a hard deadline",
       "status": "passed",
-      "duration_ms": 37.73
+      "duration_ms": 34.09
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_cpu_rate_below_windows_precision_fails_closed",
@@ -2213,7 +2213,7 @@
       "name": "test_cpu_rate_below_windows_precision_fails_closed",
       "title": "cpu rate below windows precision fails closed",
       "status": "passed",
-      "duration_ms": 0.46
+      "duration_ms": 0.33
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_environment_block_has_exactly_two_terminal_nuls",
@@ -2223,7 +2223,7 @@
       "name": "test_environment_block_has_exactly_two_terminal_nuls",
       "title": "environment block has exactly two terminal nuls",
       "status": "passed",
-      "duration_ms": 0.38
+      "duration_ms": 0.26
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_hidden_drive_environment_entries_are_not_forwarded",
@@ -2243,7 +2243,7 @@
       "name": "test_job_slot_reservations_exist_only_for_verified_active_limits",
       "title": "job slot reservations exist only for verified active limits",
       "status": "passed",
-      "duration_ms": 0.05
+      "duration_ms": 0.04
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_memory_limit_reserves_space_for_supervisor_and_target",
@@ -2253,7 +2253,7 @@
       "name": "test_memory_limit_reserves_space_for_supervisor_and_target",
       "title": "memory limit reserves space for supervisor and target",
       "status": "passed",
-      "duration_ms": 0.26
+      "duration_ms": 0.35
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_pipe_runner_pins_executable_and_closes_unrelated_handles",
@@ -2263,7 +2263,7 @@
       "name": "test_pipe_runner_pins_executable_and_closes_unrelated_handles",
       "title": "pipe runner pins executable and closes unrelated handles",
       "status": "passed",
-      "duration_ms": 0.22
+      "duration_ms": 0.19
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_raw_task_and_atom_use_shared_windows_argv_preflight",
@@ -2273,7 +2273,7 @@
       "name": "test_raw_task_and_atom_use_shared_windows_argv_preflight",
       "title": "raw task and atom use shared windows argv preflight",
       "status": "passed",
-      "duration_ms": 0.4
+      "duration_ms": 0.49
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_reported_containment_scope_handles_an_absent_broker",
@@ -2303,7 +2303,7 @@
       "name": "test_runner_rejects_non_image_executable_extensions",
       "title": "runner rejects non image executable extensions",
       "status": "passed",
-      "duration_ms": 0.04
+      "duration_ms": 0.03
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_shared_windows_argv_preflight_fails_closed",
@@ -2323,7 +2323,7 @@
       "name": "test_task_schema_exposes_only_provable_conpty_combinations",
       "title": "task schema exposes only provable conpty combinations",
       "status": "passed",
-      "duration_ms": 0.31
+      "duration_ms": 0.24
     },
     {
       "id": "test_windows_runtime.WindowsPortableContractTests.test_windows_job_assignment_retains_a_synchronize_handle",
@@ -2353,45 +2353,1963 @@
       "name": "test_windows_supervisor_refuses_non_windows_execution",
       "title": "windows supervisor refuses non windows execution",
       "status": "passed",
-      "duration_ms": 28.9
+      "duration_ms": 27.25
     }
   ],
   "benchmark": {
-    "available": false,
-    "status": "native_macos_benchmark_gate_failed",
-    "schema_is_current": true,
-    "source_match": false,
-    "all_tasks_succeeded": true,
-    "worker_evidence_complete": true,
-    "observed_minimum_task_seconds": 310.004195,
-    "task_arithmetic_matches": true,
-    "live_progress_observed": true,
-    "history_is_macos_only": true,
-    "current_history_matches_latest": true,
-    "cumulative_matches_history": true
+    "schema_version": "1.1",
+    "aggregation_scope": "execution_realm",
+    "latest_realm": "macos_native",
+    "latest": {
+      "run_id": "33570151556-attempt-1@macos_native",
+      "generated_at": "2026-09-01T23:20:29+00:00",
+      "commit": "8b04135567df8445db54d3b92091e3f341162112",
+      "status": "passed",
+      "method": "controlled-duration low-load parallel execution",
+      "minimum_task_seconds": 300.0,
+      "target_task_seconds": 310.0,
+      "observed_minimum_task_seconds": 310.00642,
+      "minimum_duration_met": true,
+      "worker_evidence_complete": true,
+      "worker_duration_tolerance_seconds": 6.2,
+      "full_parallelism_observed": true,
+      "task_count": 4,
+      "tasks": [
+        {
+          "id": "artifact-hash",
+          "scenario": "artifact-hash",
+          "label": "Artifact hashing and integrity verification",
+          "status": "succeeded",
+          "duration_seconds": 310.052114,
+          "outer_duration_seconds": 310.166628,
+          "duration_drift_seconds": 0.114514,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 939,
+          "work_units": 492306432
+        },
+        {
+          "id": "planner-json",
+          "scenario": "planner-json",
+          "label": "Atom-plan serialization and validation",
+          "status": "succeeded",
+          "duration_seconds": 310.011251,
+          "outer_duration_seconds": 310.155947,
+          "duration_drift_seconds": 0.144696,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1117,
+          "work_units": 107232
+        },
+        {
+          "id": "isolated-io",
+          "scenario": "isolated-io",
+          "label": "Isolated snapshot write/read verification",
+          "status": "succeeded",
+          "duration_seconds": 310.041806,
+          "outer_duration_seconds": 310.162617,
+          "duration_drift_seconds": 0.120811,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 996,
+          "work_units": 65273856
+        },
+        {
+          "id": "scheduler-sim",
+          "scenario": "scheduler-sim",
+          "label": "Capacity-aware scheduler simulation",
+          "status": "succeeded",
+          "duration_seconds": 310.00642,
+          "outer_duration_seconds": 310.160303,
+          "duration_drift_seconds": 0.153883,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1106,
+          "work_units": 70784
+        }
+      ],
+      "parallel": {
+        "wall_time_seconds": 310.167157,
+        "peak_concurrency": 4,
+        "chosen_concurrency": 4
+      },
+      "serial_equivalent": {
+        "seconds": 1240.111591,
+        "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
+      },
+      "savings": {
+        "seconds": 929.944434,
+        "percent": 74.9888,
+        "speedup_multiplier": 3.9982,
+        "parallel_efficiency": 0.9996
+      },
+      "resource": {
+        "profile": "io",
+        "responsiveness": "throughput",
+        "logical_cpus": 3,
+        "physical_cpus": 3,
+        "machine": "Apple M1 (Virtual)"
+      },
+      "platform": {
+        "system": "Darwin",
+        "release": "23.6.0",
+        "os_version": "Darwin 23.6.0",
+        "architecture": "arm64",
+        "execution_realm": "macos_native",
+        "runner_name": "github-actions-github-hosted",
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556"
+      },
+      "runner": {
+        "name": "github-actions-github-hosted",
+        "environment": "github-hosted",
+        "os": "macOS",
+        "architecture": "ARM64"
+      },
+      "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556",
+      "progress_samples": [
+        {
+          "elapsed_seconds": 0.0,
+          "running_tasks": 0,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.0,
+          "running_tasks": 1,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.002,
+          "running_tasks": 2,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.004,
+          "running_tasks": 3,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.001,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.006,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.006,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 15.067,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 45.188,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 30.131,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 90.382,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 45.227,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 135.668,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 60.304,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 180.9,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 75.381,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 226.132,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 90.485,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 271.442,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 105.553,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 316.648,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 120.617,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 361.839,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 135.697,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 407.078,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 150.759,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 452.266,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 165.829,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 497.476,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 180.912,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 542.723,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 196.003,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 587.998,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 211.109,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 633.315,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 226.191,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 678.562,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 241.259,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 723.765,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 256.323,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 768.958,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 271.403,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 814.196,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 286.486,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 859.448,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 301.58,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 904.729,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.158,
+          "running_tasks": 3,
+          "completed_tasks": 1,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 930.463,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.166,
+          "running_tasks": 2,
+          "completed_tasks": 2,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 930.479,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.166,
+          "running_tasks": 1,
+          "completed_tasks": 3,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 930.479,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.167,
+          "running_tasks": 0,
+          "completed_tasks": 4,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 930.479,
+          "savings_eligible": true
+        }
+      ]
+    },
+    "history": [
+      {
+        "run_id": "32963131926@macos_native",
+        "generated_at": "2026-08-26T11:29:37+00:00",
+        "commit": "59bf9a471fa5ae08f42c8dd0d341864d0098aeda",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": null,
+        "run_url": null,
+        "wall_time_seconds": 310.185492,
+        "serial_equivalent_seconds": 1240.687577,
+        "saved_seconds": 930.502085,
+        "speedup_multiplier": 3.9998
+      },
+      {
+        "run_id": "33379176483@macos_native",
+        "generated_at": "2026-08-31T09:50:07+00:00",
+        "commit": "59316cad196a63ed66bf9594940a80fba6b4df71",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": null,
+        "run_url": null,
+        "wall_time_seconds": 310.248926,
+        "serial_equivalent_seconds": 1240.854266,
+        "saved_seconds": 930.60534,
+        "speedup_multiplier": 3.9995
+      },
+      {
+        "run_id": "33540378454-attempt-1@macos_native",
+        "generated_at": "2026-09-01T17:58:44+00:00",
+        "commit": "14c51423fb9617a6c95ba23286d0af6e3e70a66d",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33540378454",
+        "wall_time_seconds": 310.227633,
+        "serial_equivalent_seconds": 1240.139736,
+        "saved_seconds": 929.912103,
+        "speedup_multiplier": 3.9975
+      },
+      {
+        "run_id": "33543356421-attempt-1@macos_native",
+        "generated_at": "2026-09-01T18:29:02+00:00",
+        "commit": "36de893bc87405b1a7f9ea34c1fb4fc96d2077a2",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33543356421",
+        "wall_time_seconds": 310.240316,
+        "serial_equivalent_seconds": 1240.083857,
+        "saved_seconds": 929.843541,
+        "speedup_multiplier": 3.9972
+      },
+      {
+        "run_id": "33545803803-attempt-1@macos_native",
+        "generated_at": "2026-09-01T18:53:46+00:00",
+        "commit": "2dc8869fe89b0e8e89b52f38695d4c34995b912e",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33545803803",
+        "wall_time_seconds": 310.337817,
+        "serial_equivalent_seconds": 1240.256626,
+        "saved_seconds": 929.918809,
+        "speedup_multiplier": 3.9965
+      },
+      {
+        "run_id": "33550261738-attempt-1@macos_native",
+        "generated_at": "2026-09-01T19:39:34+00:00",
+        "commit": "a8c599a8e25ddb091ec65d4604c3fc81ca861d97",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33550261738",
+        "wall_time_seconds": 310.241316,
+        "serial_equivalent_seconds": 1240.090148,
+        "saved_seconds": 929.848832,
+        "speedup_multiplier": 3.9972
+      },
+      {
+        "run_id": "33553401149-attempt-1@macos_native",
+        "generated_at": "2026-09-01T20:12:26+00:00",
+        "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553401149",
+        "wall_time_seconds": 310.17248,
+        "serial_equivalent_seconds": 1240.075514,
+        "saved_seconds": 929.903034,
+        "speedup_multiplier": 3.998
+      },
+      {
+        "run_id": "33570151556-attempt-1@macos_native",
+        "generated_at": "2026-09-01T23:20:29+00:00",
+        "commit": "8b04135567df8445db54d3b92091e3f341162112",
+        "status": "passed",
+        "execution_realm": "macos_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "macOS",
+          "architecture": "ARM64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556",
+        "wall_time_seconds": 310.167157,
+        "serial_equivalent_seconds": 1240.111591,
+        "saved_seconds": 929.944434,
+        "speedup_multiplier": 3.9982
+      }
+    ],
+    "cumulative": {
+      "run_count": 8,
+      "parallel_wall_seconds": 2481.821137,
+      "serial_equivalent_seconds": 9922.299315,
+      "saved_seconds": 7440.478178
+    },
+    "realms": {
+      "macos_native": {
+        "latest": {
+          "run_id": "33570151556-attempt-1@macos_native",
+          "generated_at": "2026-09-01T23:20:29+00:00",
+          "commit": "8b04135567df8445db54d3b92091e3f341162112",
+          "status": "passed",
+          "method": "controlled-duration low-load parallel execution",
+          "minimum_task_seconds": 300.0,
+          "target_task_seconds": 310.0,
+          "observed_minimum_task_seconds": 310.00642,
+          "minimum_duration_met": true,
+          "worker_evidence_complete": true,
+          "worker_duration_tolerance_seconds": 6.2,
+          "full_parallelism_observed": true,
+          "task_count": 4,
+          "tasks": [
+            {
+              "id": "artifact-hash",
+              "scenario": "artifact-hash",
+              "label": "Artifact hashing and integrity verification",
+              "status": "succeeded",
+              "duration_seconds": 310.052114,
+              "outer_duration_seconds": 310.166628,
+              "duration_drift_seconds": 0.114514,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 939,
+              "work_units": 492306432
+            },
+            {
+              "id": "planner-json",
+              "scenario": "planner-json",
+              "label": "Atom-plan serialization and validation",
+              "status": "succeeded",
+              "duration_seconds": 310.011251,
+              "outer_duration_seconds": 310.155947,
+              "duration_drift_seconds": 0.144696,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1117,
+              "work_units": 107232
+            },
+            {
+              "id": "isolated-io",
+              "scenario": "isolated-io",
+              "label": "Isolated snapshot write/read verification",
+              "status": "succeeded",
+              "duration_seconds": 310.041806,
+              "outer_duration_seconds": 310.162617,
+              "duration_drift_seconds": 0.120811,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 996,
+              "work_units": 65273856
+            },
+            {
+              "id": "scheduler-sim",
+              "scenario": "scheduler-sim",
+              "label": "Capacity-aware scheduler simulation",
+              "status": "succeeded",
+              "duration_seconds": 310.00642,
+              "outer_duration_seconds": 310.160303,
+              "duration_drift_seconds": 0.153883,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1106,
+              "work_units": 70784
+            }
+          ],
+          "parallel": {
+            "wall_time_seconds": 310.167157,
+            "peak_concurrency": 4,
+            "chosen_concurrency": 4
+          },
+          "serial_equivalent": {
+            "seconds": 1240.111591,
+            "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
+          },
+          "savings": {
+            "seconds": 929.944434,
+            "percent": 74.9888,
+            "speedup_multiplier": 3.9982,
+            "parallel_efficiency": 0.9996
+          },
+          "resource": {
+            "profile": "io",
+            "responsiveness": "throughput",
+            "logical_cpus": 3,
+            "physical_cpus": 3,
+            "machine": "Apple M1 (Virtual)"
+          },
+          "platform": {
+            "system": "Darwin",
+            "release": "23.6.0",
+            "os_version": "Darwin 23.6.0",
+            "architecture": "arm64",
+            "execution_realm": "macos_native",
+            "runner_name": "github-actions-github-hosted",
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556"
+          },
+          "runner": {
+            "name": "github-actions-github-hosted",
+            "environment": "github-hosted",
+            "os": "macOS",
+            "architecture": "ARM64"
+          },
+          "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556",
+          "progress_samples": [
+            {
+              "elapsed_seconds": 0.0,
+              "running_tasks": 0,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.0,
+              "running_tasks": 1,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.002,
+              "running_tasks": 2,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.004,
+              "running_tasks": 3,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.001,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.006,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.006,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 15.067,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 45.188,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 30.131,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 90.382,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 45.227,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 135.668,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 60.304,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 180.9,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 75.381,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 226.132,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 90.485,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 271.442,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 105.553,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 316.648,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 120.617,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 361.839,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 135.697,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 407.078,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 150.759,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 452.266,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 165.829,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 497.476,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 180.912,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 542.723,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 196.003,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 587.998,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 211.109,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 633.315,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 226.191,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 678.562,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 241.259,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 723.765,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 256.323,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 768.958,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 271.403,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 814.196,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 286.486,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 859.448,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 301.58,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 904.729,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.158,
+              "running_tasks": 3,
+              "completed_tasks": 1,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 930.463,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.166,
+              "running_tasks": 2,
+              "completed_tasks": 2,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 930.479,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.166,
+              "running_tasks": 1,
+              "completed_tasks": 3,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 930.479,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.167,
+              "running_tasks": 0,
+              "completed_tasks": 4,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 930.479,
+              "savings_eligible": true
+            }
+          ]
+        },
+        "history": [
+          {
+            "run_id": "32963131926@macos_native",
+            "generated_at": "2026-08-26T11:29:37+00:00",
+            "commit": "59bf9a471fa5ae08f42c8dd0d341864d0098aeda",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": null,
+            "run_url": null,
+            "wall_time_seconds": 310.185492,
+            "serial_equivalent_seconds": 1240.687577,
+            "saved_seconds": 930.502085,
+            "speedup_multiplier": 3.9998
+          },
+          {
+            "run_id": "33379176483@macos_native",
+            "generated_at": "2026-08-31T09:50:07+00:00",
+            "commit": "59316cad196a63ed66bf9594940a80fba6b4df71",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": null,
+            "run_url": null,
+            "wall_time_seconds": 310.248926,
+            "serial_equivalent_seconds": 1240.854266,
+            "saved_seconds": 930.60534,
+            "speedup_multiplier": 3.9995
+          },
+          {
+            "run_id": "33540378454-attempt-1@macos_native",
+            "generated_at": "2026-09-01T17:58:44+00:00",
+            "commit": "14c51423fb9617a6c95ba23286d0af6e3e70a66d",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33540378454",
+            "wall_time_seconds": 310.227633,
+            "serial_equivalent_seconds": 1240.139736,
+            "saved_seconds": 929.912103,
+            "speedup_multiplier": 3.9975
+          },
+          {
+            "run_id": "33543356421-attempt-1@macos_native",
+            "generated_at": "2026-09-01T18:29:02+00:00",
+            "commit": "36de893bc87405b1a7f9ea34c1fb4fc96d2077a2",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33543356421",
+            "wall_time_seconds": 310.240316,
+            "serial_equivalent_seconds": 1240.083857,
+            "saved_seconds": 929.843541,
+            "speedup_multiplier": 3.9972
+          },
+          {
+            "run_id": "33545803803-attempt-1@macos_native",
+            "generated_at": "2026-09-01T18:53:46+00:00",
+            "commit": "2dc8869fe89b0e8e89b52f38695d4c34995b912e",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33545803803",
+            "wall_time_seconds": 310.337817,
+            "serial_equivalent_seconds": 1240.256626,
+            "saved_seconds": 929.918809,
+            "speedup_multiplier": 3.9965
+          },
+          {
+            "run_id": "33550261738-attempt-1@macos_native",
+            "generated_at": "2026-09-01T19:39:34+00:00",
+            "commit": "a8c599a8e25ddb091ec65d4604c3fc81ca861d97",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33550261738",
+            "wall_time_seconds": 310.241316,
+            "serial_equivalent_seconds": 1240.090148,
+            "saved_seconds": 929.848832,
+            "speedup_multiplier": 3.9972
+          },
+          {
+            "run_id": "33553401149-attempt-1@macos_native",
+            "generated_at": "2026-09-01T20:12:26+00:00",
+            "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553401149",
+            "wall_time_seconds": 310.17248,
+            "serial_equivalent_seconds": 1240.075514,
+            "saved_seconds": 929.903034,
+            "speedup_multiplier": 3.998
+          },
+          {
+            "run_id": "33570151556-attempt-1@macos_native",
+            "generated_at": "2026-09-01T23:20:29+00:00",
+            "commit": "8b04135567df8445db54d3b92091e3f341162112",
+            "status": "passed",
+            "execution_realm": "macos_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "macOS",
+              "architecture": "ARM64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570151556",
+            "wall_time_seconds": 310.167157,
+            "serial_equivalent_seconds": 1240.111591,
+            "saved_seconds": 929.944434,
+            "speedup_multiplier": 3.9982
+          }
+        ],
+        "cumulative": {
+          "run_count": 8,
+          "parallel_wall_seconds": 2481.821137,
+          "serial_equivalent_seconds": 9922.299315,
+          "saved_seconds": 7440.478178
+        }
+      }
+    },
+    "available": true,
+    "status": "passed",
+    "source_match": true,
+    "evidence_sha256": "2fce3df33348cc2901f32bbffbdd029b950ca8e4a1ccb02877391ad3dd364173",
+    "evidence_url": "benchmark-results.json"
   },
   "windows_preview": {
-    "available": false,
-    "status": "native_evidence_gate_failed",
-    "version_match": false,
-    "source_match": false,
-    "critical_tests_passed": 14,
-    "critical_tests_required": 14,
-    "self_evidence_matches": true,
-    "structure_is_consistent": true
+    "available": true,
+    "source_match": true,
+    "status": "passed",
+    "version": "0.13.0",
+    "verified_at": "2026-09-01T23:16:41+00:00",
+    "commit": "8b04135567df8445db54d3b92091e3f341162112",
+    "runner": "GitHub Actions (github-hosted)",
+    "os": "Windows 2025Server",
+    "architecture": "AMD64",
+    "python": "3.13.15",
+    "tests": {
+      "total": 228,
+      "passed": 228,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "native_runtime": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "release_checks": {
+      "passed": 9,
+      "total": 9
+    },
+    "critical_tests": [
+      "test_blocked_synchronous_pipe_read_is_cancelled_and_joined",
+      "test_completed_parent_cannot_leave_a_pipe_holding_descendant",
+      "test_conpty_captures_combined_vt_output",
+      "test_conpty_drains_output_larger_than_pipe_capacity",
+      "test_job_object_executes_utf8_and_applies_tree_limits",
+      "test_mcp_pipe_is_utf8_and_uses_the_installed_server_entrypoint",
+      "test_native_environment_block_is_exactly_double_nul_terminated",
+      "test_pipe_mode_drains_large_separate_streams",
+      "test_powershell_file_is_one_snapshotted_atom",
+      "test_progress_arrives_before_parallel_tasks_finish",
+      "test_runner_resolves_bare_executable_from_target_path",
+      "test_supervisor_ignores_task_python_startup_injection",
+      "test_timeout_kills_grandchild_before_delayed_marker",
+      "test_windows_argv_and_environment_hazards_fail_closed"
+    ],
+    "evidence_sha256": "de7721ee55cecfab134c8d812e7e8ff4c4824ea051d04fa838a5372dfbfc9c47",
+    "evidence_url": "windows-preview-results.json"
   },
   "windows_benchmark": {
-    "available": false,
-    "status": "native_benchmark_gate_failed",
-    "source_match": false,
-    "observed_minimum_task_seconds": 310.000792,
-    "all_tasks_succeeded": true,
-    "worker_evidence_complete": true,
-    "task_arithmetic_matches": true,
-    "live_progress_observed": true,
-    "history_is_windows_only": true,
-    "current_history_matches_latest": true,
-    "cumulative_matches_history": true
+    "schema_version": "1.1",
+    "aggregation_scope": "execution_realm",
+    "latest_realm": "windows_native",
+    "latest": {
+      "run_id": "33570155387-attempt-1@windows_native",
+      "generated_at": "2026-09-01T23:20:40+00:00",
+      "commit": "8b04135567df8445db54d3b92091e3f341162112",
+      "status": "passed",
+      "method": "controlled-duration low-load parallel execution",
+      "minimum_task_seconds": 300.0,
+      "target_task_seconds": 310.0,
+      "observed_minimum_task_seconds": 310.001142,
+      "minimum_duration_met": true,
+      "worker_evidence_complete": true,
+      "worker_duration_tolerance_seconds": 6.2,
+      "full_parallelism_observed": true,
+      "task_count": 4,
+      "tasks": [
+        {
+          "id": "artifact-hash",
+          "scenario": "artifact-hash",
+          "label": "Artifact hashing and integrity verification",
+          "status": "succeeded",
+          "duration_seconds": 310.001142,
+          "outer_duration_seconds": 310.413045,
+          "duration_drift_seconds": 0.411903,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1377,
+          "work_units": 721944576
+        },
+        {
+          "id": "planner-json",
+          "scenario": "planner-json",
+          "label": "Atom-plan serialization and validation",
+          "status": "succeeded",
+          "duration_seconds": 310.001321,
+          "outer_duration_seconds": 310.390649,
+          "duration_drift_seconds": 0.389328,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1544,
+          "work_units": 148224
+        },
+        {
+          "id": "isolated-io",
+          "scenario": "isolated-io",
+          "label": "Isolated snapshot write/read verification",
+          "status": "succeeded",
+          "duration_seconds": 310.001841,
+          "outer_duration_seconds": 310.380529,
+          "duration_drift_seconds": 0.378688,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1451,
+          "work_units": 95092736
+        },
+        {
+          "id": "scheduler-sim",
+          "scenario": "scheduler-sim",
+          "label": "Capacity-aware scheduler simulation",
+          "status": "succeeded",
+          "duration_seconds": 310.001632,
+          "outer_duration_seconds": 310.367599,
+          "duration_drift_seconds": 0.365967,
+          "worker_evidence_valid": true,
+          "worker_evidence_errors": [],
+          "iterations": 1542,
+          "work_units": 98688
+        }
+      ],
+      "parallel": {
+        "wall_time_seconds": 310.415202,
+        "peak_concurrency": 4,
+        "chosen_concurrency": 4
+      },
+      "serial_equivalent": {
+        "seconds": 1240.005936,
+        "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
+      },
+      "savings": {
+        "seconds": 929.590734,
+        "percent": 74.9666,
+        "speedup_multiplier": 3.9947,
+        "parallel_efficiency": 0.9987
+      },
+      "resource": {
+        "profile": "io",
+        "responsiveness": "throughput",
+        "logical_cpus": 4,
+        "physical_cpus": 2,
+        "machine": "AMD64 Family 25 Model 1 Stepping 1, AuthenticAMD"
+      },
+      "platform": {
+        "system": "Windows",
+        "release": "2025Server",
+        "os_version": "Windows 2025Server",
+        "architecture": "amd64",
+        "execution_realm": "windows_native",
+        "runner_name": "github-actions-github-hosted",
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387"
+      },
+      "runner": {
+        "name": "github-actions-github-hosted",
+        "environment": "github-hosted",
+        "os": "Windows",
+        "architecture": "X64"
+      },
+      "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+      "progress_samples": [
+        {
+          "elapsed_seconds": 0.0,
+          "running_tasks": 0,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.001,
+          "running_tasks": 1,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.024,
+          "running_tasks": 2,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.0,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.034,
+          "running_tasks": 3,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.01,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 0.047,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 0.035,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 15.141,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 45.317,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 30.248,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 90.639,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 45.338,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 135.909,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 60.452,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 181.251,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 75.523,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 226.464,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 90.668,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 271.898,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 105.809,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 317.321,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 120.934,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 362.696,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 136.033,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 407.993,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 151.119,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 453.252,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 166.255,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 498.659,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 181.347,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 543.936,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 196.371,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 589.009,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 211.49,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 634.365,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 226.633,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 679.792,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 241.734,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 725.097,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 256.855,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 770.459,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 271.939,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 815.712,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 287.004,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 860.905,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 302.089,
+          "running_tasks": 4,
+          "completed_tasks": 0,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 906.161,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.414,
+          "running_tasks": 3,
+          "completed_tasks": 1,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 931.136,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.415,
+          "running_tasks": 2,
+          "completed_tasks": 2,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 931.137,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.415,
+          "running_tasks": 1,
+          "completed_tasks": 3,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 931.137,
+          "savings_eligible": true
+        },
+        {
+          "elapsed_seconds": 310.415,
+          "running_tasks": 0,
+          "completed_tasks": 4,
+          "failed_tasks": 0,
+          "estimated_saved_seconds": 931.137,
+          "savings_eligible": true
+        }
+      ]
+    },
+    "history": [
+      {
+        "run_id": "33540378724-attempt-1@windows_native",
+        "generated_at": "2026-09-01T17:58:36+00:00",
+        "commit": "14c51423fb9617a6c95ba23286d0af6e3e70a66d",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33540378724",
+        "wall_time_seconds": 310.561586,
+        "serial_equivalent_seconds": 1240.003761,
+        "saved_seconds": 929.442175,
+        "speedup_multiplier": 3.9928
+      },
+      {
+        "run_id": "33543357000-attempt-1@windows_native",
+        "generated_at": "2026-09-01T18:29:09+00:00",
+        "commit": "36de893bc87405b1a7f9ea34c1fb4fc96d2077a2",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33543357000",
+        "wall_time_seconds": 310.413148,
+        "serial_equivalent_seconds": 1240.006002,
+        "saved_seconds": 929.592854,
+        "speedup_multiplier": 3.9947
+      },
+      {
+        "run_id": "33545804442-attempt-1@windows_native",
+        "generated_at": "2026-09-01T18:54:25+00:00",
+        "commit": "2dc8869fe89b0e8e89b52f38695d4c34995b912e",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33545804442",
+        "wall_time_seconds": 310.317408,
+        "serial_equivalent_seconds": 1240.003237,
+        "saved_seconds": 929.685829,
+        "speedup_multiplier": 3.9959
+      },
+      {
+        "run_id": "33550261882-attempt-1@windows_native",
+        "generated_at": "2026-09-01T19:39:43+00:00",
+        "commit": "a8c599a8e25ddb091ec65d4604c3fc81ca861d97",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33550261882",
+        "wall_time_seconds": 310.320595,
+        "serial_equivalent_seconds": 1240.004402,
+        "saved_seconds": 929.683807,
+        "speedup_multiplier": 3.9959
+      },
+      {
+        "run_id": "33553400964-attempt-1@windows_native",
+        "generated_at": "2026-09-01T20:12:20+00:00",
+        "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964",
+        "wall_time_seconds": 310.37569,
+        "serial_equivalent_seconds": 1240.003885,
+        "saved_seconds": 929.628195,
+        "speedup_multiplier": 3.9952
+      },
+      {
+        "run_id": "33570155387-attempt-1@windows_native",
+        "generated_at": "2026-09-01T23:20:40+00:00",
+        "commit": "8b04135567df8445db54d3b92091e3f341162112",
+        "status": "passed",
+        "execution_realm": "windows_native",
+        "runner": {
+          "name": "github-actions-github-hosted",
+          "environment": "github-hosted",
+          "os": "Windows",
+          "architecture": "X64"
+        },
+        "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+        "wall_time_seconds": 310.415202,
+        "serial_equivalent_seconds": 1240.005936,
+        "saved_seconds": 929.590734,
+        "speedup_multiplier": 3.9947
+      }
+    ],
+    "cumulative": {
+      "run_count": 6,
+      "parallel_wall_seconds": 1862.403629,
+      "serial_equivalent_seconds": 7440.027223,
+      "saved_seconds": 5577.623594
+    },
+    "realms": {
+      "windows_native": {
+        "latest": {
+          "run_id": "33570155387-attempt-1@windows_native",
+          "generated_at": "2026-09-01T23:20:40+00:00",
+          "commit": "8b04135567df8445db54d3b92091e3f341162112",
+          "status": "passed",
+          "method": "controlled-duration low-load parallel execution",
+          "minimum_task_seconds": 300.0,
+          "target_task_seconds": 310.0,
+          "observed_minimum_task_seconds": 310.001142,
+          "minimum_duration_met": true,
+          "worker_evidence_complete": true,
+          "worker_duration_tolerance_seconds": 6.2,
+          "full_parallelism_observed": true,
+          "task_count": 4,
+          "tasks": [
+            {
+              "id": "artifact-hash",
+              "scenario": "artifact-hash",
+              "label": "Artifact hashing and integrity verification",
+              "status": "succeeded",
+              "duration_seconds": 310.001142,
+              "outer_duration_seconds": 310.413045,
+              "duration_drift_seconds": 0.411903,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1377,
+              "work_units": 721944576
+            },
+            {
+              "id": "planner-json",
+              "scenario": "planner-json",
+              "label": "Atom-plan serialization and validation",
+              "status": "succeeded",
+              "duration_seconds": 310.001321,
+              "outer_duration_seconds": 310.390649,
+              "duration_drift_seconds": 0.389328,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1544,
+              "work_units": 148224
+            },
+            {
+              "id": "isolated-io",
+              "scenario": "isolated-io",
+              "label": "Isolated snapshot write/read verification",
+              "status": "succeeded",
+              "duration_seconds": 310.001841,
+              "outer_duration_seconds": 310.380529,
+              "duration_drift_seconds": 0.378688,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1451,
+              "work_units": 95092736
+            },
+            {
+              "id": "scheduler-sim",
+              "scenario": "scheduler-sim",
+              "label": "Capacity-aware scheduler simulation",
+              "status": "succeeded",
+              "duration_seconds": 310.001632,
+              "outer_duration_seconds": 310.367599,
+              "duration_drift_seconds": 0.365967,
+              "worker_evidence_valid": true,
+              "worker_evidence_errors": [],
+              "iterations": 1542,
+              "work_units": 98688
+            }
+          ],
+          "parallel": {
+            "wall_time_seconds": 310.415202,
+            "peak_concurrency": 4,
+            "chosen_concurrency": 4
+          },
+          "serial_equivalent": {
+            "seconds": 1240.005936,
+            "method": "sum of observed task runtimes; tasks are independent and are not rerun serially"
+          },
+          "savings": {
+            "seconds": 929.590734,
+            "percent": 74.9666,
+            "speedup_multiplier": 3.9947,
+            "parallel_efficiency": 0.9987
+          },
+          "resource": {
+            "profile": "io",
+            "responsiveness": "throughput",
+            "logical_cpus": 4,
+            "physical_cpus": 2,
+            "machine": "AMD64 Family 25 Model 1 Stepping 1, AuthenticAMD"
+          },
+          "platform": {
+            "system": "Windows",
+            "release": "2025Server",
+            "os_version": "Windows 2025Server",
+            "architecture": "amd64",
+            "execution_realm": "windows_native",
+            "runner_name": "github-actions-github-hosted",
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387"
+          },
+          "runner": {
+            "name": "github-actions-github-hosted",
+            "environment": "github-hosted",
+            "os": "Windows",
+            "architecture": "X64"
+          },
+          "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+          "progress_samples": [
+            {
+              "elapsed_seconds": 0.0,
+              "running_tasks": 0,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.001,
+              "running_tasks": 1,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.024,
+              "running_tasks": 2,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.0,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.034,
+              "running_tasks": 3,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.01,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 0.047,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 0.035,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 15.141,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 45.317,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 30.248,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 90.639,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 45.338,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 135.909,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 60.452,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 181.251,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 75.523,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 226.464,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 90.668,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 271.898,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 105.809,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 317.321,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 120.934,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 362.696,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 136.033,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 407.993,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 151.119,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 453.252,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 166.255,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 498.659,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 181.347,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 543.936,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 196.371,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 589.009,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 211.49,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 634.365,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 226.633,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 679.792,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 241.734,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 725.097,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 256.855,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 770.459,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 271.939,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 815.712,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 287.004,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 860.905,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 302.089,
+              "running_tasks": 4,
+              "completed_tasks": 0,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 906.161,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.414,
+              "running_tasks": 3,
+              "completed_tasks": 1,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 931.136,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.415,
+              "running_tasks": 2,
+              "completed_tasks": 2,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 931.137,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.415,
+              "running_tasks": 1,
+              "completed_tasks": 3,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 931.137,
+              "savings_eligible": true
+            },
+            {
+              "elapsed_seconds": 310.415,
+              "running_tasks": 0,
+              "completed_tasks": 4,
+              "failed_tasks": 0,
+              "estimated_saved_seconds": 931.137,
+              "savings_eligible": true
+            }
+          ]
+        },
+        "history": [
+          {
+            "run_id": "33540378724-attempt-1@windows_native",
+            "generated_at": "2026-09-01T17:58:36+00:00",
+            "commit": "14c51423fb9617a6c95ba23286d0af6e3e70a66d",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33540378724",
+            "wall_time_seconds": 310.561586,
+            "serial_equivalent_seconds": 1240.003761,
+            "saved_seconds": 929.442175,
+            "speedup_multiplier": 3.9928
+          },
+          {
+            "run_id": "33543357000-attempt-1@windows_native",
+            "generated_at": "2026-09-01T18:29:09+00:00",
+            "commit": "36de893bc87405b1a7f9ea34c1fb4fc96d2077a2",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33543357000",
+            "wall_time_seconds": 310.413148,
+            "serial_equivalent_seconds": 1240.006002,
+            "saved_seconds": 929.592854,
+            "speedup_multiplier": 3.9947
+          },
+          {
+            "run_id": "33545804442-attempt-1@windows_native",
+            "generated_at": "2026-09-01T18:54:25+00:00",
+            "commit": "2dc8869fe89b0e8e89b52f38695d4c34995b912e",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33545804442",
+            "wall_time_seconds": 310.317408,
+            "serial_equivalent_seconds": 1240.003237,
+            "saved_seconds": 929.685829,
+            "speedup_multiplier": 3.9959
+          },
+          {
+            "run_id": "33550261882-attempt-1@windows_native",
+            "generated_at": "2026-09-01T19:39:43+00:00",
+            "commit": "a8c599a8e25ddb091ec65d4604c3fc81ca861d97",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33550261882",
+            "wall_time_seconds": 310.320595,
+            "serial_equivalent_seconds": 1240.004402,
+            "saved_seconds": 929.683807,
+            "speedup_multiplier": 3.9959
+          },
+          {
+            "run_id": "33553400964-attempt-1@windows_native",
+            "generated_at": "2026-09-01T20:12:20+00:00",
+            "commit": "61faa2b70a3495dab5bc0923b413d43643d788e7",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33553400964",
+            "wall_time_seconds": 310.37569,
+            "serial_equivalent_seconds": 1240.003885,
+            "saved_seconds": 929.628195,
+            "speedup_multiplier": 3.9952
+          },
+          {
+            "run_id": "33570155387-attempt-1@windows_native",
+            "generated_at": "2026-09-01T23:20:40+00:00",
+            "commit": "8b04135567df8445db54d3b92091e3f341162112",
+            "status": "passed",
+            "execution_realm": "windows_native",
+            "runner": {
+              "name": "github-actions-github-hosted",
+              "environment": "github-hosted",
+              "os": "Windows",
+              "architecture": "X64"
+            },
+            "run_url": "https://github.com/cloudguo123/atomlane/actions/runs/33570155387",
+            "wall_time_seconds": 310.415202,
+            "serial_equivalent_seconds": 1240.005936,
+            "saved_seconds": 929.590734,
+            "speedup_multiplier": 3.9947
+          }
+        ],
+        "cumulative": {
+          "run_count": 6,
+          "parallel_wall_seconds": 1862.403629,
+          "serial_equivalent_seconds": 7440.027223,
+          "saved_seconds": 5577.623594
+        }
+      }
+    },
+    "available": true,
+    "source_match": true,
+    "evidence_sha256": "fbfe1658ee3383c61619c03fe44dd3beef6b920d965343565ede441529559f10",
+    "evidence_url": "windows-benchmark-results.json"
   },
   "python_advisor": {
     "available": true,

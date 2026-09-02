@@ -424,6 +424,31 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertEqual(operations, [1, 1, 1, 2])
         self.assertEqual(sleep.call_count, 2)
 
+    def test_windows_stats_lock_locks_beyond_eof_without_prefill(self) -> None:
+        operations: list[int] = []
+
+        def locking(_fd: int, mode: int, _length: int) -> None:
+            operations.append(mode)
+
+        fake_msvcrt = types.SimpleNamespace(
+            LK_NBLCK=1,
+            LK_UNLCK=2,
+            locking=locking,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "stats.lock"
+            with (
+                mock.patch.object(
+                    platform_adapter.platform, "system", return_value="Windows"
+                ),
+                mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                platform_adapter.exclusive_file_lock(lock_path),
+            ):
+                self.assertEqual(lock_path.stat().st_size, 0)
+            self.assertEqual(lock_path.stat().st_size, 0)
+
+        self.assertEqual(operations, [1, 2])
+
     def test_windows_stats_lock_propagates_non_contention_errors(self) -> None:
         def locking(_fd: int, mode: int, _length: int) -> None:
             if mode == 1:

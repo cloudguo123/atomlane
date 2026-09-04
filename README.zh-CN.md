@@ -59,6 +59,10 @@ codex plugin add atomlane@atomlane
 重新构建浏览器指示器。Windows 发布证据目前来自 `windows-2025` CI 镜像，
 不等同于已证明 Windows 11 Desktop UI 集成。Windows 用户请先阅读
 [Windows Preview 说明](docs/WINDOWS_PREVIEW.md)。
+pytest 原生 worker 路径还要求所选运行环境已经安装 pytest 与 pytest-xdist；
+AtomLane 永远不会自动安装这些依赖。0.16 版的发布门禁明确覆盖 `macos-14`、
+`windows-2025`、CPython 3.10–3.13、pytest 8.4.2 与 pytest-xdist 3.8.0；
+其他依赖版本和主机镜像不属于本版已验证的发布承诺。
 
 可安装包采用 Codex 原生结构：`.codex-plugin/plugin.json`、`.mcp.json`、
 `skills/` 与 `hooks/hooks.json` 会作为一个整体发布；根目录 `mcp.json` 仍可作为
@@ -108,6 +112,94 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 内置场景目录已覆盖 50 多类软件工程、科研、容器、媒体、机器学习、发布、数据库以及底层 CPU/GPU/I/O 优化目标。
 
+## pytest 原生 worker 池
+
+例如面对 100 个相互解耦的 pytest case，AtomLane 会把收集、fixture、case 调度与
+worker 生命周期交给一个 pytest-xdist 原生 worker 池，而不是粗暴拆成 100 个互不
+相关的子进程。`test_suite_plan` 是这条路径的便捷前端；它返回的仍是交给
+`atomic_exec` 的同一份不可变 `compiled_plan` 与 `plan_hash`。
+
+AtomLane 负责外层安全契约：精确 runner argv、完整副作用声明、配置与源码快照、
+每次运行独立的临时目录与绑定计划哈希的报告路径、内外层统一 CPU/内存预算、
+超时进程约束、实时进度，以及最终测试与节约统计。选用的 xdist 分发策略也绑定
+在计划哈希中；独立 case 默认使用 `worksteal`，只有 fixture 或共享资源需要亲和
+分组时，才改用 `loadfile`、`loadscope` 或 `loadgroup`。
+
+这条边界是明确且可核验的：
+
+- 规划阶段不会偷偷运行 `pytest --collect-only`，也不会导入或执行项目测试；执行前
+  必须由调用方完整声明测试副作用，并设置 `independence_declared=true`，多 worker
+  计划才具备执行资格。
+- `runner_argv` 必须是精确的 Python 模块调用，例如 `[python, -m, pytest]`（也支持
+  带版本号的等价形式）；直接使用 `pytest` 或 `py.test` 控制台脚本会被拒绝。
+  AtomLane 会绑定并重验所选解释器的内容哈希，强制清空 `PYTHONPATH`、
+  `PYTHONHOME` 与 `PYTHONOPTIMIZE`，并拒绝项目目录或配置 `pythonpath` 中可能
+  遮蔽可信 `pytest`/`xdist` 模块的文件。清空 `PYTHONOPTIMIZE` 可防止宿主环境的
+  `-O` 语义悄悄移除测试辅助代码中的普通断言。所选 Python 环境仍由调用方信任，
+  且必须预先安装这些包。
+- AtomLane 会解析并快照项目内实际生效的 pytest 配置，用 `-c` 固定它；合法的配置
+  `addopts` 与 `PYTEST_ADDOPTS` 会原样保留，其精确 token 也会进入选择指纹。
+  pytest 8.4 如果只把不含 `[tool.pytest.ini_options]` 的普通 `pyproject.toml` 当作
+  rootdir fallback，AtomLane 会将这类选择单独绑定为 `fallback_pyproject`，运行时也只
+  在它仍然不含 pytest 配置时接受。冲突的 worker/输出控制、非执行模式以及
+  xdist/cache-provider 插件覆盖会严格拒绝。位置
+  selector 与配置中的 `testpaths`/`pythonpath` 必须在编译时已经存在于
+  `project_path` 内、使用不经过符号链接的直接路径，并会在执行前重验；显式
+  `snapshot_paths` 也遵循同一规则。AtomLane 还会注入并绑定
+  `--confcutdir=project_path`，防止 pytest 执行项目边界之外父目录中的 `conftest.py`。
+  发现有歧义时应显式传入 `config_path`；
+  Python 3.10 解析 `pyproject.toml` 还要求环境中可导入 `tomli`。未知的第三方
+  pytest 参数如果需要取值，应写成 `--option=value`，避免参数值被误判为位置
+  selector。
+- AtomLane 会显式加载自己控制的 xdist 插件并注入 worker、分发策略、临时目录和
+  JUnit 参数，因此禁用 pytest 插件自动加载时仍可运行。共享 cacheprovider 会被
+  禁用，依赖缓存的选择参数会被拒绝。JUnit 与 base-temp 路径不得和源码快照、所选
+  配置、runner 可执行文件或彼此重叠；显式 JUnit 路径还必须位于所有 collection
+  目录之外，也不得进入同一计划中其他 suite 的 collection 目录；不传时使用唯一的
+  系统临时路径。已存在的报告必须是非链接、仅一个硬链接的普通文件，其父目录身份
+  会在持有输出租约时再次验证。重叠检查采用大小写折叠并进行 Unicode 规范化的保守
+  路径身份，同时核对物理祖先/文件身份，不能用 macOS firmlink、挂载别名或 Windows
+  路径别名绕过。AtomLane 不会自动安装 pytest-xdist；
+  单 worker 基线与多 worker 路径都需要运行环境预先安装它。在 Windows 上，显式
+  报告路径还会拒绝尾空格/尾点、备用数据流、设备名和扩展设备命名空间等会折叠为
+  同一 Win32 对象的歧义写法。
+- JUnit 与 base-temp 路径会在最后预检到报告解析完成之间持有排序后的、
+  非阻塞跨进程租约。并发复用同一路径会立即失败，不允许一次运行读取另一次的证据；
+  应重新编译以生成新路径，或显式提供不同的 `junit_path`。每个输出会同时锁定规范
+  路径、物理父目录加文件名以及已存在目标的身份，并在持锁后重验。在 Windows 上，
+  租约根由当前进程访问令牌对应的用户配置目录构造，不受可变用户目录环境变量影响。
+- `worker_count=auto` 同时受主机资源预算和调用方提供的 case 数提示约束；这个提示
+  不会被当作独立性证明。worker 数量是受限的容量决策，不是 CPU affinity。worker 进程由 pytest-xdist
+  与操作系统调度，AtomLane 不把 worker 固定到某个物理核或性能核。
+- `native_workers_configured` 只是“已配置 worker 数”的证据，
+  `outer_peak_concurrency` 才是 AtomLane 观测到的外层峰值。系统不会把配置值冒充
+  实测值；没有兼容的运行时观测时，`native_workers_observed` 以及原生池并行效率
+  都保持不可用。
+- 要得到实测对比，先对同一选择执行 `worker_count=1`，再把返回的、仅限当前服务
+  会话的 `serial_baseline_evidence` 传给多 worker 运行。每个 suite 必须设置
+  `baseline_source_closure_declared=true`，并通过 `snapshot_paths` 覆盖所有与语义
+  相关的已选测试、源码、helper、项目内插件与 `conftest`；实际生效的 pytest 配置由
+  AtomLane 另行绑定并快照。AtomLane 会对 selector、配置路径和 `conftest` 做有界
+  静态覆盖检查；审计到的 collection 树内只要存在符号链接或重解析点，该次运行就
+  不具备签发串行基线的资格，因为链接目标可能在词法选择不变时被替换。动态导入与
+  动态加载插件的闭包仍只能由调用方声明。因此该证明记录
+  的是“调用方声明的源码闭包”，并不证明完整语义闭包。原生 pytest 池拒绝裸的
+  `serial_baseline_seconds` 数值。
+  `project_path` 之外已安装的 pytest/xdist 及插件不做内容见证；调用方必须保证
+  串行与并行两次执行之间该受信环境未变。
+- 并行运行仍需产生新的、非空、全部通过且声明计数一致的 JUnit，且 testcase 身份
+  要与会话见证的串行基线一致。没有兼容见证时，只有该 JUnit 中完整且与运行容量相符
+  的 testcase 耗时才能形成明确标注的单次估算。估算只进入独立的“累计估算”分账，
+  绝不会进入主“累计已入账”；两类证据都没有时，本次节约显示“待建立基线”。
+
+节约账本 v2 会保留证据来源。`time_saved_seconds` 继续提供兼容的“本次最佳有效比较”，
+`measured_time_saved_seconds` 与 `estimated_time_saved_seconds` 明确区分实测和估算；
+`ledger_credit_eligible`、`ledger_credit_recorded` 与
+`credited_time_saved_seconds` 区分“具备入账资格”和“确实写入成功”。主
+`cumulative_saved_seconds` 只包含新版实测入账与从旧版保留的
+`legacy_unclassified`，估算则单列为 `cumulative_estimated_saved_seconds`。已有账本
+若损坏或不可读会封闭失败，不会被静默清零覆盖。
+
 ## Python 程序级并行改造顾问
 
 `$optimize-python-parallelism` 会在执行任务之前增加一条程序级分析通道。
@@ -134,14 +226,17 @@ AtomLane 先把任务编译成带类型的 Atom IR，再判断哪些原子任务
 
 ![20 秒实时执行演示，显示运行中、就绪、完成、失败和预计节约时间](assets/growth/demo.gif)
 
-超过十秒的任务通过实时 runner 运行，持续显示：
+超过十秒的任务通过实时 runner 运行，持续显示生命周期计数、已用时间和
+当前已经成立的对比；pytest 原生池在新 JUnit 或兼容基线证据产生前，
+节约时间会明确显示为待确认：
 
 ```text
 已运行 2分15秒 · 运行中 4 · 就绪 2 · 已完成 7 · 失败 0
-本次预计节约 4分31秒 · 累计节约 19分52秒
+当前预计节约 4分31秒
 ```
 
-结束后还会核对每个原子任务的状态、返回码、超时、跳过原因、输出截断、峰值并发、本次节约和累计节约。
+结束后会正式确认本次节约和更新后的累计节约，同时核对每个原子任务的
+状态、返回码、超时、跳过原因、输出截断和峰值并发。
 
 Windows 的实时界面在运行期间显示任务生命周期计数与节约时间；捕获的任务
 stdout/stderr 在任务完成后随结果返回。普通任务通过独立字节管道并发排空；

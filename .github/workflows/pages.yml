@@ -187,7 +187,7 @@ jobs:
       - name: Install report dependencies
         run: |
           npm ci --no-audit --no-fund
-          python -m pip install --disable-pip-version-check ruff==0.16.4 jsonschema==4.25.1
+          python -m pip install --disable-pip-version-check ruff==0.16.4 jsonschema==4.25.1 pytest==8.4.2 pytest-xdist==3.8.0
 
       - name: Generate visual verification report
         run: python scripts/generate_test_report.py

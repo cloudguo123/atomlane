@@ -49,6 +49,22 @@ DOMAIN_META = {
         "description": "Failure propagation, output bounds, timeout semantics, and live progress",
         "accent": "#d7a6ff",
     },
+    "test_pytest_test_plan": {
+        "label": "Native pytest planning & evidence",
+        "description": (
+            "Fail-closed worker-pool compilation, immutable timeouts, JUnit evidence, "
+            "and cross-platform runner contracts"
+        ),
+        "accent": "#58d6c7",
+    },
+    "test_pytest_native_ui": {
+        "label": "Native pytest progress & UI",
+        "description": (
+            "Configured-worker visibility, pending savings semantics, and honest "
+            "native-pool presentation"
+        ),
+        "accent": "#a5b4fc",
+    },
     "test_platform_adapter": {
         "label": "Cross-platform contract",
         "description": "Execution realms, immutable host binding, portable statistics, and resource probes",

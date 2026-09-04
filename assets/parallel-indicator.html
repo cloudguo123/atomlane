@@ -44,12 +44,13 @@
       <div><span id="speed" class="speed">—</span><span id="qualifier" class="qualifier"></span></div>
     </div>
     <div class="metrics">
-      <div class="metric"><div class="label">峰值并发</div><div id="peak" class="value">—</div></div>
-      <div class="metric"><div class="label">任务</div><div id="tasks" class="value">—</div></div>
+      <div class="metric"><div id="parallel-label" class="label">峰值并发</div><div id="peak" class="value">—</div></div>
+      <div class="metric"><div id="tasks-label" class="label">任务</div><div id="tasks" class="value">—</div></div>
       <div class="metric"><div class="label">耗时</div><div id="elapsed" class="value">—</div></div>
       <div class="metric"><div class="label">结果</div><div id="result" class="value">等待中</div></div>
       <div class="metric"><div class="label">本次节约</div><div id="current-saved" class="value">—</div></div>
-      <div class="metric"><div class="label">累计节约</div><div id="cumulative-saved" class="value">—</div></div>
+      <div class="metric"><div class="label">累计已入账</div><div id="cumulative-saved" class="value">—</div></div>
+      <div class="metric"><div class="label">累计估算（未入账）</div><div id="cumulative-estimated" class="value">—</div></div>
     </div>
     <div class="track" aria-hidden="true"><div id="fill" class="fill"></div></div>
     <div id="note" class="note">会根据本机可用 CPU、负载、内存和电源状态自动限制并发。</div>
@@ -61,15 +62,70 @@
     let hasHostData = false;
     let liveStartedAt = null;
     let liveTimer = null;
+    let liveHasProgress = false;
+    let liveNativeInfo = null;
 
     function stopLiveTimer() {
       if (liveTimer != null) clearInterval(liveTimer);
       liveTimer = null;
       liveStartedAt = null;
+      liveHasProgress = false;
+      liveNativeInfo = null;
     }
 
     function savedText(value) {
-      return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} 秒` : "—";
+      return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+        ? `${Number(value).toFixed(2)} 秒`
+        : "—";
+    }
+
+    function integer(value, minimum = 0) {
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed >= minimum ? parsed : null;
+    }
+
+    function nativeInfo(payload) {
+      const indicator = payload?.indicator || {};
+      const summary = payload?.summary || {};
+      const plan = payload?.compiled_plan || payload || {};
+      const suites = Array.isArray(plan.test_suites) ? plan.test_suites : [];
+      const nativeSuites = suites.filter((suite) =>
+        suite?.strategy === "native_worker_pool" && integer(suite?.configured_workers, 2) != null
+      );
+      const suiteWorkers = nativeSuites.map((suite) => integer(suite.configured_workers, 2));
+      const configured = integer(
+        indicator.native_workers_configured ?? summary.native_workers_configured,
+        2,
+      ) ?? (suiteWorkers.length ? Math.max(...suiteWorkers) : null);
+      if (configured == null) return null;
+
+      const hints = nativeSuites.map((suite) => integer(suite?.case_count_hint, 1));
+      const suiteHint = hints.length && hints.every((hint) => hint != null)
+        ? hints.reduce((total, hint) => total + hint, 0)
+        : null;
+      const report = payload?.test_report || summary.test_report || indicator.test_report || {};
+      return {
+        configured,
+        observed: integer(
+          indicator.native_workers_observed ?? summary.native_workers_observed,
+          1,
+        ),
+        outerPeak: integer(
+          indicator.outer_peak_concurrency ?? summary.outer_peak_concurrency
+            ?? indicator.peak_concurrency ?? summary.peak_concurrency,
+          0,
+        ),
+        plannedCases: integer(
+          summary.test_cases_planned ?? indicator.test_cases_planned
+            ?? report.case_count_hint,
+          1,
+        ) ?? suiteHint,
+        actualCases: integer(report.tests ?? report.test_count ?? report.total, 0),
+        passed: integer(report.passed ?? report.successes, 0),
+        failed: integer(report.failed ?? report.failures, 0),
+        errors: integer(report.errors, 0),
+        skipped: integer(report.skipped, 0),
+      };
     }
 
     function render(payload) {
@@ -85,23 +141,122 @@
       const succeeded = Number(counts.succeeded || 0);
       const skipped = Number(counts.skipped || 0);
       const speedup = Number(indicator.speedup_multiplier || 0);
-      const efficiency = Math.max(0, Math.min(1, Number(indicator.parallel_efficiency || 0)));
+      const rawEfficiency = indicator.parallel_efficiency;
+      const efficiencyKnown = rawEfficiency !== null
+        && rawEfficiency !== undefined
+        && rawEfficiency !== ""
+        && Number.isFinite(Number(rawEfficiency));
+      const efficiency = efficiencyKnown
+        ? Math.max(0, Math.min(1, Number(rawEfficiency)))
+        : null;
       const savingsEligible = indicator.savings_eligible !== false && summary.savings_eligible !== false;
+      const ledgerAvailable = indicator.cumulative_ledger_available
+        ?? summary.cumulative_ledger_available
+        ?? true;
+      const explicitCreditEligibility = indicator.ledger_credit_eligible
+        ?? summary.ledger_credit_eligible;
+      const ledgerCreditEligible = explicitCreditEligibility
+        ?? (savingsEligible && indicator.speedup_kind === "measured_serial_baseline");
+      const ledgerCreditRecorded = indicator.ledger_credit_recorded
+        ?? summary.ledger_credit_recorded
+        ?? (ledgerCreditEligible && ledgerAvailable);
+      const legacyUnclassifiedCurrent = Boolean(
+        savingsEligible
+        && explicitCreditEligibility == null
+        && indicator.speedup_kind !== "measured_serial_baseline"
+      );
+      const legacyUnclassifiedSaved = Number(
+        summary.cumulative_legacy_unclassified_saved_seconds
+          ?? indicator.cumulative_legacy_unclassified_saved_seconds
+          ?? 0
+      );
+      const ledgerProvenanceNote = Number.isFinite(legacyUnclassifiedSaved)
+        && legacyUnclassifiedSaved > 0
+        ? ` · 累计已入账含旧版未分类 ${savedText(legacyUnclassifiedSaved)}`
+        : "";
+      const native = nativeInfo(payload);
+      const ineligibleReason = indicator.savings_ineligible_reason || summary.savings_ineligible_reason || "";
+      const nativeSavingsPending = Boolean(
+        native && !failed && !savingsEligible && (
+          indicator.savings_pending_native_report
+          || summary.savings_pending_native_report
+          || /baseline|junit|native worker/i.test(ineligibleReason)
+        )
+      );
 
       byId("dot").className = `dot${failed ? " failed" : ""}`;
-      byId("state").textContent = failed ? "执行完成，含失败" : parallel ? "并行加速已完成" : "串行执行已完成";
-      byId("speed").textContent = `${number(speedup)}×`;
-      byId("qualifier").textContent = savingsEligible ? (indicator.speedup_kind === "measured_serial_baseline" ? "实测" : "估算") : "未计入";
-      byId("peak").textContent = `${indicator.peak_concurrency ?? summary.peak_concurrency ?? "—"} 路`;
-      byId("tasks").textContent = String(summary.task_count ?? "—");
+      byId("state").textContent = failed
+        ? "执行完成，含失败"
+        : native ? "原生测试池执行完成" : parallel ? "并行加速已完成" : "串行执行已完成";
+      byId("speed").textContent = nativeSavingsPending ? "—" : `${number(speedup)}×`;
+      byId("qualifier").textContent = nativeSavingsPending
+        ? "待基线/JUnit"
+        : savingsEligible
+          ? indicator.speedup_kind === "measured_serial_baseline"
+            ? "实测"
+            : indicator.speedup_kind === "estimated_sum_of_testcase_durations"
+              ? "JUnit 估算"
+              : "估算"
+          : "未计入";
+      byId("parallel-label").textContent = native ? "原生 workers" : "峰值并发";
+      byId("peak").textContent = native
+        ? native.observed == null
+          ? `${native.configured}（配置）`
+          : `${native.observed}（实测）· ${native.configured}（配置）`
+        : `${indicator.peak_concurrency ?? summary.peak_concurrency ?? "—"} 路`;
+      byId("tasks-label").textContent = native ? "测试用例" : "任务";
+      byId("tasks").textContent = native
+        ? native.actualCases != null
+          ? `${native.actualCases}（JUnit）`
+          : native.plannedCases != null ? `${native.plannedCases}（计划提示）` : "—"
+        : String(summary.task_count ?? "—");
       byId("elapsed").textContent = `${number(summary.elapsed_seconds ?? indicator.wall_time_seconds, 3)} 秒`;
-      byId("result").textContent = failed ? `${failed} 失败 · ${succeeded} 成功` : `${succeeded} 成功${skipped ? ` · ${skipped} 跳过` : ""}`;
-      byId("current-saved").textContent = savingsEligible ? savedText(summary.time_saved_seconds ?? indicator.time_saved_seconds) : "未计入";
-      byId("cumulative-saved").textContent = savedText(summary.cumulative_saved_seconds ?? indicator.cumulative_saved_seconds);
-      byId("fill").style.width = `${Math.round(efficiency * 100)}%`;
-      byId("note").textContent = savingsEligible
-        ? `策略 ${plan.responsiveness || "adaptive"} · 计划 ${plan.chosen_concurrency ?? "—"} 路 · 并行效率 ${Math.round(efficiency * 100)}%`
-        : `本次节约未进入累计账本：${indicator.savings_ineligible_reason || summary.savings_ineligible_reason || "任务未全部成功"}`;
+      if (native && native.actualCases != null) {
+        const nativeFailures = (native.failed || 0) + (native.errors || 0);
+        const nativePassed = native.passed ?? Math.max(0, native.actualCases - nativeFailures - (native.skipped || 0));
+        byId("result").textContent = nativeFailures
+          ? `${nativeFailures} 失败 · ${nativePassed} 通过`
+          : `${nativePassed} 通过${native.skipped ? ` · ${native.skipped} 跳过` : ""}`;
+      } else {
+        byId("result").textContent = failed ? `${failed} 失败 · ${succeeded} 成功` : `${succeeded} 成功${skipped ? ` · ${skipped} 跳过` : ""}`;
+      }
+      byId("current-saved").textContent = nativeSavingsPending
+        ? "待基线/JUnit"
+        : savingsEligible ? savedText(summary.time_saved_seconds ?? indicator.time_saved_seconds) : "未计入";
+      byId("cumulative-saved").textContent = ledgerAvailable
+        ? savedText(summary.cumulative_saved_seconds ?? indicator.cumulative_saved_seconds)
+        : "不可用";
+      byId("cumulative-estimated").textContent = ledgerAvailable
+        ? savedText(
+          summary.cumulative_estimated_saved_seconds
+            ?? indicator.cumulative_estimated_saved_seconds
+        )
+        : "不可用";
+      byId("fill").style.width = `${nativeSavingsPending || !efficiencyKnown ? 0 : Math.round(efficiency * 100)}%`;
+      if (native) {
+        const outerEvidence = native.outerPeak == null ? "外层实测峰值未知" : `外层实测峰值 ${native.outerPeak} 路`;
+        const workerEvidence = native.observed == null
+          ? `原生 ${native.configured} workers 是配置值，非运行时实测`
+          : `原生实测 ${native.observed} workers · 配置 ${native.configured}`;
+        const savingsEvidence = nativeSavingsPending
+          ? "节约时间等待兼容的串行基线或新鲜 JUnit 时序"
+          : savingsEligible
+            ? legacyUnclassifiedCurrent
+              ? `本次为旧版${indicator.speedup_kind === "estimated_sum_of_testcase_durations" ? " JUnit " : ""}估算，证据未分类${ledgerAvailable ? "（已按旧口径入账）" : "（账本不可用）"}`
+              : ledgerCreditRecorded
+              ? efficiencyKnown
+                ? `本次实测已入账 · 并行效率 ${Math.round(efficiency * 100)}%`
+                : "本次实测已入账 · 并行效率等待原生 worker 实测"
+              : ledgerCreditEligible
+                ? "本次实测有效，但累计账本写入失败"
+              : `本次为${indicator.speedup_kind === "estimated_sum_of_testcase_durations" ? " JUnit " : ""}估算，未计入累计已入账 · 累计估算 ${savedText(summary.cumulative_estimated_saved_seconds ?? indicator.cumulative_estimated_saved_seconds)}`
+            : `本次节约未进入累计账本：${ineligibleReason || "测试未全部成功"}`;
+        byId("note").textContent = `${outerEvidence} · ${workerEvidence} · ${savingsEvidence}${ledgerProvenanceNote}`;
+      } else {
+        byId("note").textContent = savingsEligible
+          ? `${legacyUnclassifiedCurrent ? `本次为旧版估算，证据未分类${ledgerAvailable ? "（已按旧口径入账）" : "（账本不可用）"}` : ledgerCreditRecorded ? "本次实测已入账" : ledgerCreditEligible ? "本次实测有效，但入账失败" : "本次估算未入账"} · 策略 ${plan.responsiveness || "adaptive"} · 计划 ${plan.chosen_concurrency ?? "—"} 路 · 并行效率 ${Math.round(efficiency * 100)}%${ledgerProvenanceNote}`
+          : `本次节约未进入累计账本：${ineligibleReason || "任务未全部成功"}`;
+      }
     }
 
     function renderRunning(argumentsValue) {
@@ -109,21 +264,36 @@
       const count = Array.isArray(argumentsValue?.tasks)
         ? argumentsValue.tasks.length
         : Array.isArray(argumentsValue?.items) ? argumentsValue.items.length : null;
+      const native = nativeInfo(argumentsValue);
+      liveNativeInfo = native;
+      liveHasProgress = false;
       byId("dot").className = "dot running";
-      byId("state").textContent = "正在自适应并行调度…";
+      byId("state").textContent = native ? "原生 pytest worker 池运行中…" : "正在自适应并行调度…";
       byId("speed").textContent = "—";
-      byId("qualifier").textContent = "执行后计算";
-      byId("tasks").textContent = count == null ? "—" : String(count);
-      byId("result").textContent = "运行中";
-      byId("current-saved").textContent = "实时计算中";
+      byId("qualifier").textContent = native ? "待基线/JUnit" : "执行后计算";
+      byId("parallel-label").textContent = native ? "原生 workers" : "峰值并发";
+      byId("peak").textContent = native ? `${native.configured}（配置）` : "—";
+      byId("tasks-label").textContent = native ? "测试用例" : "任务";
+      byId("tasks").textContent = native
+        ? native.plannedCases == null ? "—" : `${native.plannedCases}（计划提示）`
+        : count == null ? "—" : String(count);
+      byId("result").textContent = native ? "测试池运行中" : "运行中";
+      byId("current-saved").textContent = native ? "待基线/JUnit" : "实时计算中";
       byId("cumulative-saved").textContent = "完成后更新";
-      byId("note").textContent = "正在按本机可用 CPU、负载、内存和电源状态限制并发。";
+      byId("cumulative-estimated").textContent = "完成后更新";
+      byId("note").textContent = native
+        ? `${native.configured} workers 是配置值；实际 worker 数待运行时证据。节约时间待串行基线或 JUnit 时序。`
+        : "正在按本机可用 CPU、负载、内存和电源状态限制并发。";
       if (liveStartedAt == null) liveStartedAt = performance.now();
       if (liveTimer == null) {
         const tick = () => {
           const elapsed = Math.max(0, (performance.now() - liveStartedAt) / 1000);
           byId("elapsed").textContent = `${elapsed.toFixed(1)} 秒`;
-          byId("note").textContent = `实时运行中 · 已用 ${elapsed.toFixed(1)} 秒 · 等待任务进度`;
+          if (!liveHasProgress) {
+            byId("note").textContent = liveNativeInfo
+              ? `实时运行中 · 已用 ${elapsed.toFixed(1)} 秒 · 原生 ${liveNativeInfo.configured} workers（配置，非实测）`
+              : `实时运行中 · 已用 ${elapsed.toFixed(1)} 秒 · 等待任务进度`;
+          }
         };
         tick();
         liveTimer = setInterval(tick, 250);
@@ -138,11 +308,24 @@
       const completed = message.match(/已完成\s+(\d+\/\d+)/);
       const saved = message.match(/当前预计节约\s+(-?[0-9.]+)s/);
       const savingsIneligible = message.includes("本次节约不计入");
+      const savingsPending = message.includes("节约待串行基线/JUnit");
+      const nativeWorkers = message.match(/原生 workers\s+(\d+)（配置）/);
+      const plannedCases = message.match(/计划用例\s+(\d+)（提示）/);
+      liveHasProgress = true;
       if (elapsed) byId("elapsed").textContent = `${elapsed[1]} 秒`;
+      if (nativeWorkers) {
+        byId("parallel-label").textContent = "原生 workers";
+        byId("peak").textContent = `${nativeWorkers[1]}（配置）`;
+      }
+      if (plannedCases) {
+        byId("tasks-label").textContent = "测试用例";
+        byId("tasks").textContent = `${plannedCases[1]}（计划提示）`;
+      }
       if (running || completed) {
         byId("result").textContent = `${running ? `${running[1]} 运行` : ""}${running && completed ? " · " : ""}${completed ? `${completed[1]} 完成` : ""}`;
       }
       if (savingsIneligible) byId("current-saved").textContent = "未计入";
+      else if (savingsPending) byId("current-saved").textContent = "待基线/JUnit";
       else if (saved) byId("current-saved").textContent = `${saved[1]} 秒（实时估算）`;
       byId("note").textContent = message;
     }

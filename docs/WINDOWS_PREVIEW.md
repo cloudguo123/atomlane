@@ -21,6 +21,7 @@ runs on GitHub's `windows-2025` image with CPython 3.10, 3.11, 3.12, and 3.13.
 | Resources | Optional Job-wide CPU hard-cap percentage and memory limit cover the supervisor plus the normally inherited target tree. Memory is at least 128 MiB. In pipe mode, `max_processes` is an exact Job-wide active-member ceiling of 2–4096; the verified supervisor consumes one slot while alive. ConPTY with `max_processes` fails before target code starts because console-host Job membership is not yet proven; CPU and memory limits remain available. |
 | Output | Separate byte pipes, decoded as UTF-8 with replacement, by default; ConPTY is opt-in for programs that need output-side terminal semantics. Pipes are drained concurrently and capture remains bounded; user-visible counters and savings are emitted while work is running. Captured task output is returned in the final result. |
 | Python advice | The static advisor can target Windows and emits an explicit `multiprocessing.get_context("spawn")` process-pool preview for eligible CPU maps. |
+| Pytest pools | `test_suite_plan` uses an exact Python `-m pytest` runner and one bounded pytest-xdist pool, binds `--confcutdir` to the project, preserves pytest 8.4's hash-bound plain-`pyproject.toml` root fallback, rejects link/path aliases and same- or cross-suite JUnit/collection overlap with lexical plus physical identities, and leases each JUnit/base-temp path across revalidation, execution, and report parsing. Windows derives that private lease root from the profile directory bound to the current process token rather than mutable profile environment variables. The 0.16 release matrix exercises pytest 8.4.2 and pytest-xdist 3.8.0 on native Windows with CPython 3.10–3.13; other dependency versions are not release-gated by this version. |
 | Docker | Resource advice can target an identified Linux Docker daemon, including Docker Desktop. Windows containers are advisory-only. |
 
 The minimum dependable workflow is therefore a local native-Windows project
@@ -175,6 +176,14 @@ sharing violation is an execution error, not a substitute for the access
 model. Windows long-path policy and remote-share behavior also remain host
 configuration concerns.
 
+Pytest outputs are a deliberate exception to the “no arbitrary target-file
+locking” rule: AtomLane gives every JUnit and base-temp path a sorted,
+non-blocking cross-process lease and revalidates its canonical parent while the
+lease is held. Explicit JUnit spellings with Win32 trailing-space/dot aliases,
+alternate data streams, reserved device components, drive/root-relative forms,
+or device namespaces fail before launch. Case, slash, and Unicode-equivalent
+spellings share the same conservative lease identity.
+
 ## Python `spawn` contract
 
 The Python advisor is static: it parses source without importing or executing
@@ -239,6 +248,7 @@ pwsh --version
 python3 -m compileall -q scripts
 python3 -m unittest discover -s scripts -p "test_platform_adapter.py" -v
 python3 -m unittest discover -s scripts -p "test_windows_runtime.py" -v
+python3 -m unittest scripts.test_pytest_test_plan.RealPytestXdistIntegrationTests -v
 python3 scripts/self_test.py
 ```
 
@@ -249,6 +259,11 @@ progress before completion, startup isolation, bounded descendant-pipe cleanup,
 argv/environment hazards, and whole-file PowerShell planning. The critical
 Windows test class does not convert missing runtime capabilities into skipped
 passes.
+
+The 0.16 release gate runs the pytest integration command with pytest 8.4.2 and
+pytest-xdist 3.8.0 in the selected Python environment. It executes a real 100-case suite through the
+native worker pool and verifies fresh JUnit evidence, measured serial-baseline
+comparison, and live/result accounting rather than only parsing a Windows plan.
 
 For the full local regression suite, run:
 

@@ -9,16 +9,21 @@ import contextlib
 import fnmatch
 import hashlib
 import importlib.util
+import io
 import json
 import math
 import os
 import platform
 import re
+import secrets
+import shlex
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -38,7 +43,28 @@ from atom_engine import (
     normalize_json_numbers,
     validate_source_snapshots,
 )
-from atom_frontends import compile_entrypoints
+from atom_frontends import (
+    PYTEST_EMPTY_CONFIG,
+    _is_exact_pytest_runner_prefix,
+    _is_pytest_runner,
+    _path_identity,
+    _path_is_within_reserved_pytest_basetemp,
+    _path_physical_anchor_identity,
+    _paths_are_equivalent,
+    _paths_overlap,
+    _pytest_baseline_source_coverage,
+    _pytest_config_addopts,
+    _pytest_environment_plugin_control,
+    _pytest_output_overlaps_collection,
+    _pytest_owned_options,
+    _pytest_plugin_control,
+    _pytest_runner_attestation,
+    _reject_pytest_module_shadowing,
+    _validate_pytest_config_paths,
+    _validate_pytest_selector_boundaries,
+    _windows_output_path_spelling_is_unambiguous,
+    compile_entrypoints,
+)
 from platform_adapter import (
     brokered_execution_boundary,
     default_stats_path,
@@ -63,7 +89,7 @@ from windows_job_runner import (
 from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "atomlane"
-SERVER_VERSION = "0.15.0"
+SERVER_VERSION = "0.16.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/atomlane-indicator-{SERVER_VERSION}.html"
@@ -85,8 +111,15 @@ DEFAULT_TIMEOUT_SECONDS = 900.0
 MAX_TIMEOUT_SECONDS = 86_400.0
 MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS = 32_767
 MAX_WINDOWS_SUPERVISOR_PAYLOAD_BYTES = 2_500_000
+MAX_JUNIT_REPORT_BYTES = 32 * 1024 * 1024
+MAX_JUNIT_TEST_CASES = 100_000
+MAX_JUNIT_XML_ELEMENTS = 250_000
+MAX_SAVINGS_STATS_BYTES = 64 * 1024
+MAX_SERIAL_BASELINE_ATTESTATIONS = 256
 TASK_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+_INVALID_SAVINGS_LEDGER = object()
 _STATIC_HARDWARE_CACHE: dict[str, Any] | None = None
+_SERIAL_BASELINE_ATTESTATIONS: dict[str, dict[str, Any]] = {}
 
 
 def _progress_interval_seconds() -> float:
@@ -1381,11 +1414,63 @@ def _advisory_parallel_scan_v08(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _atomic_resource_context(arguments: dict[str, Any]) -> tuple[dict[str, Any], dict[str, float]]:
+def _atomic_workload_profile(arguments: dict[str, Any]) -> str:
+    explicit = arguments.get("profile")
+    if explicit is not None:
+        if explicit not in {"cpu", "io", "mixed", "accelerator"}:
+            raise InputError("profile must be cpu, io, mixed, or accelerator")
+        return explicit
+    profiles: set[str] = set()
+    for atom in arguments.get("atoms") or []:
+        if isinstance(atom, dict) and atom.get("profile") in {
+            "cpu", "io", "mixed", "accelerator"
+        }:
+            profiles.add(atom["profile"])
+    for entrypoint in arguments.get("entrypoints") or []:
+        if not isinstance(entrypoint, dict):
+            continue
+        if entrypoint.get("adapter") == "test_suite":
+            profiles.add("cpu")
+        elif entrypoint.get("profile") in {"cpu", "io", "mixed", "accelerator"}:
+            profiles.add(entrypoint["profile"])
+    return next(iter(profiles)) if len(profiles) == 1 else "mixed"
+
+
+def _atomic_memory_estimate(arguments: dict[str, Any]) -> float | None:
+    explicit = arguments.get("estimated_memory_mb_per_task")
+    if explicit is not None:
+        if (
+            isinstance(explicit, bool)
+            or not isinstance(explicit, (int, float))
+            or not math.isfinite(explicit)
+            or explicit <= 0
+        ):
+            raise InputError("estimated_memory_mb_per_task must be a finite positive number")
+        return float(explicit)
+    estimates = [
+        float(entrypoint["estimated_memory_mb_per_worker"])
+        for entrypoint in arguments.get("entrypoints") or []
+        if isinstance(entrypoint, dict)
+        and isinstance(entrypoint.get("estimated_memory_mb_per_worker"), (int, float))
+        and not isinstance(entrypoint.get("estimated_memory_mb_per_worker"), bool)
+        and float(entrypoint["estimated_memory_mb_per_worker"]) > 0
+    ]
+    return max(estimates) if estimates else None
+
+
+def _atomic_resource_context(
+    arguments: dict[str, Any], profile: str
+) -> tuple[dict[str, Any], dict[str, float]]:
     responsiveness = arguments.get("responsiveness", "interactive")
     requested = arguments.get("max_concurrency")
     reserve = arguments.get("reserve_cores")
-    resource_plan = concurrency_plan("mixed", requested, reserve, None, responsiveness)
+    resource_plan = concurrency_plan(
+        profile,
+        requested,
+        reserve,
+        _atomic_memory_estimate(arguments),
+        responsiveness,
+    )
     machine = resource_plan["machine"]
     available_bytes = machine.get("memory_available_bytes_approx")
     memory_mb = (
@@ -1476,8 +1561,13 @@ def atomic_task_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw_atoms, list):
         raise InputError("atoms must be an array")
     try:
-        frontend = compile_entrypoints(project, arguments.get("entrypoints", []))
-        resource_plan, capacities = _atomic_resource_context(arguments)
+        profile = _atomic_workload_profile(arguments)
+        resource_plan, capacities = _atomic_resource_context(arguments, profile)
+        frontend = compile_entrypoints(
+            project,
+            arguments.get("entrypoints", []),
+            native_worker_ceiling=max(1, int(capacities["cpu_core"])),
+        )
         compiled = compile_atomic_plan(
             [*frontend["atoms"], *raw_atoms],
             project,
@@ -1500,6 +1590,7 @@ def atomic_task_plan(arguments: dict[str, Any]) -> dict[str, Any]:
         ),
     }
     compiled["resource_plan"] = resource_plan
+    compiled["test_suites"] = frontend.get("test_suites", [])
     compiled["task_summary"] = task_summary
     compiled["project_candidates"] = (
         _discover_project_work_units(project, task_summary)
@@ -1515,6 +1606,53 @@ def atomic_task_plan(arguments: dict[str, Any]) -> dict[str, Any]:
     compiled["plan_hash"] = _compiled_plan_envelope_hash(compiled)
     compiled["execution_contract"]["arguments"]["plan_hash"] = compiled["plan_hash"]
     return compiled
+
+
+def test_suite_plan(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Compile one pytest suite through the standard immutable AtomLane plan path."""
+    entrypoint_fields = {
+        "id",
+        "framework",
+        "runner_argv",
+        "arguments",
+        "cwd",
+        "config_path",
+        "worker_count",
+        "distribution",
+        "case_count_hint",
+        "estimated_memory_mb_per_worker",
+        "estimated_duration_seconds",
+        "timeout_seconds",
+        "junit_path",
+        "snapshot_paths",
+        "env",
+        "declared_accesses",
+        "declared_effects",
+        "effects_declared_complete",
+        "independence_declared",
+        "baseline_source_closure_declared",
+    }
+    entrypoint = {
+        key: arguments[key]
+        for key in entrypoint_fields
+        if key in arguments
+    }
+    entrypoint["adapter"] = "test_suite"
+    entrypoint.setdefault("id", "pytest-suite")
+    entrypoint.setdefault("framework", "pytest")
+    plan_arguments: dict[str, Any] = {
+        "project_path": arguments.get("project_path"),
+        "task_summary": arguments.get(
+            "task_summary",
+            "Run one pytest suite through a resource-bounded native worker pool.",
+        ),
+        "entrypoints": [entrypoint],
+        "profile": "cpu",
+    }
+    for key in ("responsiveness", "max_concurrency", "reserve_cores"):
+        if key in arguments:
+            plan_arguments[key] = arguments[key]
+    return atomic_task_plan(plan_arguments)
 
 
 def _legacy_units_as_atoms(arguments: dict[str, Any], project: Path) -> list[dict[str, Any]]:
@@ -1628,16 +1766,42 @@ def task_parallel_scan(arguments: dict[str, Any]) -> dict[str, Any]:
 def _normalized_savings_stats(current: Any) -> dict[str, Any]:
     if not isinstance(current, dict):
         current = {}
-    raw_count = current.get("run_count", 0)
-    run_count = raw_count if isinstance(raw_count, int) and not isinstance(raw_count, bool) else 0
-    run_count = max(0, run_count)
-    raw_saved = current.get("cumulative_saved_seconds", 0.0)
-    try:
-        cumulative = float(raw_saved)
-    except (TypeError, ValueError):
-        cumulative = 0.0
-    if not math.isfinite(cumulative) or cumulative < 0:
-        cumulative = 0.0
+
+    def nonnegative_count(key: str) -> int:
+        raw = current.get(key, 0)
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return max(0, raw)
+        return 0
+
+    def nonnegative_seconds(key: str) -> float:
+        try:
+            value = float(current.get(key, 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) and value >= 0 else 0.0
+
+    if current.get("schema") == "atomlane/savings-ledger/v2":
+        measured_count = nonnegative_count("measured_run_count")
+        measured_saved = nonnegative_seconds(
+            "cumulative_measured_saved_seconds"
+        )
+        estimated_count = nonnegative_count("estimated_run_count")
+        estimated_saved = nonnegative_seconds(
+            "cumulative_estimated_saved_seconds"
+        )
+        legacy_count = nonnegative_count("legacy_unclassified_run_count")
+        legacy_saved = nonnegative_seconds(
+            "cumulative_legacy_unclassified_saved_seconds"
+        )
+    else:
+        # Version 1 mixed provenance in its two public counters. Preserve it
+        # exactly, but never relabel historical values as measured.
+        measured_count = 0
+        measured_saved = 0.0
+        estimated_count = 0
+        estimated_saved = 0.0
+        legacy_count = nonnegative_count("run_count")
+        legacy_saved = nonnegative_seconds("cumulative_saved_seconds")
     raw_updated = current.get("updated_at_epoch_seconds", 0.0)
     try:
         updated = float(raw_updated)
@@ -1646,10 +1810,99 @@ def _normalized_savings_stats(current: Any) -> dict[str, Any]:
     if not math.isfinite(updated) or updated < 0:
         updated = 0.0
     return {
-        "run_count": run_count,
-        "cumulative_saved_seconds": round(cumulative, 6),
+        "schema": "atomlane/savings-ledger/v2",
+        "run_count": legacy_count + measured_count,
+        "cumulative_saved_seconds": round(legacy_saved + measured_saved, 6),
+        "measured_run_count": measured_count,
+        "cumulative_measured_saved_seconds": round(measured_saved, 6),
+        "estimated_run_count": estimated_count,
+        "cumulative_estimated_saved_seconds": round(estimated_saved, 6),
+        "legacy_unclassified_run_count": legacy_count,
+        "cumulative_legacy_unclassified_saved_seconds": round(legacy_saved, 6),
         "updated_at_epoch_seconds": round(updated, 3),
     }
+
+
+def _savings_stats_document_is_valid(current: Any) -> bool:
+    """Validate an existing ledger before any read-modify-write migration."""
+    if current == {}:
+        return True
+    if not isinstance(current, dict):
+        return False
+
+    def valid_count(key: str) -> bool:
+        value = current.get(key)
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+    def valid_seconds(key: str) -> bool:
+        value = current.get(key)
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(float(value))
+            and float(value) >= 0
+        )
+
+    if "schema" not in current:
+        if set(current) != {
+            "run_count",
+            "cumulative_saved_seconds",
+            "updated_at_epoch_seconds",
+        }:
+            return False
+        return (
+            valid_count("run_count")
+            and valid_seconds("cumulative_saved_seconds")
+            and valid_seconds("updated_at_epoch_seconds")
+        )
+    if current.get("schema") != "atomlane/savings-ledger/v2":
+        return False
+    expected_keys = {
+        "schema",
+        "run_count",
+        "cumulative_saved_seconds",
+        "measured_run_count",
+        "cumulative_measured_saved_seconds",
+        "estimated_run_count",
+        "cumulative_estimated_saved_seconds",
+        "legacy_unclassified_run_count",
+        "cumulative_legacy_unclassified_saved_seconds",
+        "updated_at_epoch_seconds",
+    }
+    if set(current) != expected_keys:
+        return False
+    count_keys = (
+        "run_count",
+        "measured_run_count",
+        "estimated_run_count",
+        "legacy_unclassified_run_count",
+    )
+    seconds_keys = (
+        "cumulative_saved_seconds",
+        "cumulative_measured_saved_seconds",
+        "cumulative_estimated_saved_seconds",
+        "cumulative_legacy_unclassified_saved_seconds",
+        "updated_at_epoch_seconds",
+    )
+    if not all(valid_count(key) for key in count_keys) or not all(
+        valid_seconds(key) for key in seconds_keys
+    ):
+        return False
+    if current["run_count"] != (
+        current["measured_run_count"] + current["legacy_unclassified_run_count"]
+    ):
+        return False
+    expected_saved = round(
+        float(current["cumulative_measured_saved_seconds"])
+        + float(current["cumulative_legacy_unclassified_saved_seconds"]),
+        6,
+    )
+    return math.isclose(
+        float(current["cumulative_saved_seconds"]),
+        expected_saved,
+        rel_tol=0.0,
+        abs_tol=1e-6,
+    )
 
 
 def _read_time_saved() -> dict[str, Any]:
@@ -1658,38 +1911,117 @@ def _read_time_saved() -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
     with exclusive_file_lock(lock_path):
-        try:
-            current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        except (OSError, json.JSONDecodeError):
-            current = {}
+        current = _read_savings_stats_document(path)
+        if (
+            current is _INVALID_SAVINGS_LEDGER
+            or not _savings_stats_document_is_valid(current)
+        ):
+            raise OSError("existing savings ledger is invalid or unreadable")
         return _normalized_savings_stats(current)
 
 
-def _record_time_saved(seconds: float) -> dict[str, Any]:
-    """Atomically credit one successful invocation to a monotonic ledger."""
+def _read_savings_stats_document(path: Path) -> Any:
+    """Read a small regular stats file without following links or blocking on FIFOs."""
+    try:
+        path_state = path.lstat()
+    except FileNotFoundError:
+        return {}
+    if (
+        stat.S_ISLNK(path_state.st_mode)
+        or getattr(path_state, "st_reparse_tag", 0)
+        or not stat.S_ISREG(path_state.st_mode)
+        or path_state.st_size > MAX_SAVINGS_STATS_BYTES
+    ):
+        return _INVALID_SAVINGS_LEDGER
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        return _INVALID_SAVINGS_LEDGER
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or (opened.st_dev, opened.st_ino) != (path_state.st_dev, path_state.st_ino)
+            or opened.st_size > MAX_SAVINGS_STATS_BYTES
+        ):
+            return _INVALID_SAVINGS_LEDGER
+        chunks: list[bytes] = []
+        remaining = MAX_SAVINGS_STATS_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(16_384, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        if len(payload) > MAX_SAVINGS_STATS_BYTES:
+            return _INVALID_SAVINGS_LEDGER
+        if not payload:
+            return _INVALID_SAVINGS_LEDGER
+        parsed = json.loads(payload.decode("utf-8"))
+        return parsed if isinstance(parsed, dict) else _INVALID_SAVINGS_LEDGER
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return _INVALID_SAVINGS_LEDGER
+    finally:
+        os.close(descriptor)
+
+
+def _record_time_saved(
+    seconds: float,
+    *,
+    evidence_kind: str = "measured",
+) -> dict[str, Any]:
+    """Atomically record one measured credit or uncredited estimate."""
     if (
         isinstance(seconds, bool)
         or not isinstance(seconds, (int, float))
         or not math.isfinite(float(seconds))
         or float(seconds) < 0
     ):
-        raise ValueError("credited time savings must be a finite non-negative number")
+        raise ValueError("time savings must be a finite non-negative number")
+    if evidence_kind not in {"measured", "estimated"}:
+        raise ValueError("evidence_kind must be measured or estimated")
     path = _stats_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
     with exclusive_file_lock(lock_path):
-        try:
-            raw_current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        except (OSError, json.JSONDecodeError):
-            raw_current = {}
+        raw_current = _read_savings_stats_document(path)
+        if (
+            raw_current is _INVALID_SAVINGS_LEDGER
+            or not _savings_stats_document_is_valid(raw_current)
+        ):
+            raise OSError("existing savings ledger is invalid or unreadable")
         current = _normalized_savings_stats(raw_current)
-        updated = {
-            "run_count": current["run_count"] + 1,
-            "cumulative_saved_seconds": round(
-                current["cumulative_saved_seconds"] + float(seconds), 6
-            ),
-            "updated_at_epoch_seconds": round(time.time(), 3),
-        }
+        updated = dict(current)
+        if evidence_kind == "measured":
+            updated["measured_run_count"] += 1
+            updated["cumulative_measured_saved_seconds"] = round(
+                updated["cumulative_measured_saved_seconds"] + float(seconds),
+                6,
+            )
+        else:
+            updated["estimated_run_count"] += 1
+            updated["cumulative_estimated_saved_seconds"] = round(
+                updated["cumulative_estimated_saved_seconds"] + float(seconds),
+                6,
+            )
+        updated["run_count"] = (
+            updated["legacy_unclassified_run_count"]
+            + updated["measured_run_count"]
+        )
+        updated["cumulative_saved_seconds"] = round(
+            updated["cumulative_legacy_unclassified_saved_seconds"]
+            + updated["cumulative_measured_saved_seconds"],
+            6,
+        )
+        updated["updated_at_epoch_seconds"] = round(time.time(), 3)
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -1715,6 +2047,7 @@ class ProgressReporter:
         task_count: int,
         callback: Any | None,
         started: float,
+        context: dict[str, Any] | None = None,
     ) -> None:
         self.task_count = task_count
         self.callback = callback
@@ -1722,6 +2055,7 @@ class ProgressReporter:
         self.active: dict[str, float] = {}
         self.completed: list[dict[str, Any]] = []
         self.ready_tasks = 0
+        self.context = dict(context or {})
         self._ticker: asyncio.Task[None] | None = None
 
     def scheduler_state(self, *, ready_tasks: int) -> None:
@@ -1751,21 +2085,31 @@ class ProgressReporter:
             1 for item in self.completed if item.get("status") in {"failed", "timed_out"}
         )
         savings_eligible = failed == 0
+        savings_pending_native_report = bool(
+            self.context.get("savings_pending_native_report")
+        )
         if not savings_eligible:
             saved_so_far = 0.0
-        return {
+        snapshot = {
             "elapsed_seconds": round(elapsed, 3),
             "running_tasks": len(self.active),
             "ready_tasks": self.ready_tasks,
             "completed_tasks": len(self.completed),
             "task_count": self.task_count,
             "failed_tasks": failed,
-            "estimated_saved_so_far_seconds": round(saved_so_far, 3),
+            "estimated_saved_so_far_seconds": (
+                None
+                if savings_pending_native_report and savings_eligible
+                else round(saved_so_far, 3)
+            ),
             "savings_eligible_so_far": savings_eligible,
             "savings_ineligible_reason": (
                 None if savings_eligible else "a task has failed or timed out"
             ),
         }
+        if self.context:
+            snapshot.update(self.context)
+        return snapshot
 
     def emit(self) -> None:
         if self.callback is not None:
@@ -1788,6 +2132,42 @@ class ProgressReporter:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._ticker
             self._ticker = None
+
+
+def _atomic_progress_context(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Describe native pytest capacity without calling it observed concurrency."""
+    suites = plan.get("test_suites")
+    if not isinstance(suites, list):
+        return None
+    native_suites = [
+        suite
+        for suite in suites
+        if isinstance(suite, dict)
+        and suite.get("strategy") == "native_worker_pool"
+        and isinstance(suite.get("configured_workers"), int)
+        and not isinstance(suite.get("configured_workers"), bool)
+        and suite["configured_workers"] > 1
+    ]
+    if not native_suites:
+        return None
+    hints = [suite.get("case_count_hint") for suite in native_suites]
+    test_cases_planned = (
+        sum(int(hint) for hint in hints)
+        if all(
+            isinstance(hint, int) and not isinstance(hint, bool) and hint > 0
+            for hint in hints
+        )
+        else None
+    )
+    return {
+        # Multiple native pools may be serialized by the resource envelope.
+        # Use the largest configured pool, never an inferred simultaneous total.
+        "native_workers_configured": max(
+            int(suite["configured_workers"]) for suite in native_suites
+        ),
+        "test_cases_planned": test_cases_planned,
+        "savings_pending_native_report": True,
+    }
 
 
 def _run_probe(argv: list[str]) -> str | None:
@@ -2877,7 +3257,7 @@ def _bounded_number(value: Any, name: str, default: float, maximum: float) -> fl
         return default
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise InputError(f"{name} must be a number")
-    if value <= 0 or value > maximum:
+    if not math.isfinite(float(value)) or value <= 0 or value > maximum:
         raise InputError(f"{name} must be greater than 0 and at most {maximum}")
     return float(value)
 
@@ -2931,6 +3311,18 @@ def _windows_string_utf16_units(value: str, name: str) -> int:
         return len(value.encode("utf-16-le")) // 2
     except UnicodeEncodeError as exc:
         raise InputError(f"{name} contains an invalid Unicode surrogate") from exc
+
+
+def _validate_windows_command_line(argv: list[str], task_id: str) -> str:
+    """Return CreateProcessW command text only when it fits the OS limit."""
+    command_line = subprocess.list2cmdline(argv)
+    if _windows_string_utf16_units(
+        command_line, f"task {task_id} command line"
+    ) + 1 > 32_767:
+        raise InputError(
+            f"task {task_id} exceeds the Windows CreateProcessW command-line limit"
+        )
+    return command_line
 
 
 def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, Any]:
@@ -3058,9 +3450,7 @@ def normalize_task(raw: Any, index: int, default_cwd: str | None) -> dict[str, A
             validate_windows_executable_contract(argv[0])
         except RunnerError as exc:
             raise InputError(f"task {task_id} {exc}") from exc
-        command_line = subprocess.list2cmdline(argv)
-        if _windows_string_utf16_units(command_line, f"task {task_id} command line") + 1 > 32_767:
-            raise InputError(f"task {task_id} exceeds the Windows CreateProcessW command-line limit")
+        _validate_windows_command_line(argv, task_id)
     broker_boundary = brokered_execution_boundary(argv[0])
     if broker_boundary is not None and any(value is not None for value in resources.values()):
         raise InputError(
@@ -3298,6 +3688,7 @@ async def _launch_windows_task(
     _windows_job_process_slot_reservations(
         task.get("terminal_mode", "pipes"), max_processes
     )
+    _validate_windows_command_line(task["argv"], task["id"])
     if _windows_environment_utf16_units(target_env) > MAX_WINDOWS_ENVIRONMENT_UTF16_UNITS:
         raise InputError(
             f"task {task['id']} Windows environment exceeds "
@@ -3621,12 +4012,1593 @@ async def execute_task(
     return result
 
 
+def _pytest_selection_fingerprint(contract: dict[str, Any]) -> str:
+    try:
+        encoded = json.dumps(
+            contract,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise InputError(f"pytest selection contract is not canonical JSON: {exc}") from exc
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _test_suite_execution_context(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Validate hash-bound test metadata and expose honest native-pool facts."""
+    raw_suites = plan.get("test_suites", [])
+    if raw_suites in (None, []):
+        return None
+    if not isinstance(raw_suites, list) or len(raw_suites) > 64:
+        raise InputError("compiled_plan test_suites must be a bounded array")
+    try:
+        declared_project_root = Path(plan["project_root"])
+        project_root = declared_project_root.resolve(strict=True)
+        if (
+            not project_root.is_dir()
+            or str(project_root) != str(declared_project_root)
+        ):
+            raise ValueError("project root identity changed")
+    except (KeyError, OSError, TypeError, ValueError) as exc:
+        raise InputError("compiled_plan pytest project_root is no longer canonical") from exc
+    atoms = {
+        atom.get("id"): atom
+        for atom in plan.get("atoms", [])
+        if isinstance(atom, dict) and isinstance(atom.get("id"), str)
+    }
+    suites: list[dict[str, Any]] = []
+    seen_atoms: set[str] = set()
+    seen_reports: set[str] = set()
+    seen_temp_roots: set[str] = set()
+
+    def path_identity(value: str) -> str:
+        return _path_identity(value, os.name)
+
+    for index, raw in enumerate(raw_suites):
+        if not isinstance(raw, dict):
+            raise InputError(f"compiled_plan test suite {index} must be an object")
+        suite_id = raw.get("id")
+        atom_id = raw.get("atom_id")
+        workers = raw.get("configured_workers")
+        junit_path = raw.get("junit_path")
+        basetemp_path = raw.get("basetemp_path")
+        case_hint = raw.get("case_count_hint")
+        explicit_snapshot_count = raw.get("explicit_snapshot_count")
+        baseline_source_closure_declared = raw.get(
+            "baseline_source_closure_declared"
+        )
+        baseline_source_coverage = raw.get("baseline_source_coverage")
+        selection_contract = raw.get("selection_contract")
+        selection_fingerprint = raw.get("selection_fingerprint")
+        if raw.get("schema") != "atomlane/test-suite/v1" or raw.get("framework") != "pytest":
+            raise InputError(f"compiled_plan test suite {index} has an unsupported contract")
+        if not isinstance(suite_id, str) or not suite_id:
+            raise InputError(f"compiled_plan test suite {index} has no id")
+        if not isinstance(atom_id, str) or atom_id not in atoms or atom_id in seen_atoms:
+            raise InputError(f"compiled_plan test suite {suite_id} has an invalid atom_id")
+        if isinstance(workers, bool) or not isinstance(workers, int) or not 1 <= workers <= MAX_CONCURRENCY:
+            raise InputError(f"compiled_plan test suite {suite_id} has invalid configured_workers")
+        if case_hint is not None and (
+            isinstance(case_hint, bool)
+            or not isinstance(case_hint, int)
+            or not 1 <= case_hint <= 10_000_000
+        ):
+            raise InputError(f"compiled_plan test suite {suite_id} has invalid case_count_hint")
+        report_identity = path_identity(junit_path) if isinstance(junit_path, str) else ""
+        if (
+            not isinstance(junit_path, str)
+            or not junit_path
+            or "\x00" in junit_path
+            or not os.path.isabs(junit_path)
+            or (
+                os.name == "nt"
+                and not _windows_output_path_spelling_is_unambiguous(junit_path)
+            )
+            or report_identity in seen_reports
+            or report_identity in seen_temp_roots
+            or _path_is_within_reserved_pytest_basetemp(junit_path)
+        ):
+            raise InputError(f"compiled_plan test suite {suite_id} has an invalid or duplicate junit_path")
+        temp_identity = (
+            path_identity(basetemp_path) if isinstance(basetemp_path, str) else ""
+        )
+        if (
+            not isinstance(basetemp_path, str)
+            or not basetemp_path
+            or "\x00" in basetemp_path
+            or not os.path.isabs(basetemp_path)
+            or temp_identity in seen_temp_roots
+            or temp_identity in seen_reports
+            or temp_identity == report_identity
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} has an invalid or duplicate basetemp_path"
+            )
+        try:
+            report_state = Path(junit_path).lstat()
+        except FileNotFoundError:
+            report_state = None
+        try:
+            basetemp_state = Path(basetemp_path).lstat()
+        except FileNotFoundError:
+            basetemp_state = None
+        try:
+            resolved_report = Path(junit_path).resolve(strict=False)
+            resolved_temp = Path(basetemp_path).resolve(strict=False)
+            resolved_report_parent = Path(junit_path).parent.resolve(strict=True)
+            resolved_temp_parent = Path(basetemp_path).parent.resolve(strict=True)
+        except OSError as exc:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} output parent cannot be revalidated"
+            ) from exc
+        if (
+            path_identity(str(resolved_report)) != report_identity
+            or path_identity(str(resolved_temp)) != temp_identity
+            or path_identity(str(resolved_report_parent))
+            != path_identity(str(Path(junit_path).parent))
+            or path_identity(str(resolved_temp_parent))
+            != path_identity(str(Path(basetemp_path).parent))
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} output path identity changed"
+            )
+        if basetemp_state is not None and (
+            stat.S_ISLNK(basetemp_state.st_mode)
+            or getattr(basetemp_state, "st_reparse_tag", 0)
+            or not stat.S_ISDIR(basetemp_state.st_mode)
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} basetemp_path must be absent or a non-link directory"
+            )
+        if report_state is not None and (
+            stat.S_ISLNK(report_state.st_mode)
+            or getattr(report_state, "st_reparse_tag", 0)
+            or not stat.S_ISREG(report_state.st_mode)
+            or report_state.st_nlink != 1
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} junit_path must be absent or a single-link non-link regular file"
+            )
+        try:
+            _path_physical_anchor_identity(junit_path, os.name)
+            _path_physical_anchor_identity(basetemp_path, os.name)
+            if _paths_overlap(
+                junit_path,
+                left_is_directory=False,
+                right=basetemp_path,
+                right_is_directory=True,
+                effective_os=os.name,
+            ):
+                raise AtomError("JUnit and base-temp outputs overlap")
+            for prior_suite in suites:
+                if _paths_are_equivalent(
+                    junit_path,
+                    prior_suite["junit_path"],
+                    os.name,
+                ):
+                    raise AtomError("JUnit output aliases another suite's report")
+                if (
+                    _paths_overlap(
+                        junit_path,
+                        left_is_directory=False,
+                        right=prior_suite["basetemp_path"],
+                        right_is_directory=True,
+                        effective_os=os.name,
+                    )
+                    or _paths_overlap(
+                        basetemp_path,
+                        left_is_directory=True,
+                        right=prior_suite["junit_path"],
+                        right_is_directory=False,
+                        effective_os=os.name,
+                    )
+                    or _paths_overlap(
+                        basetemp_path,
+                        left_is_directory=True,
+                        right=prior_suite["basetemp_path"],
+                        right_is_directory=True,
+                        effective_os=os.name,
+                    )
+                ):
+                    raise AtomError("pytest output aliases another suite's output")
+        except AtomError as exc:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} output identity is unsafe"
+            ) from exc
+        report_file_identity = (
+            (report_state.st_dev, report_state.st_ino)
+            if report_state is not None
+            else None
+        )
+        atom = atoms[atom_id]
+        operation = atom.get("operation", {})
+        argv = operation.get("argv", [])
+        environment = operation.get("env", {})
+        internal = operation.get("internal_parallelism", {})
+        timeout_seconds = operation.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+        provenance = atom.get("provenance", {})
+        if (
+            operation.get("kind") != "test"
+            or provenance.get("adapter") != "test_suite"
+            or not isinstance(argv, list)
+            or not argv
+            or not all(isinstance(item, str) for item in argv)
+            or not _is_pytest_runner(argv)
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} is not bound to an exact pytest test atom"
+            )
+        if (
+            not isinstance(selection_contract, dict)
+            or set(selection_contract)
+            != {
+                "schema",
+                "runner_argv",
+                "runner_attestation",
+                "arguments",
+                "cwd",
+                "env",
+                "source_snapshots",
+                "explicit_source_snapshots",
+                "baseline_source_closure_declared",
+                "baseline_source_coverage",
+                "config_path",
+                "config_rootdir",
+                "collection_roots",
+                "config_addopts",
+                "environment_addopts",
+                "uses_bundled_empty_config",
+                "config_selection_kind",
+                "config_addopts_policy",
+            }
+            or selection_contract.get("schema") != "atomlane/pytest-selection/v1"
+            or selection_contract.get("config_addopts_policy")
+            != "preserved_validated"
+            or raw.get("config_addopts_policy") != "preserved_validated"
+            or not isinstance(selection_fingerprint, str)
+            or selection_fingerprint != _pytest_selection_fingerprint(selection_contract)
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} has an invalid selection fingerprint"
+            )
+        runner_argv = selection_contract.get("runner_argv")
+        runner_attestation = selection_contract.get("runner_attestation")
+        arguments = selection_contract.get("arguments")
+        selection_snapshots = selection_contract.get("source_snapshots")
+        explicit_snapshots = selection_contract.get("explicit_source_snapshots")
+        config_path = selection_contract.get("config_path")
+        config_rootdir = selection_contract.get("config_rootdir")
+        declared_collection_roots = selection_contract.get("collection_roots")
+        config_addopts = selection_contract.get("config_addopts")
+        environment_addopts = selection_contract.get("environment_addopts")
+        uses_empty_config = selection_contract.get("uses_bundled_empty_config")
+        config_selection_kind = selection_contract.get("config_selection_kind")
+        if (
+            not isinstance(runner_argv, list)
+            or not runner_argv
+            or not all(isinstance(item, str) for item in runner_argv)
+            or not os.path.isabs(runner_argv[0])
+            or not _is_exact_pytest_runner_prefix(runner_argv)
+            or not isinstance(runner_attestation, dict)
+            or runner_attestation.get("schema")
+            != "atomlane/pytest-runner-attestation/v1"
+            or not isinstance(arguments, list)
+            or not all(isinstance(item, str) for item in arguments)
+            or not isinstance(config_path, str)
+            or not os.path.isabs(config_path)
+            or not isinstance(config_rootdir, str)
+            or not os.path.isabs(config_rootdir)
+            or not isinstance(declared_collection_roots, list)
+            or not all(
+                isinstance(item, str) and os.path.isabs(item)
+                for item in declared_collection_roots
+            )
+            or not isinstance(config_addopts, list)
+            or not all(isinstance(item, str) for item in config_addopts)
+            or not isinstance(environment_addopts, list)
+            or not all(isinstance(item, str) for item in environment_addopts)
+            or not isinstance(uses_empty_config, bool)
+            or config_selection_kind
+            not in {"pytest_config", "fallback_pyproject", "bundled_empty"}
+            or uses_empty_config is not (config_selection_kind == "bundled_empty")
+            or selection_contract.get("cwd") != operation.get("cwd")
+            or selection_contract.get("env") != environment
+            or any(
+                not isinstance(environment.get(key), str)
+                for key in (
+                    "PYTEST_ADDOPTS",
+                    "PYTEST_PLUGINS",
+                    "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+                    "PYTEST_DEBUG",
+                    "PYTHONHOME",
+                    "PYTHONPATH",
+                    "PYTHONOPTIMIZE",
+                )
+            )
+            or environment.get("PYTEST_DEBUG") != ""
+            or environment.get("PYTHONHOME") != ""
+            or environment.get("PYTHONPATH") != ""
+            or environment.get("PYTHONOPTIMIZE") != ""
+            or not isinstance(selection_snapshots, list)
+            or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("path"), str)
+                or item not in plan.get("source_snapshots", [])
+                for item in selection_snapshots
+            )
+            or not isinstance(explicit_snapshots, list)
+            or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("path"), str)
+                or item not in selection_snapshots
+                for item in explicit_snapshots
+            )
+            or selection_snapshots
+            != sorted(selection_snapshots, key=lambda item: item["path"])
+            or explicit_snapshots
+            != sorted(explicit_snapshots, key=lambda item: item["path"])
+            or isinstance(explicit_snapshot_count, bool)
+            or not isinstance(explicit_snapshot_count, int)
+            or explicit_snapshot_count != len(explicit_snapshots)
+            or not isinstance(baseline_source_closure_declared, bool)
+            or not isinstance(baseline_source_coverage, bool)
+            or selection_contract.get("baseline_source_closure_declared")
+            is not baseline_source_closure_declared
+            or selection_contract.get("baseline_source_coverage")
+            is not baseline_source_coverage
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} selection contract is inconsistent"
+            )
+        try:
+            runtime_runner_attestation = _pytest_runner_attestation(
+                Path(runner_argv[0]), f"compiled_plan test suite {suite_id}"
+            )
+        except AtomError as exc:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} runner cannot be revalidated"
+            ) from exc
+        if runtime_runner_attestation != runner_attestation:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} runner changed after compilation"
+            )
+        try:
+            operation_cwd = Path(operation["cwd"])
+            resolved_operation_cwd = operation_cwd.resolve(strict=True)
+            resolved_operation_cwd.relative_to(project_root)
+            if str(resolved_operation_cwd) != str(operation_cwd):
+                raise ValueError("pytest cwd identity changed")
+            lexical_config_path = Path(config_path)
+            resolved_config_path = lexical_config_path.resolve(strict=True)
+            if str(resolved_config_path) != str(lexical_config_path):
+                raise ValueError("pytest config identity changed")
+            if uses_empty_config:
+                if resolved_config_path != PYTEST_EMPTY_CONFIG.resolve(strict=True):
+                    raise ValueError("bundled pytest config identity changed")
+            else:
+                resolved_config_path.relative_to(project_root)
+            lexical_config_rootdir = Path(config_rootdir)
+            resolved_config_rootdir = lexical_config_rootdir.resolve(strict=True)
+            resolved_config_rootdir.relative_to(project_root)
+            if str(resolved_config_rootdir) != str(lexical_config_rootdir):
+                raise ValueError("pytest config root identity changed")
+            if (
+                config_selection_kind != "bundled_empty"
+                and resolved_config_rootdir != resolved_config_path.parent
+            ):
+                raise ValueError("pytest config root does not match its config file")
+            config_state = Path(config_path).lstat()
+            config_identity = str(Path(config_path).resolve(strict=False))
+            snapshotted_paths: set[str] = set()
+            protected_file_identities: set[tuple[int, int]] = set()
+            for snapshot in selection_snapshots:
+                snapshot_path = Path(snapshot["path"])
+                if not snapshot_path.is_absolute():
+                    snapshot_path = project_root / snapshot_path
+                lexical_snapshot = Path(os.path.abspath(snapshot_path))
+                resolved_snapshot = snapshot_path.resolve(strict=True)
+                source_state = snapshot_path.lstat()
+                if (
+                    lexical_snapshot != resolved_snapshot
+                    or stat.S_ISLNK(source_state.st_mode)
+                    or getattr(source_state, "st_reparse_tag", 0)
+                    or not stat.S_ISREG(source_state.st_mode)
+                ):
+                    raise ValueError("pytest source snapshot identity changed")
+                snapshotted_paths.add(str(resolved_snapshot))
+                protected_file_identities.add(
+                    (source_state.st_dev, source_state.st_ino)
+                )
+            explicit_paths = []
+            for snapshot in explicit_snapshots:
+                snapshot_path = Path(snapshot["path"])
+                if not snapshot_path.is_absolute():
+                    snapshot_path = project_root / snapshot_path
+                lexical_snapshot = Path(os.path.abspath(snapshot_path))
+                resolved_snapshot = snapshot_path.resolve(strict=True)
+                if lexical_snapshot != resolved_snapshot:
+                    raise ValueError("pytest explicit snapshot identity changed")
+                explicit_paths.append(str(resolved_snapshot))
+            if isinstance(argv[0], str) and os.path.isabs(argv[0]):
+                runner_state = Path(argv[0]).resolve(strict=True).lstat()
+                if stat.S_ISREG(runner_state.st_mode):
+                    protected_file_identities.add(
+                        (runner_state.st_dev, runner_state.st_ino)
+                    )
+        except (KeyError, OSError, TypeError, ValueError) as exc:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} config snapshot is invalid"
+            ) from exc
+        if (
+            stat.S_ISLNK(config_state.st_mode)
+            or getattr(config_state, "st_reparse_tag", 0)
+            or not stat.S_ISREG(config_state.st_mode)
+            or config_identity not in snapshotted_paths
+            or not Path(config_rootdir).is_dir()
+            or len(snapshotted_paths) != len(selection_snapshots)
+            or len(set(explicit_paths)) != len(explicit_paths)
+            or config_identity in explicit_paths
+            or report_identity in {path_identity(path) for path in snapshotted_paths}
+            or (
+                report_file_identity is not None
+                and report_file_identity in protected_file_identities
+            )
+            or (
+                isinstance(argv[0], str)
+                and os.path.isabs(argv[0])
+                and report_identity
+                in {
+                    path_identity(argv[0]),
+                    path_identity(str(Path(argv[0]).resolve(strict=False))),
+                }
+            )
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} config is not a snapshotted regular file"
+            )
+        try:
+            runtime_environment_addopts = shlex.split(
+                environment["PYTEST_ADDOPTS"], posix=True
+            )
+            config_is_valid, runtime_config_addopts = _pytest_config_addopts(
+                Path(config_path)
+            )
+            runtime_config_paths = _validate_pytest_config_paths(
+                Path(config_path), project_root, f"compiled_plan test suite {suite_id}"
+            )
+            _reject_pytest_module_shadowing(
+                Path(operation["cwd"]),
+                runtime_config_paths["pythonpath"],
+                f"compiled_plan test suite {suite_id}",
+            )
+            runtime_selectors = _validate_pytest_selector_boundaries(
+                project_root,
+                Path(operation["cwd"]),
+                [*runtime_config_addopts, *runtime_environment_addopts, *arguments],
+                f"compiled_plan test suite {suite_id}",
+            )
+            runtime_collection_roots = (
+                runtime_selectors
+                or runtime_config_paths["testpaths"]
+                or [Path(operation["cwd"])]
+            )
+            if [
+                str(path.resolve(strict=True)) for path in runtime_collection_roots
+            ] != declared_collection_roots:
+                raise AtomError("pytest collection roots changed after compilation")
+            runtime_report_path = Path(junit_path).resolve(strict=False)
+            for collection_root in runtime_collection_roots:
+                resolved_root = collection_root.resolve(strict=True)
+                if any(
+                    _pytest_output_overlaps_collection(
+                        output_path,
+                        resolved_root,
+                        os.name,
+                        output_is_directory=output_is_directory,
+                    )
+                    for output_path, output_is_directory in (
+                        (runtime_report_path, False),
+                        (resolved_temp, True),
+                    )
+                ):
+                    raise AtomError(
+                        "pytest output overlaps the collection scope"
+                    )
+            for prior_suite in suites:
+                if any(
+                    _pytest_output_overlaps_collection(
+                        output_path,
+                        Path(prior_root),
+                        os.name,
+                        output_is_directory=output_is_directory,
+                    )
+                    for output_path, output_is_directory in (
+                        (runtime_report_path, False),
+                        (resolved_temp, True),
+                    )
+                    for prior_root in prior_suite["collection_roots"]
+                ) or any(
+                    _pytest_output_overlaps_collection(
+                        output_path,
+                        collection_root.resolve(strict=True),
+                        os.name,
+                        output_is_directory=output_is_directory,
+                    )
+                    for output_path, output_is_directory in (
+                        (prior_suite["junit_path"], False),
+                        (prior_suite["basetemp_path"], True),
+                    )
+                    for collection_root in runtime_collection_roots
+                ):
+                    raise AtomError(
+                        "pytest output overlaps another suite's collection scope"
+                    )
+            runtime_source_coverage = _pytest_baseline_source_coverage(
+                project_root,
+                Path(operation["cwd"]),
+                [*runtime_config_addopts, *runtime_environment_addopts, *arguments],
+                Path(config_path),
+                [Path(path) for path in explicit_paths],
+                f"compiled_plan test suite {suite_id}",
+            )
+        except (AtomError, TypeError, ValueError) as exc:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} pytest selection cannot be revalidated"
+            ) from exc
+        config_selection_is_valid = (
+            config_selection_kind == "pytest_config"
+            and config_is_valid
+            or (
+                config_selection_kind == "fallback_pyproject"
+                and not config_is_valid
+                and Path(config_path).name == "pyproject.toml"
+                and not runtime_config_addopts
+                and not runtime_config_paths["testpaths"]
+                and not runtime_config_paths["pythonpath"]
+            )
+            or (
+                config_selection_kind == "bundled_empty"
+                and config_is_valid
+                and not runtime_config_addopts
+            )
+        )
+        if (
+            not config_selection_is_valid
+            or runtime_environment_addopts != environment_addopts
+            or runtime_config_addopts != config_addopts
+            or runtime_source_coverage is not baseline_source_coverage
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} addopts metadata is inconsistent"
+            )
+        if (
+            _pytest_owned_options(config_addopts)
+            or _pytest_owned_options(environment_addopts)
+            or _pytest_plugin_control(config_addopts) is not None
+            or _pytest_plugin_control(environment_addopts) is not None
+            or _pytest_plugin_control(arguments) is not None
+            or _pytest_environment_plugin_control(environment["PYTEST_PLUGINS"])
+            is not None
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} materialized options conflict with AtomLane controls"
+            )
+        expected_controls = Counter(
+            {
+                "-c": 1,
+                "--confcutdir": 1,
+                "--basetemp": 1,
+                "--junitxml": 1,
+                **({"--rootdir": 1} if uses_empty_config else {}),
+                **(
+                    {
+                        "-n": 1,
+                        "--maxprocesses": 1,
+                        "--max-worker-restart": 1,
+                        "--dist": 1,
+                    }
+                    if workers > 1
+                    else {}
+                ),
+            }
+        )
+        if Counter(_pytest_owned_options(argv)) != expected_controls:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} has duplicate, missing, or conflicting pytest controls"
+            )
+        if (
+            argv.count(f"--junitxml={junit_path}") != 1
+            or argv.count(f"--basetemp={basetemp_path}") != 1
+            or raw.get("effects_declared_complete") is not True
+            or raw.get("collection_execution_performed") is not False
+            or raw.get("worker_evidence") != "configured_not_observed"
+        ):
+            raise InputError(
+                f"compiled_plan test suite {suite_id} control metadata is inconsistent"
+            )
+        expected_argv = [*runner_argv, "-p", "xdist"]
+        if workers > 1:
+            expected_argv.extend(
+                ["-n", str(workers), "--dist", raw.get("distribution")]
+            )
+        expected_argv.extend(["-c", config_path])
+        expected_argv.append(f"--confcutdir={project_root}")
+        if uses_empty_config:
+            expected_argv.append(f"--rootdir={config_rootdir}")
+        expected_argv.extend(["-p", "no:cacheprovider"])
+        if workers > 1:
+            expected_argv.extend(
+                [
+                    "--maxprocesses",
+                    str(workers),
+                    "--max-worker-restart",
+                    "0",
+                ]
+            )
+        expected_argv.extend(
+            [
+                f"--basetemp={basetemp_path}",
+                f"--junitxml={junit_path}",
+                *arguments,
+            ]
+        )
+        if argv != expected_argv:
+            raise InputError(
+                f"compiled_plan test suite {suite_id} argv differs from its selection contract"
+            )
+        if workers > 1:
+            worker_pair = any(
+                argv[position:position + 2] == ["-n", str(workers)]
+                for position in range(max(0, len(argv) - 1))
+            )
+            distribution = raw.get("distribution")
+            distribution_pair = any(
+                argv[position:position + 2] == ["--dist", distribution]
+                for position in range(max(0, len(argv) - 1))
+            )
+            maxprocess_pair = any(
+                argv[position:position + 2] == ["--maxprocesses", str(workers)]
+                for position in range(max(0, len(argv) - 1))
+            )
+            restart_pair = any(
+                argv[position:position + 2] == ["--max-worker-restart", "0"]
+                for position in range(max(0, len(argv) - 1))
+            )
+            if (
+                raw.get("strategy") != "native_worker_pool"
+                or raw.get("independence_declared") is not True
+                or raw.get("native_dependency") != "pytest-xdist"
+                or internal.get("kind") != "bounded"
+                or float(internal.get("tokens") or 0) != float(workers)
+                or not worker_pair
+                or not distribution_pair
+                or not maxprocess_pair
+                or not restart_pair
+            ):
+                raise InputError(f"compiled_plan test suite {suite_id} worker budget is inconsistent")
+        elif (
+            raw.get("strategy") != "native_serial"
+            or raw.get("native_dependency") != "pytest-xdist"
+            or internal.get("kind") != "none"
+            or internal.get("tokens") is not None
+        ):
+            raise InputError(f"compiled_plan test suite {suite_id} serial strategy is inconsistent")
+        suites.append(
+            {
+                "id": suite_id,
+                "atom_id": atom_id,
+                "configured_workers": workers,
+                "case_count_hint": case_hint,
+                "junit_path": junit_path,
+                "basetemp_path": basetemp_path,
+                "distribution": raw.get("distribution"),
+                "strategy": raw.get("strategy"),
+                "independence_declared": raw.get("independence_declared") is True,
+                "selection_fingerprint": selection_fingerprint,
+                "explicit_snapshot_count": explicit_snapshot_count,
+                "baseline_source_closure_declared": baseline_source_closure_declared,
+                "baseline_source_coverage": baseline_source_coverage,
+                "collection_roots": declared_collection_roots,
+                "timeout_seconds": float(timeout_seconds),
+                "worker_evidence": "configured_not_observed",
+            }
+        )
+        seen_atoms.add(atom_id)
+        seen_reports.add(report_identity)
+        seen_temp_roots.add(temp_identity)
+
+    configured = [suite["configured_workers"] for suite in suites]
+    hints = [suite["case_count_hint"] for suite in suites]
+    suite_atom_ids = {suite["atom_id"] for suite in suites}
+    return {
+        "framework": "pytest",
+        "test_suites": suites,
+        "native_worker_pool_count": sum(1 for value in configured if value > 1),
+        "native_workers_configured": max(configured, default=1),
+        "native_workers_configured_total": sum(configured),
+        "native_workers_observed": None,
+        "worker_evidence": "configured_not_observed",
+        "test_cases_planned": sum(hints) if all(value is not None for value in hints) else None,
+        "test_case_hints_known": sum(value for value in hints if value is not None),
+        "selection_fingerprints": sorted(
+            suite["selection_fingerprint"] for suite in suites
+        ),
+        "test_workload_exclusive": suite_atom_ids == set(atoms),
+    }
+
+
+def _pytest_output_lease_identity(path: str) -> str:
+    resolved = os.path.abspath(os.fspath(Path(path).resolve(strict=False)))
+    return _path_identity(resolved, os.name)
+
+
+def _windows_profile_directory_from_apis(
+    kernel32: Any,
+    advapi32: Any,
+    userenv: Any,
+) -> str:
+    """Read the current process token's profile through native Windows APIs."""
+    import ctypes
+    from ctypes import wintypes
+
+    token_query = 0x0008
+    get_last_error = getattr(ctypes, "get_last_error", lambda: 0)
+    token = wintypes.HANDLE()
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    userenv.GetUserProfileDirectoryW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    userenv.GetUserProfileDirectoryW.restype = wintypes.BOOL
+
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), token_query, ctypes.byref(token)):
+        raise InputError(
+            "Windows current-token profile is unavailable "
+            f"(WinError {get_last_error()})"
+        )
+    try:
+        size = wintypes.DWORD(0)
+        userenv.GetUserProfileDirectoryW(token, None, ctypes.byref(size))
+        if size.value <= 1:
+            raise InputError(
+                "Windows current-token profile size is unavailable "
+                f"(WinError {get_last_error()})"
+            )
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not userenv.GetUserProfileDirectoryW(token, buffer, ctypes.byref(size)):
+            raise InputError(
+                "Windows current-token profile is unavailable "
+                f"(WinError {get_last_error()})"
+            )
+        if not buffer.value:
+            raise InputError("Windows current-token profile is empty")
+        return buffer.value
+    finally:
+        kernel32.CloseHandle(token)
+
+
+def _windows_token_local_app_data() -> Path:
+    """Resolve stable per-user local state without consulting process env."""
+    if os.name != "nt":
+        raise InputError("Windows profile lookup requires native Windows")
+    import ctypes
+
+    try:
+        profile = Path(
+            _windows_profile_directory_from_apis(
+                ctypes.WinDLL("kernel32", use_last_error=True),
+                ctypes.WinDLL("advapi32", use_last_error=True),
+                ctypes.WinDLL("userenv", use_last_error=True),
+            )
+        ).resolve(strict=True)
+    except OSError as exc:
+        raise InputError("Windows current-token profile is unavailable") from exc
+    return profile / "AppData" / "Local"
+
+
+def _pytest_output_lease_root(
+    *,
+    host_os: str | None = None,
+    known_local_app_data: Path | None = None,
+) -> Path:
+    """Return a per-user lease root that is independent of TMPDIR/TEMP."""
+    active_os = host_os or os.name
+    if active_os == "nt":
+        return (
+            known_local_app_data or _windows_token_local_app_data()
+        ) / "AtomLane" / "pytest-output-leases-v1"
+    return (
+        Path("/tmp").resolve(strict=True)
+        / f"atomlane-pytest-output-leases-{os.getuid()}-v1"
+    )
+
+
+def _pytest_output_lease_keys(context: dict[str, Any]) -> tuple[str, ...]:
+    """Derive lexical and physical locks that remain stable after output creation."""
+    keys: set[str] = set()
+    for suite in context.get("test_suites", []):
+        for raw_path in (suite.get("junit_path"), suite.get("basetemp_path")):
+            if not isinstance(raw_path, str) or not raw_path:
+                continue
+            path = Path(raw_path)
+            keys.add(f"path:{_pytest_output_lease_identity(raw_path)}")
+            try:
+                parent_state = path.parent.stat()
+            except OSError as exc:
+                raise AtomError(
+                    f"pytest output parent physical identity is unavailable: {path.parent}"
+                ) from exc
+            parent_inode = int(getattr(parent_state, "st_ino", 0) or 0)
+            if not stat.S_ISDIR(parent_state.st_mode) or parent_inode <= 0:
+                raise AtomError(
+                    f"pytest output parent physical identity is unavailable: {path.parent}"
+                )
+            basename = _path_identity(path.name, os.name)
+            keys.add(
+                "parent-entry:"
+                f"{int(parent_state.st_dev)}:{parent_inode}:"
+                f"{hashlib.sha256(basename.encode('utf-8')).hexdigest()}"
+            )
+            try:
+                target_state = path.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise AtomError(
+                    f"pytest output physical identity is unavailable: {path}"
+                ) from exc
+            target_inode = int(getattr(target_state, "st_ino", 0) or 0)
+            if (
+                stat.S_ISLNK(target_state.st_mode)
+                or getattr(target_state, "st_reparse_tag", 0)
+                or target_inode <= 0
+            ):
+                raise AtomError(
+                    f"pytest output physical identity is unavailable: {path}"
+                )
+            keys.add(f"target:{int(target_state.st_dev)}:{target_inode}")
+    return tuple(sorted(keys))
+
+
+class _PytestOutputLeases:
+    def __init__(
+        self,
+        stack: contextlib.ExitStack,
+        lease_keys: tuple[str, ...],
+    ) -> None:
+        self._stack = stack
+        self.lease_keys = lease_keys
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        self._stack.close()
+
+
+def _acquire_pytest_output_leases(
+    context: dict[str, Any] | None,
+) -> _PytestOutputLeases:
+    """Fail fast when another execution owns a pytest report/temp path."""
+    stack = contextlib.ExitStack()
+    if context is None:
+        return _PytestOutputLeases(stack, ())
+    lease_root = _pytest_output_lease_root()
+    try:
+        lease_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        root_state = lease_root.lstat()
+    except OSError as exc:
+        raise InputError("pytest output lease directory is unavailable") from exc
+    if (
+        stat.S_ISLNK(root_state.st_mode)
+        or getattr(root_state, "st_reparse_tag", 0)
+        or not stat.S_ISDIR(root_state.st_mode)
+        or (
+            os.name == "posix"
+            and (
+                root_state.st_uid != os.getuid()
+                or stat.S_IMODE(root_state.st_mode) & 0o077
+            )
+        )
+    ):
+        raise InputError("pytest output lease directory is not private")
+    try:
+        lease_keys = _pytest_output_lease_keys(context)
+        for lease_key in lease_keys:
+            digest = hashlib.sha256(lease_key.encode("utf-8")).hexdigest()
+            stack.enter_context(
+                exclusive_file_lock(
+                    lease_root / f"{digest}.lock",
+                    timeout_seconds=0.0,
+                )
+            )
+        if _pytest_output_lease_keys(context) != lease_keys:
+            raise AtomError("pytest output identity changed while leases were acquired")
+    except TimeoutError as exc:
+        stack.close()
+        raise InputError(
+            "pytest report or temporary path is already in use; "
+            "recompile the plan or choose a unique junit_path"
+        ) from exc
+    except OSError as exc:
+        stack.close()
+        raise InputError("pytest output lease cannot be acquired") from exc
+    except AtomError as exc:
+        stack.close()
+        raise InputError("pytest output identity cannot be leased safely") from exc
+    return _PytestOutputLeases(stack, lease_keys)
+
+
+def _junit_report_snapshot(
+    path: Path,
+) -> tuple[dict[str, Any], bytes | None, str | None]:
+    """Open one stable regular file without following links and read at most MAX+1."""
+    try:
+        path_state = path.lstat()
+    except FileNotFoundError:
+        return {"exists": False}, None, "JUnit report does not exist"
+    except OSError as exc:
+        return (
+            {"exists": False, "error": type(exc).__name__},
+            None,
+            f"JUnit report cannot be inspected: {type(exc).__name__}",
+        )
+    if (
+        stat.S_ISLNK(path_state.st_mode)
+        or getattr(path_state, "st_reparse_tag", 0)
+        or not stat.S_ISREG(path_state.st_mode)
+        or path_state.st_ino == 0
+        or path_state.st_nlink != 1
+    ):
+        return (
+            {"exists": True, "regular_file": False},
+            None,
+            "JUnit report must be a single-link non-link regular file",
+        )
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        return (
+            {"exists": False, "error": type(exc).__name__},
+            None,
+            f"JUnit report cannot be opened safely: {type(exc).__name__}",
+        )
+    try:
+        opened = os.fstat(descriptor)
+        identity = (opened.st_dev, opened.st_ino)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or identity != (path_state.st_dev, path_state.st_ino)
+            or opened.st_nlink != 1
+        ):
+            return (
+                {"exists": True, "regular_file": False},
+                None,
+                "JUnit report changed identity while being opened",
+            )
+        base_state: dict[str, Any] = {
+            "exists": True,
+            "regular_file": True,
+            "device": opened.st_dev,
+            "inode": opened.st_ino,
+            "size": opened.st_size,
+            "mtime_ns": opened.st_mtime_ns,
+            "ctime_ns": opened.st_ctime_ns,
+            "nlink": opened.st_nlink,
+        }
+        if opened.st_size > MAX_JUNIT_REPORT_BYTES:
+            return (
+                base_state,
+                None,
+                f"JUnit report exceeds {MAX_JUNIT_REPORT_BYTES} bytes",
+            )
+        chunks: list[bytes] = []
+        remaining = MAX_JUNIT_REPORT_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(1_048_576, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        settled = os.fstat(descriptor)
+        settled_identity = (settled.st_dev, settled.st_ino)
+        settled_path = path.lstat()
+        if (
+            settled_identity != identity
+            or (settled_path.st_dev, settled_path.st_ino) != identity
+            or stat.S_ISLNK(settled_path.st_mode)
+            or getattr(settled_path, "st_reparse_tag", 0)
+            or settled_path.st_nlink != 1
+            or settled.st_nlink != 1
+            or settled.st_size != opened.st_size
+            or settled.st_mtime_ns != opened.st_mtime_ns
+            or settled.st_ctime_ns != opened.st_ctime_ns
+        ):
+            return (
+                base_state,
+                None,
+                "JUnit report changed while it was being read",
+            )
+        payload = b"".join(chunks)
+        if len(payload) > MAX_JUNIT_REPORT_BYTES:
+            return (
+                {**base_state, "size": len(payload)},
+                None,
+                f"JUnit report exceeds {MAX_JUNIT_REPORT_BYTES} bytes",
+            )
+        state = {**base_state, "sha256": hashlib.sha256(payload).hexdigest()}
+        return state, payload, None
+    except OSError as exc:
+        return (
+            {"exists": True, "regular_file": False, "error": type(exc).__name__},
+            None,
+            f"JUnit report cannot be read safely: {type(exc).__name__}",
+        )
+    finally:
+        os.close(descriptor)
+
+
+def _junit_report_state(path: Path) -> dict[str, Any]:
+    state, _, _ = _junit_report_snapshot(path)
+    return state
+
+
+def _parse_junit_payload(payload: bytes) -> dict[str, Any]:
+    try:
+        payload.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return {
+            "status": "unavailable",
+            "reason": "JUnit report must be UTF-8",
+        }
+    upper = payload.upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+        return {
+            "status": "unavailable",
+            "reason": "JUnit report contains a prohibited DTD or entity declaration",
+        }
+
+    def local_name(tag: Any) -> str:
+        return str(tag).rsplit("}", 1)[-1].casefold()
+
+    def declared_counts(element: ET.Element) -> dict[str, int] | None:
+        values: dict[str, int] = {}
+        for name in ("tests", "failures", "errors", "skipped"):
+            raw_value = element.get(name)
+            if (
+                raw_value is None
+                or len(raw_value) > 10
+                or re.fullmatch(r"[0-9]+", raw_value) is None
+            ):
+                return None
+            parsed_value = int(raw_value)
+            if parsed_value > MAX_JUNIT_TEST_CASES:
+                return None
+            values[name] = parsed_value
+        return values
+
+    tests = failures = errors = skipped = timed = 0
+    duration_sum = 0.0
+    case_identifiers: list[list[str]] = []
+    root_name: str | None = None
+    root_declared: dict[str, int] | None = None
+    root_counts_present = False
+    suite_stack: list[dict[str, Any]] = []
+    active_testcases = 0
+    leaf_count = 0
+    leaf_counts_valid = True
+    leaf_totals = {name: 0 for name in ("tests", "failures", "errors", "skipped")}
+    depth = 0
+    element_count = 0
+    try:
+        for event, element in ET.iterparse(
+            io.BytesIO(payload), events=("start", "end")
+        ):
+            element_name = local_name(element.tag)
+            if event == "start":
+                depth += 1
+                element_count += 1
+                if element_count > MAX_JUNIT_XML_ELEMENTS:
+                    return {
+                        "status": "unavailable",
+                        "reason": (
+                            "JUnit report exceeds the bounded XML element limit of "
+                            f"{MAX_JUNIT_XML_ELEMENTS}"
+                        ),
+                    }
+                if depth > 256:
+                    return {
+                        "status": "unavailable",
+                        "reason": "JUnit report exceeds the XML nesting limit",
+                    }
+                if root_name is None:
+                    root_name = element_name
+                    if root_name not in {"testsuite", "testsuites"}:
+                        return {
+                            "status": "unavailable",
+                            "reason": "JUnit report root must be testsuite or testsuites",
+                        }
+                    if element_name == "testsuites":
+                        root_declared = declared_counts(element)
+                    root_counts_present = any(
+                        element.get(name) is not None
+                        for name in ("tests", "failures", "errors", "skipped")
+                    )
+                if element_name == "testcase":
+                    if active_testcases:
+                        return {
+                            "status": "unavailable",
+                            "reason": "JUnit testcase elements must not be nested",
+                        }
+                    active_testcases += 1
+                if element_name == "testsuite":
+                    if suite_stack:
+                        suite_stack[-1]["has_child_suite"] = True
+                    suite_stack.append(
+                        {
+                            "declared": declared_counts(element),
+                            "has_child_suite": False,
+                            "is_root": depth == 1,
+                        }
+                    )
+                continue
+
+            if element_name == "testcase":
+                if not suite_stack:
+                    return {
+                        "status": "unavailable",
+                        "reason": "JUnit testcase must be contained by a testsuite",
+                    }
+                tests += 1
+                if tests > MAX_JUNIT_TEST_CASES:
+                    return {
+                        "status": "unavailable",
+                        "reason": (
+                            "JUnit report exceeds the bounded testcase limit of "
+                            f"{MAX_JUNIT_TEST_CASES}"
+                        ),
+                    }
+                case_identifiers.append(
+                    [
+                        element.get("classname", ""),
+                        element.get("name", ""),
+                        element.get("file", ""),
+                        element.get("line", ""),
+                    ]
+                )
+                status_tags = {
+                    local_name(child.tag)
+                    for child in element
+                    if local_name(child.tag) in {"failure", "error", "skipped"}
+                }
+                if "error" in status_tags:
+                    errors += 1
+                elif "failure" in status_tags:
+                    failures += 1
+                elif "skipped" in status_tags:
+                    skipped += 1
+                raw_time = element.get("time")
+                if raw_time is not None:
+                    try:
+                        value = float(raw_time)
+                    except (TypeError, ValueError):
+                        value = -1.0
+                    if math.isfinite(value) and 0 <= value <= MAX_TIMEOUT_SECONDS:
+                        duration_sum += value
+                        timed += 1
+                active_testcases -= 1
+            elif element_name == "testsuite":
+                suite = suite_stack.pop()
+                if suite["is_root"]:
+                    root_declared = suite["declared"]
+                if not suite["has_child_suite"]:
+                    leaf_count += 1
+                    counts = suite["declared"]
+                    if counts is None:
+                        leaf_counts_valid = False
+                    else:
+                        for name, value in counts.items():
+                            leaf_totals[name] += value
+                            if leaf_totals[name] > MAX_JUNIT_TEST_CASES:
+                                leaf_counts_valid = False
+            element.clear()
+            depth -= 1
+    except (ET.ParseError, ValueError) as exc:
+        return {"status": "unavailable", "reason": f"JUnit report is malformed: {exc}"}
+
+    passed = max(0, tests - failures - errors - skipped)
+    declared = root_declared if root_name in {"testsuite", "testsuites"} else None
+    if (
+        declared is None
+        and not root_counts_present
+        and leaf_count
+        and leaf_counts_valid
+    ):
+        declared = leaf_totals
+    counter_consistent = declared == {
+        "tests": tests,
+        "failures": failures,
+        "errors": errors,
+        "skipped": skipped,
+    }
+    case_set_sha256 = "sha256:" + hashlib.sha256(
+        json.dumps(
+            sorted(case_identifiers),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "status": "parsed",
+        "tests": tests,
+        "passed": passed,
+        "failures": failures,
+        "errors": errors,
+        "skipped": skipped,
+        "declared_counts": declared,
+        "counter_consistent": counter_consistent,
+        "case_set_sha256": case_set_sha256,
+        "timed_testcases": timed,
+        "timing_complete": tests > 0 and timed == tests,
+        "testcase_time_sum_seconds": round(duration_sum, 6),
+    }
+
+
+def _parse_junit_report(path: Path) -> dict[str, Any]:
+    _, payload, reason = _junit_report_snapshot(path)
+    if payload is None:
+        return {"status": "unavailable", "reason": reason or "JUnit report unavailable"}
+    return _parse_junit_payload(payload)
+
+
+def _collect_test_report(
+    context: dict[str, Any] | None,
+    before_states: dict[str, dict[str, Any]],
+    results: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if context is None:
+        return None
+    test_workload_exclusive = context.get("test_workload_exclusive") is True
+    results_by_id = {
+        result.get("id"): result
+        for result in results
+        if isinstance(result, dict) and isinstance(result.get("id"), str)
+    }
+    reports: list[dict[str, Any]] = []
+    for suite in context["test_suites"]:
+        path = Path(suite["junit_path"])
+        after, payload, read_error = _junit_report_snapshot(path)
+        fresh = after.get("exists") is True and after != before_states.get(str(path))
+        if fresh and payload is not None:
+            parsed = _parse_junit_payload(payload)
+        else:
+            parsed = {
+                "status": "unavailable",
+                "reason": (
+                    read_error
+                    if fresh and read_error
+                    else "JUnit report was not created or changed by this execution"
+                ),
+            }
+        result = results_by_id.get(suite["atom_id"], {})
+        raw_wall = result.get("duration_seconds")
+        suite_wall = (
+            float(raw_wall)
+            if isinstance(raw_wall, (int, float))
+            and not isinstance(raw_wall, bool)
+            and math.isfinite(raw_wall)
+            and raw_wall >= 0
+            else None
+        )
+        timing_capacity = (
+            suite_wall * int(suite["configured_workers"])
+            if suite_wall is not None
+            else None
+        )
+        timing_tolerance = (
+            max(0.05, timing_capacity * 0.05)
+            if timing_capacity is not None
+            else 0.0
+        )
+        report_timing = float(parsed.get("testcase_time_sum_seconds", 0.0))
+        timing_plausible = bool(
+            parsed.get("status") == "parsed"
+            and timing_capacity is not None
+            and report_timing <= timing_capacity + timing_tolerance
+        )
+        reports.append(
+            {
+                "suite_id": suite["id"],
+                "path": str(path),
+                "fresh": fresh,
+                "attributed_to_suite": test_workload_exclusive,
+                **parsed,
+                "suite_wall_time_seconds": (
+                    round(suite_wall, 6) if suite_wall is not None else None
+                ),
+                "timing_capacity_seconds": (
+                    round(timing_capacity, 6)
+                    if timing_capacity is not None
+                    else None
+                ),
+                "timing_plausible": timing_plausible,
+            }
+        )
+    parsed_reports = [item for item in reports if item["status"] == "parsed"]
+    complete = len(parsed_reports) == len(reports)
+    tests = sum(int(item.get("tests", 0)) for item in parsed_reports)
+    timed = sum(int(item.get("timed_testcases", 0)) for item in parsed_reports)
+    duration_sum = sum(
+        float(item.get("testcase_time_sum_seconds", 0.0)) for item in parsed_reports
+    )
+    timing_plausible = complete and all(
+        item.get("timing_plausible") is True for item in parsed_reports
+    )
+    timing_complete = complete and tests > 0 and timed == tests and timing_plausible
+    failures = sum(int(item.get("failures", 0)) for item in parsed_reports)
+    errors = sum(int(item.get("errors", 0)) for item in parsed_reports)
+    passed = sum(int(item.get("passed", 0)) for item in parsed_reports)
+    case_set_sha256 = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                sorted(item["case_set_sha256"] for item in parsed_reports),
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if complete
+        else None
+    )
+    execution_evidence_eligible = bool(
+        test_workload_exclusive
+        and complete
+        and all(item.get("fresh") is True for item in reports)
+        and all(item.get("counter_consistent") is True for item in parsed_reports)
+        and tests > 0
+        and passed > 0
+        and failures == 0
+        and errors == 0
+    )
+    return {
+        "schema": "atomlane/test-report-summary/v1",
+        "status": "parsed" if complete else "partial" if parsed_reports else "unavailable",
+        "fresh": len(reports) > 0 and all(item["fresh"] for item in reports),
+        "expected_report_count": len(reports),
+        "fresh_report_count": sum(1 for item in reports if item["fresh"]),
+        "parsed_report_count": len(parsed_reports),
+        "tests": tests,
+        "passed": passed,
+        "failed": failures,
+        "failures": failures,
+        "errors": errors,
+        "skipped": sum(int(item.get("skipped", 0)) for item in parsed_reports),
+        "timed_testcases": timed,
+        "timing_complete": timing_complete,
+        "timing_plausible": timing_plausible,
+        "execution_evidence_eligible": execution_evidence_eligible,
+        "report_attribution": (
+            "exclusive_test_plan"
+            if test_workload_exclusive
+            else "unavailable_mixed_workload"
+        ),
+        "evidence_ineligible_reason": (
+            None
+            if test_workload_exclusive
+            else "JUnit reports are not attributed after non-test atoms in a mixed plan"
+        ),
+        "case_set_sha256": case_set_sha256,
+        "testcase_time_sum_seconds": round(duration_sum, 6),
+        "savings_comparison_eligible": (
+            execution_evidence_eligible and timing_complete and duration_sum > 0
+        ),
+        "savings_comparison_kind": (
+            "fresh_junit_testcase_durations"
+            if execution_evidence_eligible and timing_complete and duration_sum > 0
+            else None
+        ),
+        "reports": reports,
+    }
+
+
+def _normalize_serial_baseline_evidence(
+    raw: Any,
+    context: dict[str, Any],
+    current_plan_hash: str,
+) -> dict[str, Any]:
+    if not isinstance(raw, dict) or set(raw) != {
+        "schema",
+        "attestation_id",
+        "source_plan_hash",
+        "elapsed_seconds",
+        "suite_fingerprints",
+        "test_count",
+        "passed_count",
+        "skipped_count",
+        "case_set_sha256",
+        "status",
+    }:
+        raise InputError("serial_baseline_evidence has an invalid shape")
+    if raw.get("schema") != "atomlane/serial-test-baseline/v1":
+        raise InputError("serial_baseline_evidence has an unsupported schema")
+    attestation_id = raw.get("attestation_id")
+    if (
+        not isinstance(attestation_id, str)
+        or re.fullmatch(r"baseline_[0-9a-f]{64}", attestation_id) is None
+    ):
+        raise InputError("serial_baseline_evidence has an invalid attestation_id")
+    source_plan_hash = raw.get("source_plan_hash")
+    if (
+        not isinstance(source_plan_hash, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", source_plan_hash) is None
+        or source_plan_hash == current_plan_hash
+    ):
+        raise InputError("serial_baseline_evidence has an invalid source_plan_hash")
+    elapsed_raw = raw.get("elapsed_seconds")
+    if (
+        isinstance(elapsed_raw, bool)
+        or not isinstance(elapsed_raw, (int, float))
+        or not math.isfinite(elapsed_raw)
+        or not 0 < elapsed_raw <= MAX_TIMEOUT_SECONDS * MAX_TASKS
+    ):
+        raise InputError(
+            "serial_baseline_evidence.elapsed_seconds must be finite and positive"
+        )
+    fingerprints = raw.get("suite_fingerprints")
+    expected_fingerprints = context.get("selection_fingerprints")
+    if (
+        context.get("test_workload_exclusive") is not True
+        or any(
+            suite.get("explicit_snapshot_count", 0) < 1
+            or suite.get("baseline_source_closure_declared") is not True
+            or suite.get("baseline_source_coverage") is not True
+            for suite in context.get("test_suites", [])
+        )
+        or not isinstance(fingerprints, list)
+        or not all(isinstance(item, str) for item in fingerprints)
+        or sorted(fingerprints) != expected_fingerprints
+    ):
+        raise InputError(
+            "serial_baseline_evidence does not match the compiled pytest selection"
+        )
+    test_count = raw.get("test_count")
+    passed_count = raw.get("passed_count")
+    skipped_count = raw.get("skipped_count")
+    case_set_sha256 = raw.get("case_set_sha256")
+    if (
+        isinstance(test_count, bool)
+        or not isinstance(test_count, int)
+        or not 1 <= test_count <= 10_000_000 * max(1, len(fingerprints))
+        or isinstance(passed_count, bool)
+        or not isinstance(passed_count, int)
+        or passed_count != test_count
+        or isinstance(skipped_count, bool)
+        or not isinstance(skipped_count, int)
+        or skipped_count != 0
+        or not isinstance(case_set_sha256, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", case_set_sha256) is None
+        or raw.get("status") != "passed"
+    ):
+        raise InputError("serial_baseline_evidence must describe a non-empty passed run")
+    normalized = {
+        "schema": "atomlane/serial-test-baseline/v1",
+        "attestation_id": attestation_id,
+        "source_plan_hash": source_plan_hash,
+        "elapsed_seconds": float(elapsed_raw),
+        "suite_fingerprints": sorted(fingerprints),
+        "test_count": test_count,
+        "passed_count": passed_count,
+        "skipped_count": 0,
+        "case_set_sha256": case_set_sha256,
+        "status": "passed",
+    }
+    if _SERIAL_BASELINE_ATTESTATIONS.get(attestation_id) != normalized:
+        raise InputError(
+            "serial_baseline_evidence was not issued by this AtomLane server session"
+        )
+    return normalized
+
+
+def _serial_baseline_evidence_from_run(
+    context: dict[str, Any] | None,
+    test_report: dict[str, Any] | None,
+    results: list[dict[str, Any]],
+    elapsed: float,
+    plan_hash: str,
+    peak_concurrency: int,
+) -> dict[str, Any] | None:
+    if (
+        context is None
+        or context.get("native_worker_pool_count") != 0
+        or not isinstance(test_report, dict)
+        or test_report.get("execution_evidence_eligible") is not True
+        or any(result.get("status") != "succeeded" for result in results)
+        or peak_concurrency != 1
+        or any(
+            suite.get("configured_workers") != 1
+            for suite in context.get("test_suites", [])
+        )
+        or any(
+            suite.get("explicit_snapshot_count", 0) < 1
+            or suite.get("baseline_source_closure_declared") is not True
+            or suite.get("baseline_source_coverage") is not True
+            for suite in context.get("test_suites", [])
+        )
+        or test_report.get("skipped") != 0
+        or test_report.get("passed") != test_report.get("tests")
+        or not isinstance(test_report.get("case_set_sha256"), str)
+        or len(results) != len(context.get("test_suites", []))
+        or {result.get("id") for result in results}
+        != {
+            suite.get("atom_id")
+            for suite in context.get("test_suites", [])
+        }
+    ):
+        return None
+    evidence = {
+        "schema": "atomlane/serial-test-baseline/v1",
+        "attestation_id": f"baseline_{secrets.token_hex(32)}",
+        "source_plan_hash": plan_hash,
+        "elapsed_seconds": round(elapsed, 6),
+        "suite_fingerprints": context["selection_fingerprints"],
+        "test_count": int(test_report["tests"]),
+        "passed_count": int(test_report["passed"]),
+        "skipped_count": 0,
+        "case_set_sha256": test_report["case_set_sha256"],
+        "status": "passed",
+    }
+    while len(_SERIAL_BASELINE_ATTESTATIONS) >= MAX_SERIAL_BASELINE_ATTESTATIONS:
+        del _SERIAL_BASELINE_ATTESTATIONS[next(iter(_SERIAL_BASELINE_ATTESTATIONS))]
+    _SERIAL_BASELINE_ATTESTATIONS[evidence["attestation_id"]] = {
+        **evidence,
+        "suite_fingerprints": list(evidence["suite_fingerprints"]),
+    }
+    return evidence
+
+
 def _execution_indicator(
     results: list[dict[str, Any]],
     elapsed: float,
     peak_concurrency: int,
     serial_baseline_seconds: float | None,
+    execution_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    context = execution_context or {}
+    native_workers = context.get("native_workers_configured")
+    native_pool_count = context.get("native_worker_pool_count", 0)
+    native_pool = (
+        isinstance(native_workers, int)
+        and not isinstance(native_workers, bool)
+        and native_workers > 1
+        and isinstance(native_pool_count, int)
+        and native_pool_count > 0
+    )
+    native_workload_exclusive = context.get("test_workload_exclusive") is True
+    test_report = context.get("test_report")
+    baseline_evidence = context.get("serial_baseline_evidence")
     completed = [result for result in results if result.get("status") != "skipped"]
     succeeded = [result for result in completed if result.get("status") == "succeeded"]
     savings_eligible = bool(succeeded) and len(succeeded) == len(completed)
@@ -3637,7 +5609,72 @@ def _execution_indicator(
         ineligible_reason = "one or more tasks failed or timed out"
 
     task_runtime = sum(float(result.get("duration_seconds", 0.0)) for result in succeeded)
-    if savings_eligible and serial_baseline_seconds is not None:
+    baseline_compatible: bool | None = None
+    baseline_compatibility_reason: str | None = None
+    if native_pool and isinstance(baseline_evidence, dict):
+        baseline_compatible = bool(
+            isinstance(test_report, dict)
+            and test_report.get("execution_evidence_eligible") is True
+            and baseline_evidence.get("test_count") == test_report.get("tests")
+            and baseline_evidence.get("passed_count") == test_report.get("passed")
+            and baseline_evidence.get("skipped_count") == test_report.get("skipped") == 0
+            and baseline_evidence.get("case_set_sha256")
+            == test_report.get("case_set_sha256")
+        )
+        if not baseline_compatible:
+            baseline_compatibility_reason = (
+                "serial baseline test identities or outcomes do not match the fresh parallel JUnit report"
+            )
+
+    if savings_eligible and native_pool and not native_workload_exclusive:
+        savings_eligible = False
+        comparison_seconds = 0.0
+        speedup_kind = "unavailable_mixed_native_workload"
+        qualifier_zh = "待独立测试计划"
+        ineligible_reason = (
+            "native pytest savings require a plan containing only the attested test suites"
+        )
+    elif (
+        savings_eligible
+        and native_pool
+        and not isinstance(test_report, dict)
+        or (
+            savings_eligible
+            and native_pool
+            and isinstance(test_report, dict)
+            and test_report.get("execution_evidence_eligible") is not True
+        )
+    ):
+        savings_eligible = False
+        comparison_seconds = 0.0
+        speedup_kind = "unavailable_native_execution_evidence"
+        qualifier_zh = "待证据"
+        ineligible_reason = (
+            "native worker pool needs a fresh, non-empty, counter-consistent passing JUnit report"
+        )
+    elif savings_eligible and native_pool and baseline_compatible:
+        comparison_seconds = serial_baseline_seconds
+        speedup_kind = "measured_serial_baseline"
+        qualifier_zh = "实测"
+    elif (
+        savings_eligible
+        and native_pool
+        and isinstance(test_report, dict)
+        and test_report.get("savings_comparison_eligible") is True
+    ):
+        comparison_seconds = float(test_report["testcase_time_sum_seconds"])
+        speedup_kind = "estimated_sum_of_testcase_durations"
+        qualifier_zh = "JUnit 估算"
+    elif savings_eligible and native_pool:
+        savings_eligible = False
+        comparison_seconds = 0.0
+        speedup_kind = "unavailable_native_serial_comparison"
+        qualifier_zh = "待基线"
+        ineligible_reason = (
+            baseline_compatibility_reason
+            or "native worker pool needs a compatible serial baseline or fresh complete JUnit testcase timings"
+        )
+    elif savings_eligible and serial_baseline_seconds is not None:
         comparison_seconds = serial_baseline_seconds
         speedup_kind = "measured_serial_baseline"
         qualifier_zh = "实测"
@@ -3654,24 +5691,93 @@ def _execution_indicator(
     raw_delta = comparison_seconds - elapsed if savings_eligible else 0.0
     time_saved = max(0.0, raw_delta)
     overhead = max(0.0, -raw_delta) if savings_eligible else 0.0
-    cumulative = (
-        _record_time_saved(time_saved) if savings_eligible else _read_time_saved()
+    evidence_kind = (
+        "measured"
+        if savings_eligible and speedup_kind == "measured_serial_baseline"
+        else "estimated"
+        if savings_eligible
+        else None
     )
-    is_parallel = peak_concurrency > 1
-    icon = "⚡" if is_parallel else "→"
-    label_zh = "并行" if is_parallel else "串行"
-    if savings_eligible:
-        display = (
-            f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜{qualifier_zh} {speedup:.2f}×"
-            f"｜本次节约 {time_saved:.2f}s｜累计节约 {cumulative['cumulative_saved_seconds']:.2f}s"
+    ledger_credit_eligible = evidence_kind == "measured"
+    ledger_credit_recorded = False
+    credited_time_saved = 0.0
+    ledger_available = True
+    ledger_error: str | None = None
+    try:
+        cumulative = (
+            _record_time_saved(time_saved, evidence_kind=evidence_kind)
+            if evidence_kind is not None
+            else _read_time_saved()
         )
+        if ledger_credit_eligible:
+            ledger_credit_recorded = True
+            credited_time_saved = time_saved
+    except Exception as exc:  # noqa: BLE001 - metrics cannot discard task results.
+        cumulative = {
+            "cumulative_saved_seconds": None,
+            "run_count": None,
+            "cumulative_measured_saved_seconds": None,
+            "measured_run_count": None,
+            "cumulative_estimated_saved_seconds": None,
+            "estimated_run_count": None,
+            "cumulative_legacy_unclassified_saved_seconds": None,
+            "legacy_unclassified_run_count": None,
+        }
+        ledger_available = False
+        ledger_error = type(exc).__name__
+    cumulative_text = (
+        f"{cumulative['cumulative_saved_seconds']:.2f}s"
+        if isinstance(cumulative.get("cumulative_saved_seconds"), (int, float))
+        else "不可用"
+    )
+    is_parallel = peak_concurrency > 1 or native_pool
+    if native_pool:
+        icon = "⚙️"
+        label_zh = "原生并行"
+        concurrency_text = f"配置 {native_workers} workers｜外层峰值 {peak_concurrency} 路"
+        if savings_eligible:
+            savings_text = (
+                f"本次实测节约 {time_saved:.2f}s（已入账）"
+                if ledger_credit_recorded
+                else f"本次实测节约 {time_saved:.2f}s（入账失败）"
+                if ledger_credit_eligible
+                else f"本次估算节约 {time_saved:.2f}s（未入账）"
+            )
+            display = (
+                f"{icon} {label_zh}｜{concurrency_text}｜{qualifier_zh} {speedup:.2f}×"
+                f"｜{savings_text}｜累计已入账 {cumulative_text}"
+            )
+        else:
+            display = (
+                f"{icon} {label_zh}｜{concurrency_text}｜本次节约待可信证据"
+                f"｜累计已入账 {cumulative_text}"
+            )
     else:
-        display = (
-            f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜本次节约未计入"
-            f"｜累计节约 {cumulative['cumulative_saved_seconds']:.2f}s"
-        )
-    efficiency = speedup / peak_concurrency if peak_concurrency else 0.0
-    return {
+        icon = "⚡" if is_parallel else "→"
+        label_zh = "并行" if is_parallel else "串行"
+        if savings_eligible:
+            savings_text = (
+                f"本次实测节约 {time_saved:.2f}s（已入账）"
+                if ledger_credit_recorded
+                else f"本次实测节约 {time_saved:.2f}s（入账失败）"
+                if ledger_credit_eligible
+                else f"本次估算节约 {time_saved:.2f}s（未入账）"
+            )
+            display = (
+                f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜{qualifier_zh} {speedup:.2f}×"
+                f"｜{savings_text}｜累计已入账 {cumulative_text}"
+            )
+        else:
+            display = (
+                f"{icon} {label_zh}｜峰值 {peak_concurrency} 路｜本次节约未计入"
+                f"｜累计已入账 {cumulative_text}"
+            )
+    efficiency = (
+        None
+        if native_pool
+        else speedup / peak_concurrency if peak_concurrency else 0.0
+    )
+    indicator = {
         "display": display,
         "parallel": is_parallel,
         "mode": "parallel" if is_parallel else "serial",
@@ -3681,21 +5787,74 @@ def _execution_indicator(
         "comparison_seconds": round(comparison_seconds, 6),
         "wall_time_seconds": round(elapsed, 6),
         "time_saved_seconds": round(time_saved, 6),
+        "measured_time_saved_seconds": (
+            round(time_saved, 6) if evidence_kind == "measured" else None
+        ),
+        "estimated_time_saved_seconds": (
+            round(time_saved, 6) if evidence_kind == "estimated" else None
+        ),
+        "ledger_credit_eligible": ledger_credit_eligible,
+        "ledger_credit_recorded": ledger_credit_recorded,
+        "credited_time_saved_seconds": round(credited_time_saved, 6),
         "overhead_seconds": round(overhead, 6),
         "savings_eligible": savings_eligible,
         "savings_ineligible_reason": ineligible_reason,
         "cumulative_saved_seconds": cumulative["cumulative_saved_seconds"],
         "cumulative_run_count": cumulative["run_count"],
-        "parallel_efficiency": round(efficiency, 4),
+        "cumulative_measured_saved_seconds": cumulative[
+            "cumulative_measured_saved_seconds"
+        ],
+        "cumulative_measured_run_count": cumulative["measured_run_count"],
+        "cumulative_estimated_saved_seconds": cumulative[
+            "cumulative_estimated_saved_seconds"
+        ],
+        "cumulative_estimated_run_count": cumulative["estimated_run_count"],
+        "cumulative_legacy_unclassified_saved_seconds": cumulative[
+            "cumulative_legacy_unclassified_saved_seconds"
+        ],
+        "cumulative_legacy_unclassified_run_count": cumulative[
+            "legacy_unclassified_run_count"
+        ],
+        "cumulative_ledger_available": ledger_available,
+        "cumulative_ledger_error": ledger_error,
+        "parallel_efficiency": round(efficiency, 4) if efficiency is not None else None,
+        "parallel_efficiency_kind": (
+            "unavailable_without_observed_native_workers"
+            if native_pool
+            else "outer_peak_concurrency"
+        ),
+        "serial_baseline_compatible": baseline_compatible,
+        "serial_baseline_compatibility_reason": baseline_compatibility_reason,
         "explanation": (
             f"Savings were not credited because {ineligible_reason}."
             if not savings_eligible
-            else
-            "Speedup uses the supplied serial baseline."
-            if serial_baseline_seconds is not None
-            else "Estimated speedup equals summed non-skipped task runtimes divided by wall time; no task is rerun."
+            else "Speedup uses a serial baseline attested by this AtomLane server session."
+            if speedup_kind == "measured_serial_baseline" and native_pool
+            else "Speedup uses the supplied serial baseline."
+            if speedup_kind == "measured_serial_baseline"
+            else "Estimated speedup equals fresh summed JUnit testcase durations divided by wall time; no test is rerun and the estimate is not credited to the primary cumulative ledger."
+            if speedup_kind == "estimated_sum_of_testcase_durations"
+            else "Estimated speedup equals summed non-skipped task runtimes divided by wall time; no task is rerun and the estimate is not credited to the primary cumulative ledger."
         ),
     }
+    if native_pool:
+        indicator.update(
+            {
+                "parallelism_kind": "native_worker_pool",
+                "outer_peak_concurrency": peak_concurrency,
+                "native_worker_pool_count": native_pool_count,
+                "native_workers_configured": native_workers,
+                "native_workers_configured_total": context.get(
+                    "native_workers_configured_total", native_workers
+                ),
+                "native_workers_observed": None,
+                "worker_evidence": "configured_not_observed",
+                "test_cases_planned": context.get("test_cases_planned"),
+                "efficiency_denominator_kind": "unavailable_without_observed_native_workers",
+                "savings_pending_native_report": not savings_eligible,
+            }
+        )
+    return indicator
 
 
 def _summary(
@@ -3704,11 +5863,18 @@ def _summary(
     elapsed: float,
     peak_concurrency: int,
     serial_baseline_seconds: float | None,
+    execution_context: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     counts: dict[str, int] = {}
     for result in results:
         counts[result["status"]] = counts.get(result["status"], 0) + 1
-    indicator = _execution_indicator(results, elapsed, peak_concurrency, serial_baseline_seconds)
+    indicator = _execution_indicator(
+        results,
+        elapsed,
+        peak_concurrency,
+        serial_baseline_seconds,
+        execution_context,
+    )
     summary = {
         "task_count": len(results),
         "status_counts": counts,
@@ -3722,12 +5888,50 @@ def _summary(
         "elapsed_seconds": round(elapsed, 6),
         "comparison_seconds": indicator["comparison_seconds"],
         "time_saved_seconds": indicator["time_saved_seconds"],
+        "measured_time_saved_seconds": indicator["measured_time_saved_seconds"],
+        "estimated_time_saved_seconds": indicator["estimated_time_saved_seconds"],
+        "ledger_credit_eligible": indicator["ledger_credit_eligible"],
+        "ledger_credit_recorded": indicator["ledger_credit_recorded"],
+        "credited_time_saved_seconds": indicator["credited_time_saved_seconds"],
         "overhead_seconds": indicator["overhead_seconds"],
         "savings_eligible": indicator["savings_eligible"],
         "savings_ineligible_reason": indicator["savings_ineligible_reason"],
         "cumulative_saved_seconds": indicator["cumulative_saved_seconds"],
         "cumulative_run_count": indicator["cumulative_run_count"],
+        "cumulative_measured_saved_seconds": indicator[
+            "cumulative_measured_saved_seconds"
+        ],
+        "cumulative_measured_run_count": indicator[
+            "cumulative_measured_run_count"
+        ],
+        "cumulative_estimated_saved_seconds": indicator[
+            "cumulative_estimated_saved_seconds"
+        ],
+        "cumulative_estimated_run_count": indicator[
+            "cumulative_estimated_run_count"
+        ],
+        "cumulative_legacy_unclassified_saved_seconds": indicator[
+            "cumulative_legacy_unclassified_saved_seconds"
+        ],
+        "cumulative_legacy_unclassified_run_count": indicator[
+            "cumulative_legacy_unclassified_run_count"
+        ],
+        "cumulative_ledger_available": indicator["cumulative_ledger_available"],
+        "cumulative_ledger_error": indicator["cumulative_ledger_error"],
     }
+    if indicator.get("parallelism_kind") == "native_worker_pool":
+        summary.update(
+            {
+                "parallelism_kind": "native_worker_pool",
+                "outer_peak_concurrency": peak_concurrency,
+                "native_worker_pool_count": indicator["native_worker_pool_count"],
+                "native_workers_configured": indicator["native_workers_configured"],
+                "native_workers_observed": None,
+                "worker_evidence": "configured_not_observed",
+                "test_cases_planned": indicator.get("test_cases_planned"),
+                "test_report": (execution_context or {}).get("test_report"),
+            }
+        )
     return summary, indicator
 
 
@@ -4157,7 +6361,43 @@ async def run_atomic(
     arguments: dict[str, Any],
     progress_callback: Any | None = None,
 ) -> dict[str, Any]:
-    plan = _verify_compiled_plan(arguments)
+    # Freeze both the plan and execution-only options before deriving lease
+    # keys. Embedded callers may otherwise mutate the input between the
+    # pre-lock and post-lock validations.
+    try:
+        frozen_arguments = json.loads(json.dumps(arguments, ensure_ascii=False))
+    except (TypeError, ValueError) as exc:
+        raise InputError(f"atomic_exec arguments must be JSON-serializable: {exc}") from exc
+    initial_plan = _verify_compiled_plan(frozen_arguments)
+    if not initial_plan["atoms"]:
+        raise InputError("compiled_plan has no executable atoms")
+    initial_context = _test_suite_execution_context(initial_plan)
+    if initial_context is None:
+        return await _run_atomic_with_output_leases(
+            frozen_arguments,
+            progress_callback,
+            verified_plan=initial_plan,
+        )
+    leases = _acquire_pytest_output_leases(initial_context)
+    try:
+        return await _run_atomic_with_output_leases(
+            frozen_arguments,
+            progress_callback,
+            expected_output_lease_keys=leases.lease_keys,
+        )
+    finally:
+        leases.close()
+
+
+async def _run_atomic_with_output_leases(
+    arguments: dict[str, Any],
+    progress_callback: Any | None = None,
+    *,
+    verified_plan: dict[str, Any] | None = None,
+    expected_output_lease_keys: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Revalidate and execute while the public wrapper holds output leases."""
+    plan = verified_plan or _verify_compiled_plan(arguments)
     atoms = plan["atoms"]
     if not atoms:
         raise InputError("compiled_plan has no executable atoms")
@@ -4167,6 +6407,49 @@ async def run_atomic(
     baseline = arguments.get("serial_baseline_seconds")
     if baseline is not None:
         baseline = _bounded_number(baseline, "serial_baseline_seconds", 1.0, MAX_TIMEOUT_SECONDS * MAX_TASKS)
+    test_execution_context = _test_suite_execution_context(plan)
+    if expected_output_lease_keys is not None:
+        try:
+            settled_output_lease_keys = _pytest_output_lease_keys(
+                test_execution_context or {}
+            )
+        except AtomError as exc:
+            raise InputError(
+                "pytest output identity changed after lease acquisition"
+            ) from exc
+        if settled_output_lease_keys != expected_output_lease_keys:
+            raise InputError(
+                "pytest output identity changed after lease acquisition"
+            )
+    baseline_evidence_raw = arguments.get("serial_baseline_evidence")
+    native_pool_count = (test_execution_context or {}).get(
+        "native_worker_pool_count", 0
+    )
+    if native_pool_count:
+        if baseline is not None:
+            raise InputError(
+                "serial_baseline_seconds is not accepted for a native pytest pool; "
+                "run a worker_count=1 plan and pass its serial_baseline_evidence"
+            )
+        if baseline_evidence_raw is not None:
+            baseline_evidence = _normalize_serial_baseline_evidence(
+                baseline_evidence_raw,
+                test_execution_context,
+                plan["plan_hash"],
+            )
+            baseline = baseline_evidence["elapsed_seconds"]
+            test_execution_context = {
+                **test_execution_context,
+                "serial_baseline_evidence": baseline_evidence,
+            }
+    elif baseline_evidence_raw is not None:
+        raise InputError(
+            "serial_baseline_evidence may only be consumed by a native pytest worker pool"
+        )
+    junit_before_states = {
+        suite["junit_path"]: _junit_report_state(Path(suite["junit_path"]))
+        for suite in (test_execution_context or {}).get("test_suites", [])
+    }
 
     by_id = {atom["id"]: atom for atom in atoms}
     compiled_capacities = {key: float(value) for key, value in plan["capacities"].items()}
@@ -4179,14 +6462,22 @@ async def run_atomic(
     journal: list[dict[str, Any]] = []
     peak_concurrency = 0
     started = time.monotonic()
-    reporter = ProgressReporter(len(atoms), progress_callback, started)
+    reporter = ProgressReporter(
+        len(atoms),
+        progress_callback,
+        started,
+        _atomic_progress_context(plan),
+    )
     compiled_resource_plan = plan.get("resource_plan") if isinstance(plan.get("resource_plan"), dict) else {}
     responsiveness = compiled_resource_plan.get("responsiveness", "interactive")
     if responsiveness not in {"interactive", "balanced", "throughput"}:
         responsiveness = "interactive"
+    runtime_profile = compiled_resource_plan.get("profile", "mixed")
+    if runtime_profile not in {"cpu", "io", "mixed", "accelerator"}:
+        runtime_profile = "mixed"
     compiled_worker_limit = max(1, min(MAX_CONCURRENCY, int(capacities.get("worker_slot", 1.0))))
     resource_plan = concurrency_plan(
-        "mixed",
+        runtime_profile,
         compiled_worker_limit,
         None,
         None,
@@ -4294,7 +6585,9 @@ async def run_atomic(
                     "cwd": operation["cwd"],
                     "env": operation.get("env", {}),
                     "stdin": operation.get("stdin"),
-                    "timeout_seconds": DEFAULT_TIMEOUT_SECONDS,
+                    "timeout_seconds": operation.get(
+                        "timeout_seconds", DEFAULT_TIMEOUT_SECONDS
+                    ),
                     "depends_on": [],
                     "side_effect": atom["side_effect"],
                     "terminal_mode": operation.get("terminal_mode", "pipes"),
@@ -4353,10 +6646,30 @@ async def run_atomic(
 
     results = [completed[atom["id"]] for atom in atoms]
     elapsed = time.monotonic() - started
+    test_report = _collect_test_report(
+        test_execution_context, junit_before_states, results
+    )
+    if test_execution_context is not None:
+        test_execution_context = {**test_execution_context, "test_report": test_report}
+    serial_baseline_evidence = _serial_baseline_evidence_from_run(
+        test_execution_context,
+        test_report,
+        results,
+        elapsed,
+        plan["plan_hash"],
+        peak_concurrency,
+    )
     summary_plan = dict(resource_plan)
     summary_plan["chosen_concurrency"] = int(capacities.get("worker_slot", 1.0))
-    summary, indicator = _summary(results, summary_plan, elapsed, peak_concurrency, baseline)
-    return {
+    summary, indicator = _summary(
+        results,
+        summary_plan,
+        elapsed,
+        peak_concurrency,
+        baseline,
+        test_execution_context,
+    )
+    response = {
         "indicator": indicator,
         "summary": summary,
         "plan_hash": plan["plan_hash"],
@@ -4365,6 +6678,11 @@ async def run_atomic(
         "event_journal": journal,
         "results": results,
     }
+    if test_report is not None:
+        response["test_report"] = test_report
+    if serial_baseline_evidence is not None:
+        response["serial_baseline_evidence"] = serial_baseline_evidence
+    return response
 
 
 TASK_SCHEMA = {
@@ -4437,6 +6755,7 @@ ATOMIC_ENTRYPOINT_SCHEMA = {
                 "package_script",
                 "make_target",
                 "compose_services",
+                "test_suite",
                 "powershell_file",
             ],
         },
@@ -4449,11 +6768,69 @@ ATOMIC_ENTRYPOINT_SCHEMA = {
         "compose_file": {"type": "string"},
         "services": {"type": "array", "items": {"type": "string"}},
         "profiles": {"type": "array", "items": {"type": "string"}},
+        "framework": {"type": "string", "enum": ["pytest"]},
+        "runner_argv": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "maxItems": 32,
+        },
+        "config_path": {"type": "string"},
+        "worker_count": {
+            "oneOf": [
+                {"type": "integer", "minimum": 1, "maximum": MAX_CONCURRENCY},
+                {"const": "auto"},
+            ],
+            "default": "auto",
+        },
+        "distribution": {
+            "type": "string",
+            "enum": ["load", "loadfile", "loadscope", "loadgroup", "worksteal"],
+            "default": "worksteal",
+            "description": "xdist scheduling policy. worksteal is the independent-case default; choose loadfile/loadscope/loadgroup only when fixture or shared-resource affinity requires grouping.",
+        },
+        "case_count_hint": {"type": "integer", "minimum": 1, "maximum": 10000000},
+        "estimated_memory_mb_per_worker": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1048576,
+        },
+        "estimated_duration_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 86400,
+        },
+        "timeout_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 86400,
+            "default": 900,
+        },
+        "junit_path": {
+            "type": "string",
+            "description": "Optional JUnit output. Prefer the unique system-temp default; an explicit path must be outside every selected collection directory and cannot be a link, hardlink, config, snapshot, or runner alias.",
+        },
+        "snapshot_paths": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 256,
+        },
+        "env": {"type": "object", "additionalProperties": {"type": "string"}},
         "script_path": {"type": "string"},
         "arguments": {"type": "array", "items": {"type": "string"}, "maxItems": 128},
         "declared_accesses": {"type": "array", "items": {"type": "object"}, "maxItems": 256},
         "declared_effects": {"type": "array", "items": {"type": "object"}, "maxItems": 128},
         "effects_declared_complete": {"type": "boolean", "default": False},
+        "independence_declared": {
+            "type": "boolean",
+            "default": False,
+            "description": "Explicit assertion that selected tests may execute concurrently under their fixture, ordering, and shared-resource semantics.",
+        },
+        "baseline_source_closure_declared": {
+            "type": "boolean",
+            "default": False,
+            "description": "Caller assertion that snapshot_paths covers every source, helper, conftest, and plugin that can affect the selected tests. Required, with AtomLane's bounded static scope checks, before a serial run can issue baseline evidence.",
+        },
         "side_effect": {"type": "boolean", "default": True},
         "profile": {"type": "string", "enum": ["cpu", "io", "mixed", "accelerator"]},
     },
@@ -4495,9 +6872,74 @@ ATOMIC_PLAN_PROPERTIES = {
         "enum": ["interactive", "balanced", "throughput"],
         "default": "interactive",
     },
+    "profile": {
+        "type": "string",
+        "enum": ["cpu", "io", "mixed", "accelerator"],
+    },
+    "estimated_memory_mb_per_task": {"type": "number", "exclusiveMinimum": 0},
     "max_concurrency": {"type": "integer", "minimum": 1, "maximum": MAX_CONCURRENCY},
     "reserve_cores": {"type": "integer", "minimum": 0, "maximum": MAX_CONCURRENCY},
     "discover_project_commands": {"type": "boolean", "default": False},
+}
+
+
+TEST_SUITE_PLAN_PROPERTIES = {
+    "project_path": {"type": "string", "description": "Absolute project root."},
+    "task_summary": {"type": "string", "maxLength": 8000},
+    "id": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["id"],
+    "framework": {
+        "type": "string",
+        "enum": ["pytest"],
+        "default": "pytest",
+    },
+    "runner_argv": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["runner_argv"],
+        "description": "Exact Python module runner prefix, such as [python, -m, pytest]. Direct pytest/py.test console scripts are rejected. Put selectors and pytest options in arguments.",
+    },
+    "arguments": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["arguments"],
+    "cwd": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["cwd"],
+    "config_path": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["config_path"],
+        "description": "Optional project-local pytest config to bind explicitly; otherwise AtomLane searches from cwd to project_path and uses a bundled empty config when none exists.",
+    },
+    "worker_count": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["worker_count"],
+    "distribution": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["distribution"],
+    "case_count_hint": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["case_count_hint"],
+        "description": "Caller-supplied upper bound for auto worker sizing and display; it is not proof of independence. AtomLane does not execute hidden pytest collection while planning.",
+    },
+    "estimated_memory_mb_per_worker": ATOMIC_ENTRYPOINT_SCHEMA["properties"][
+        "estimated_memory_mb_per_worker"
+    ],
+    "estimated_duration_seconds": ATOMIC_ENTRYPOINT_SCHEMA["properties"][
+        "estimated_duration_seconds"
+    ],
+    "timeout_seconds": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["timeout_seconds"],
+    "junit_path": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["junit_path"],
+    "snapshot_paths": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["snapshot_paths"],
+        "description": "Project-local test, conftest, and plugin source files to hash and revalidate before execution. At least one non-config file per suite is required before a serial run can issue baseline evidence.",
+    },
+    "env": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["env"],
+    "declared_accesses": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["declared_accesses"],
+    "declared_effects": ATOMIC_ENTRYPOINT_SCHEMA["properties"]["declared_effects"],
+    "effects_declared_complete": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["effects_declared_complete"],
+        "description": "Required true for execution. This is an explicit assertion that test filesystem, database, port, device, account, and other effects are fully modeled.",
+    },
+    "independence_declared": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"]["independence_declared"],
+        "description": "Required true when configured workers exceed one. It is a caller assertion, not a conclusion inferred from a case-count hint.",
+    },
+    "baseline_source_closure_declared": {
+        **ATOMIC_ENTRYPOINT_SCHEMA["properties"][
+            "baseline_source_closure_declared"
+        ],
+        "description": "Required true, together with complete snapshot_paths and bounded static scope checks, before serial-baseline evidence can be issued. Dynamic imports and plugin closure remain a caller assertion.",
+    },
+    "responsiveness": ATOMIC_PLAN_PROPERTIES["responsiveness"],
+    "max_concurrency": ATOMIC_PLAN_PROPERTIES["max_concurrency"],
+    "reserve_cores": ATOMIC_PLAN_PROPERTIES["reserve_cores"],
 }
 
 
@@ -4698,8 +7140,18 @@ TOOLS = [
         },
     },
     {
+        "name": "test_suite_plan",
+        "description": "Compile one pytest suite through an exact Python -m pytest runner into the standard immutable AtomLane plan, normally using one resource-bounded pytest-xdist worker pool rather than one process per case. Planning never imports tests, runs collection, or installs xdist. Complete effects and an explicit case-independence declaration are required for parallel atomic_exec.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_path", "runner_argv"],
+            "properties": TEST_SUITE_PLAN_PROPERTIES,
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "atomic_task_plan",
-        "description": "Compile shell, package-script, Make, Compose, and explicit Atom IR entrypoints into one typed, source-snapshotted, resource-constrained plan. Unsupported control/effect semantics fail closed. The returned object is immutable and must be passed unchanged to atomic_exec with its plan_hash.",
+        "description": "Compile shell, package-script, Make, Compose, pytest test-suite, and explicit Atom IR entrypoints into one typed, source-snapshotted, resource-constrained plan. Unsupported control/effect semantics fail closed. The returned object is immutable and must be passed unchanged to atomic_exec with its plan_hash.",
         "inputSchema": {
             "type": "object",
             "required": ["project_path"],
@@ -4709,7 +7161,7 @@ TOOLS = [
     },
     {
         "name": "atomic_exec",
-        "description": "Execute the exact immutable CompiledPlan returned by atomic_task_plan. Revalidates the canonical plan hash and source snapshots, enforces typed dependencies, artifact conflicts, and multidimensional capacities, and refuses opaque or incomplete-effect atoms.",
+        "description": "Execute the exact immutable CompiledPlan returned by atomic_task_plan or test_suite_plan. Revalidates the canonical plan hash and source snapshots, enforces typed dependencies, artifact conflicts, and multidimensional capacities, and refuses opaque or incomplete-effect atoms.",
         "_meta": _indicator_ui_meta(),
         "inputSchema": {
             "type": "object",
@@ -4724,6 +7176,60 @@ TOOLS = [
                     "default": DEFAULT_OUTPUT_BYTES,
                 },
                 "serial_baseline_seconds": {"type": "number", "exclusiveMinimum": 0},
+                "serial_baseline_evidence": {
+                    "type": "object",
+                    "required": [
+                        "schema",
+                        "attestation_id",
+                        "source_plan_hash",
+                        "elapsed_seconds",
+                        "suite_fingerprints",
+                        "test_count",
+                        "passed_count",
+                        "skipped_count",
+                        "case_set_sha256",
+                        "status",
+                    ],
+                    "properties": {
+                        "schema": {"const": "atomlane/serial-test-baseline/v1"},
+                        "attestation_id": {
+                            "type": "string",
+                            "pattern": "^baseline_[0-9a-f]{64}$",
+                        },
+                        "source_plan_hash": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                        },
+                        "elapsed_seconds": {"type": "number", "exclusiveMinimum": 0},
+                        "suite_fingerprints": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 64,
+                            "items": {
+                                "type": "string",
+                                "pattern": "^sha256:[0-9a-f]{64}$",
+                            },
+                        },
+                        "test_count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 640000000,
+                        },
+                        "passed_count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 640000000,
+                        },
+                        "skipped_count": {"const": 0},
+                        "case_set_sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$",
+                        },
+                        "status": {"const": "passed"},
+                    },
+                    "additionalProperties": False,
+                    "description": "Session-bound evidence returned by a successful worker_count=1 test_suite run for the same selection.",
+                },
             },
             "additionalProperties": False,
         },
@@ -4926,6 +7432,8 @@ async def call_tool(
         result = python_parallel_advisor(arguments)
     elif name == "task_parallel_scan":
         result = task_parallel_scan(arguments)
+    elif name == "test_suite_plan":
+        result = test_suite_plan(arguments)
     elif name == "atomic_task_plan":
         result = atomic_task_plan(arguments)
     elif name == "atomic_exec":
@@ -4975,13 +7483,25 @@ def _progress_callback(progress_token: Any) -> Any | None:
         nonlocal last_progress
         progress = max(float(snapshot["elapsed_seconds"]), last_progress + 0.001)
         last_progress = progress
-        savings_text = (
-            f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
-            if snapshot.get("savings_eligible_so_far", True)
-            else "本次节约不计入（已有失败或超时）"
-        )
+        if not snapshot.get("savings_eligible_so_far", True):
+            savings_text = "本次节约不计入（已有失败或超时）"
+        elif snapshot.get("savings_pending_native_report"):
+            savings_text = "节约待串行基线/JUnit"
+        else:
+            savings_text = (
+                f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
+            )
+        native_parts: list[str] = []
+        configured_workers = snapshot.get("native_workers_configured")
+        if isinstance(configured_workers, int) and not isinstance(configured_workers, bool):
+            native_parts.append(f"原生 workers {configured_workers}（配置）")
+        test_cases_planned = snapshot.get("test_cases_planned")
+        if isinstance(test_cases_planned, int) and not isinstance(test_cases_planned, bool):
+            native_parts.append(f"计划用例 {test_cases_planned}（提示）")
+        native_text = "".join(f"{part}｜" for part in native_parts)
         message = (
             f"已运行 {snapshot['elapsed_seconds']:.1f}s｜"
+            f"{native_text}"
             f"运行中 {snapshot['running_tasks']}｜"
             f"就绪 {snapshot.get('ready_tasks', 0)}｜"
             f"已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}｜"
@@ -5035,6 +7555,9 @@ def response_for(message: Any) -> dict[str, Any] | None:
                     "When the task exposes concrete local entrypoints or typed work, call atomic_task_plan. Pass its complete "
                     "immutable result and plan_hash unchanged to atomic_exec; never translate its schedule into generic exec waves. "
                     "Recompile after a material plan or source-snapshot change. "
+                    "For a substantial pytest suite with independent cases, call test_suite_plan: it delegates collection, fixtures, "
+                    "case scheduling, and worker lifecycle to one bounded pytest-xdist pool while AtomLane owns the CPU/memory budget, "
+                    "live visibility, immutable contract, and evidence accounting. It never runs hidden collection or installs xdist. "
                     "For complex, unfamiliar, multi-stage, or trace-informed project optimization, call scenario_plan "
                     "to select from preset goals and guardrails before constructing work units. "
                     "For an explicitly requested optimization of a concrete long-running Python entrypoint, call "

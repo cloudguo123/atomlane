@@ -18,6 +18,8 @@ from typing import Any, BinaryIO
 
 WINDOWS_FILE_LOCK_TIMEOUT_SECONDS = 10.0
 WINDOWS_FILE_LOCK_POLL_SECONDS = 0.01
+POSIX_FILE_LOCK_TIMEOUT_SECONDS = 1.0
+POSIX_FILE_LOCK_POLL_SECONDS = 0.01
 
 WINDOWS_BROKER_EXECUTABLES = {
     "docker": "docker_daemon",
@@ -225,7 +227,11 @@ def default_stats_path() -> Path:
 
 
 @contextlib.contextmanager
-def exclusive_file_lock(path: Path) -> Iterator[BinaryIO]:
+def exclusive_file_lock(
+    path: Path,
+    *,
+    timeout_seconds: float | None = None,
+) -> Iterator[BinaryIO]:
     """Hold an advisory one-byte lock using the host's native file primitive."""
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+b")
@@ -239,7 +245,12 @@ def exclusive_file_lock(path: Path) -> Iterator[BinaryIO]:
             # CRT LK_LOCK performs its own coarse retry loop and can surface
             # EDEADLK under same-process contention. Keep retry policy bounded
             # and scheduler-friendly in Python instead.
-            deadline = time.monotonic() + WINDOWS_FILE_LOCK_TIMEOUT_SECONDS
+            timeout = (
+                WINDOWS_FILE_LOCK_TIMEOUT_SECONDS
+                if timeout_seconds is None
+                else max(0.0, float(timeout_seconds))
+            )
+            deadline = time.monotonic() + timeout
             while True:
                 handle.seek(0)
                 try:
@@ -262,7 +273,25 @@ def exclusive_file_lock(path: Path) -> Iterator[BinaryIO]:
         else:
             import fcntl
 
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            timeout = (
+                POSIX_FILE_LOCK_TIMEOUT_SECONDS
+                if timeout_seconds is None
+                else max(0.0, float(timeout_seconds))
+            )
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError as exc:
+                    if exc.errno not in {errno.EACCES, errno.EAGAIN}:
+                        raise
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError(
+                            "timed out acquiring POSIX stats lock"
+                        ) from exc
+                    time.sleep(min(POSIX_FILE_LOCK_POLL_SECONDS, remaining))
             try:
                 yield handle
             finally:

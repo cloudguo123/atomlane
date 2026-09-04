@@ -8,17 +8,30 @@ diagnostic; the compiler never silently drops source semantics.
 
 from __future__ import annotations
 
+import configparser
 import hashlib
 import json
 import ntpath
 import os
 import re
+import secrets
 import shlex
+import stat
 import subprocess
+import tempfile
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
+
+try:  # Python 3.10 uses the tiny tomli dependency when available.
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10 CI
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:  # pragma: no cover - fail-closed path
+        tomllib = None  # type: ignore[assignment]
 
 from atom_engine import (
     MAX_ATOMS,
@@ -86,6 +99,7 @@ class Compilation:
         self.snapshots: dict[str, dict[str, Any]] = {}
         self.native_delegates: list[dict[str, Any]] = []
         self.relaxation_candidates: list[dict[str, Any]] = []
+        self.test_suites: list[dict[str, Any]] = []
         self._ids: set[str] = set()
 
     def snapshot(self, path: Path) -> dict[str, Any]:
@@ -154,6 +168,7 @@ class Compilation:
             "snapshots": [self.snapshots[key] for key in sorted(self.snapshots)],
             "native_delegates": self.native_delegates,
             "relaxation_candidates": self.relaxation_candidates,
+            "test_suites": self.test_suites,
         }
 
 
@@ -350,20 +365,21 @@ def _native_parallelism(argv: list[str] | None) -> dict[str, Any]:
     """
     if not argv:
         return {"kind": "unknown", "tokens": None}
-    executable = Path(argv[0]).name.lower()
+    executable = _executable_name(argv[0])
+    pytest_runner = _is_pytest_runner(argv)
     native = {
         "make", "gmake", "ninja", "pytest", "jest", "vitest", "xargs",
         "turbo", "nx", "lerna", "docker-compose",
     }
     if executable == "docker" and len(argv) > 1 and argv[1] == "compose":
         native.add("docker")
-    if executable not in native:
+    if executable not in native and not pytest_runner:
         return {"kind": "unknown", "tokens": None}
 
     flags: tuple[str, ...]
     if executable in {"make", "gmake", "ninja"}:
         flags = ("-j", "--jobs")
-    elif executable == "pytest":
+    elif executable == "pytest" or pytest_runner:
         flags = ("-n", "--numprocesses")
     elif executable in {"jest", "vitest"}:
         flags = ("--maxWorkers", "--max-workers")
@@ -386,6 +402,1977 @@ def _native_parallelism(argv: list[str] | None) -> dict[str, Any]:
             if value is not None and value.isdigit() and int(value) > 0:
                 return {"kind": "bounded", "tokens": int(value)}
     return {"kind": "native_scheduler", "tokens": None}
+
+
+PYTEST_DISTRIBUTIONS = {
+    "load",
+    "loadfile",
+    "loadscope",
+    "loadgroup",
+    "worksteal",
+}
+MAX_PYTEST_SCOPE_ENTRIES = 200_000
+MAX_PYTEST_RUNNER_BYTES = 512 * 1024 * 1024
+PYTEST_CONFIG_NAMES = (
+    "pytest.ini",
+    ".pytest.ini",
+    "pyproject.toml",
+    "tox.ini",
+    "setup.cfg",
+)
+PYTEST_EMPTY_CONFIG = Path(__file__).resolve().parents[1] / "assets" / "empty-pytest.ini"
+PYTEST_BASETEMP_NAME_RE = re.compile(
+    r"^atomlane-pytest-[0-9a-f]{32}-tmp$",
+    re.IGNORECASE,
+)
+PYTEST_CRITICAL_ENV = (
+    "PYTEST_ADDOPTS",
+    "PYTEST_PLUGINS",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+    "PYTEST_DEBUG",
+)
+PYTEST_FORCED_EMPTY_ENV = ("PYTHONHOME", "PYTHONPATH", "PYTHONOPTIMIZE")
+PYTEST_SELECTOR_VALUE_OPTIONS = {
+    "-k",
+    "-m",
+    "-o",
+    "--override-ini",
+    "-p",
+    "-r",
+    "-W",
+    "--maxfail",
+    "--tb",
+    "--capture",
+    "--show-capture",
+    "--color",
+    "--code-highlight",
+    "--import-mode",
+    "--doctest-glob",
+    "--ignore",
+    "--ignore-glob",
+    "--deselect",
+    "--durations",
+    "--durations-min",
+    "--junit-prefix",
+    "--junit-suite-name",
+    "--verbosity",
+    "--assert",
+    "--pythonwarnings",
+    "--pdbcls",
+    "--junitprefix",
+    "--doctest-report",
+    "--lfnf",
+    "--last-failed-no-failures",
+    "--log-level",
+    "--log-format",
+    "--log-date-format",
+    "--log-cli-level",
+    "--log-cli-format",
+    "--log-cli-date-format",
+    "--log-file-level",
+    "--log-file-format",
+    "--log-file-date-format",
+    "--log-file-mode",
+    "--log-auto-indent",
+    "--log-disable",
+}
+PYTEST_SELECTOR_NO_VALUE_OPTIONS = {
+    "-q",
+    "--quiet",
+    "-v",
+    "--verbose",
+    "-s",
+    "-x",
+    "--exitfirst",
+    "-l",
+    "--showlocals",
+    "--no-showlocals",
+    "--no-header",
+    "--no-summary",
+    "--disable-warnings",
+    "--full-trace",
+    "--strict-config",
+    "--strict-markers",
+    "--continue-on-collection-errors",
+    "--runxfail",
+    "--lf",
+    "--last-failed",
+    "--ff",
+    "--failed-first",
+    "--nf",
+    "--new-first",
+    "--cache-clear",
+    "--sw",
+    "--stepwise",
+    "--sw-skip",
+    "--stepwise-skip",
+    "--trace-config",
+    "--doctest-modules",
+    "--doctest-continue-on-failure",
+}
+PYTEST_OWNED_OPTIONS = {
+    "--",
+    "-c",
+    "--config-file",
+    "--rootdir",
+    "--confcutdir",
+    "-o",
+    "--override-ini",
+    "-n",
+    "--numprocesses",
+    "--maxprocesses",
+    "--dist",
+    "-d",
+    "-f",
+    "--looponfail",
+    "--tx",
+    "--px",
+    "--max-worker-restart",
+    "--ramp",
+    "--maxschedchunk",
+    "--loadscope-reorder",
+    "--no-loadscope-reorder",
+    "--rsyncdir",
+    "--rsyncignore",
+    "--basetemp",
+    "--junitxml",
+    "--junit-xml",
+    "--pdb",
+    "--trace",
+    "-h",
+    "--help",
+    "--version",
+    "-V",
+    "--fixtures",
+    "--funcargs",
+    "--fixtures-per-test",
+    "--markers",
+    "--cache-show",
+    "--debug",
+    "--pastebin",
+    "--log-file",
+    "--collect-only",
+    "--collectonly",
+    "--co",
+    "--collect-in-virtualenv",
+    "--pyargs",
+    "--lf",
+    "--last-failed",
+    "--ff",
+    "--failed-first",
+    "--nf",
+    "--new-first",
+    "--cache-clear",
+    "--sw",
+    "--stepwise",
+    "--sw-skip",
+    "--stepwise-skip",
+    "--lfnf",
+    "--last-failed-no-failures",
+    "--setup-only",
+    "--setuponly",
+    "--setup-plan",
+    "--setupplan",
+}
+
+
+def _executable_name(value: str) -> str:
+    """Normalize POSIX and Windows executable names without host guessing."""
+    name = ntpath.basename(value.replace("/", "\\")).casefold()
+    return name.removesuffix(".exe")
+
+
+def _is_pytest_runner(argv: list[str]) -> bool:
+    executable = _executable_name(argv[0])
+    if executable in {"pytest", "py.test"}:
+        return True
+    if not re.fullmatch(r"(?:python|pythonw|py)(?:[0-9]+(?:\.[0-9]+)*)?", executable):
+        return False
+    return any(
+        argv[index] == "-m" and argv[index + 1].casefold() == "pytest"
+        for index in range(len(argv) - 1)
+    )
+
+
+def _is_exact_pytest_runner_prefix(argv: list[str]) -> bool:
+    """Accept only a runner prefix; selectors and pytest flags belong in arguments."""
+    executable = _executable_name(argv[0])
+    if executable in {"pytest", "py.test"}:
+        return False
+    if not re.fullmatch(r"(?:python|pythonw|py)(?:[0-9]+(?:\.[0-9]+)*)?", executable):
+        return False
+    prefix = argv[1:-2]
+    if argv[-2:] != ["-m", "pytest"]:
+        return False
+    # Optimization removes ordinary ``assert`` statements and can turn a
+    # failing suite into a passing JUnit report.  It is unsafe for evidence.
+    allowed_switches = {"-I", "-E", "-B", "-s", "-S", "-u", "-P"}
+    if executable == "py" and prefix and re.fullmatch(r"-[23](?:\.\d+)?", prefix[0]):
+        prefix = prefix[1:]
+    return all(item in allowed_switches for item in prefix)
+
+
+def _pytest_owned_options(argv: list[str]) -> list[str]:
+    found: list[str] = []
+    for index, item in enumerate(argv):
+        if item.startswith("@"):
+            found.append("@response-file")
+            continue
+        if len(item) > 2 and item.startswith("-") and not item.startswith("--"):
+            first = item[1]
+            if first in {"c", "n"}:
+                found.append(f"-{first}")
+                continue
+            if first not in {"k", "m", "o", "p", "r", "W"}:
+                short_flags = item[1:]
+                forbidden = next(
+                    (
+                        flag
+                        for flag in ("c", "n", "d", "f", "h", "V")
+                        if flag in short_flags
+                    ),
+                    None,
+                )
+                if forbidden is not None:
+                    found.append(f"-{forbidden}")
+                    continue
+                if not set(short_flags) <= {"q", "v", "s", "x", "l"}:
+                    found.append("ambiguous short option cluster")
+                    continue
+        override_value: str | None = None
+        if item in {"-o", "--override-ini"} and index + 1 < len(argv):
+            override_value = argv[index + 1]
+        elif item.startswith("-o") and item != "-o":
+            override_value = item[2:]
+        elif item.startswith("--override-ini="):
+            override_value = item.split("=", 1)[1]
+        if override_value is not None:
+            found.append("ini override")
+            continue
+        for option in PYTEST_OWNED_OPTIONS:
+            if item == option or item.startswith(option + "="):
+                found.append(option)
+                break
+            if option in {"-c", "-n", "-o"} and item.startswith(option) and item != option:
+                found.append(option)
+                break
+    return found
+
+
+def _pytest_owned_option(argv: list[str]) -> str | None:
+    found = _pytest_owned_options(argv)
+    return found[0] if found else None
+
+
+def _pytest_plugin_control(argv: list[str]) -> str | None:
+    """Reject user/config attempts to disable xdist or re-enable shared cache."""
+    for index, item in enumerate(argv):
+        plugin: str | None = None
+        if item == "-p" and index + 1 < len(argv):
+            plugin = argv[index + 1]
+        elif item.startswith("-p") and item != "-p":
+            plugin = item[2:]
+        if plugin is None:
+            continue
+        normalized = plugin.casefold().removeprefix("no:")
+        if normalized in {"xdist", "xdist.plugin", "cacheprovider"}:
+            return plugin
+    return None
+
+
+def _pytest_environment_plugin_control(value: str) -> str | None:
+    """Reject environment-loaded plugins that collide with owned controls."""
+    for plugin in value.split(","):
+        plugin = plugin.strip()
+        normalized = plugin.casefold().removeprefix("no:")
+        if normalized in {"xdist", "xdist.plugin", "cacheprovider"}:
+            return plugin
+    return None
+
+
+def _validate_pytest_tokens(
+    tokens: list[str],
+    *,
+    label: str,
+    reject_all_ini_overrides: bool = False,
+) -> None:
+    owned = _pytest_owned_option(tokens)
+    if owned:
+        raise AtomError(
+            f"{label} must not supply AtomLane-owned or non-executing option {owned}"
+        )
+    if reject_all_ini_overrides and any(
+        item in {"-o", "--override-ini"}
+        or item.startswith("-o") and item != "-o"
+        or item.startswith("--override-ini=")
+        for item in tokens
+    ):
+        raise AtomError(f"{label} must not contain an ini override")
+    plugin = _pytest_plugin_control(tokens)
+    if plugin is not None:
+        raise AtomError(
+            f"{label} must not alter AtomLane's xdist/cacheprovider plugin controls: {plugin}"
+        )
+
+
+def _parse_ini_pytest_config(path: Path) -> tuple[bool, str | None]:
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    parser.optionxform = str
+    try:
+        parser.read_string(_strict_read_text(path, f"pytest config {path}"))
+    except configparser.Error as exc:
+        raise AtomError(f"pytest config is not parseable: {path}: {exc}") from exc
+    if path.suffix == ".cfg":
+        if parser.has_section("pytest"):
+            raise AtomError(
+                f"setup.cfg uses unsupported [pytest]; rename it to [tool:pytest]: {path}"
+            )
+        section = "tool:pytest"
+        valid = parser.has_section(section)
+    else:
+        section = "pytest"
+        valid = parser.has_section(section) or path.name == "pytest.ini"
+    # iniconfig/pytest does not inherit ConfigParser's [DEFAULT] values.
+    section_values = parser._sections.get(section, {}) if valid else {}
+    addopts = section_values.get("addopts")
+    return valid, addopts
+
+
+def _parse_toml_pytest_config(path: Path) -> tuple[bool, str | list[str] | None]:
+    if tomllib is None:
+        raise AtomError(
+            f"cannot safely parse pytest TOML on this Python runtime: {path}; "
+            "use pytest.ini or install tomli"
+        )
+    try:
+        payload = tomllib.loads(_strict_read_text(path, f"pytest config {path}"))
+    except Exception as exc:
+        raise AtomError(f"pytest TOML config is not parseable: {path}: {exc}") from exc
+    if path.name in {"pytest.toml", ".pytest.toml"}:
+        raise AtomError(
+            f"version-specific pytest.toml is not supported by the portable contract: {path}"
+        )
+    tool = payload.get("tool", {})
+    if not isinstance(tool, dict):
+        return False, None
+    pytest_table = tool.get("pytest", {})
+    if not isinstance(pytest_table, dict):
+        raise AtomError(f"pyproject [tool.pytest] must be a table: {path}")
+    native_keys = set(pytest_table) - {"ini_options"}
+    ini_options = pytest_table.get("ini_options")
+    if native_keys and ini_options is not None:
+        raise AtomError(
+            f"pyproject cannot mix [tool.pytest] values and [tool.pytest.ini_options]: {path}"
+        )
+    if native_keys:
+        raise AtomError(
+            f"version-specific [tool.pytest] TOML is not supported; use [tool.pytest.ini_options]: {path}"
+        )
+    if ini_options is None:
+        return False, None
+    if not isinstance(ini_options, dict):
+        raise AtomError(f"pyproject [tool.pytest.ini_options] must be a table: {path}")
+    return True, ini_options.get("addopts")
+
+
+def _pytest_config_addopts(path: Path) -> tuple[bool, list[str]]:
+    if path.suffix == ".toml":
+        valid, raw = _parse_toml_pytest_config(path)
+    else:
+        valid, raw = _parse_ini_pytest_config(path)
+    if raw is None:
+        return valid, []
+    if isinstance(raw, str):
+        try:
+            tokens = shlex.split(raw, posix=True)
+        except ValueError as exc:
+            raise AtomError(f"pytest config addopts is not parseable: {path}") from exc
+    elif isinstance(raw, list) and all(isinstance(item, str) for item in raw):
+        # Pytest's TOML adapter keeps every list member as one argv token.
+        tokens = list(raw)
+    else:
+        raise AtomError(f"pytest config addopts must be a string or string array: {path}")
+    _validate_pytest_tokens(
+        tokens,
+        label=f"pytest config addopts in {path}",
+        reject_all_ini_overrides=True,
+    )
+    return valid, tokens
+
+
+def _pytest_config_path_values(path: Path) -> dict[str, list[str]]:
+    """Read path-bearing pytest ini options with pytest-compatible token shapes."""
+    raw_values: dict[str, Any] = {}
+    if path.suffix == ".toml":
+        if tomllib is None:
+            raise AtomError(
+                f"cannot safely parse pytest TOML on this Python runtime: {path}; "
+                "use pytest.ini or install tomli"
+            )
+        try:
+            payload = tomllib.loads(_strict_read_text(path, f"pytest config {path}"))
+        except Exception as exc:
+            raise AtomError(f"pytest TOML config is not parseable: {path}: {exc}") from exc
+        tool = payload.get("tool", {})
+        pytest_table = tool.get("pytest", {}) if isinstance(tool, dict) else {}
+        ini_options = (
+            pytest_table.get("ini_options", {})
+            if isinstance(pytest_table, dict)
+            else {}
+        )
+        if isinstance(ini_options, dict):
+            raw_values = ini_options
+    else:
+        parser = configparser.ConfigParser(interpolation=None, strict=True)
+        parser.optionxform = str
+        try:
+            parser.read_string(_strict_read_text(path, f"pytest config {path}"))
+        except configparser.Error as exc:
+            raise AtomError(f"pytest config is not parseable: {path}: {exc}") from exc
+        section = "tool:pytest" if path.suffix == ".cfg" else "pytest"
+        raw_values = parser._sections.get(section, {})
+
+    parsed: dict[str, list[str]] = {}
+    for option in ("testpaths", "pythonpath"):
+        raw = raw_values.get(option)
+        if raw is None:
+            parsed[option] = []
+        elif isinstance(raw, str):
+            try:
+                parsed[option] = shlex.split(raw, posix=True)
+            except ValueError as exc:
+                raise AtomError(
+                    f"pytest config {option} is not parseable: {path}"
+                ) from exc
+        elif isinstance(raw, list) and all(isinstance(item, str) for item in raw):
+            parsed[option] = list(raw)
+        else:
+            raise AtomError(
+                f"pytest config {option} must be a string or string array: {path}"
+            )
+    return parsed
+
+
+def _validate_pytest_config_paths(
+    path: Path, project: Path, label: str
+) -> dict[str, list[Path]]:
+    resolved_values: dict[str, list[Path]] = {"testpaths": [], "pythonpath": []}
+    for option, values in _pytest_config_path_values(path).items():
+        for value in values:
+            candidate = Path(value).expanduser()
+            if not candidate.is_absolute():
+                candidate = path.parent / candidate
+            lexical = Path(os.path.abspath(candidate))
+            resolved = candidate.resolve(strict=False)
+            try:
+                resolved.relative_to(project)
+            except ValueError as exc:
+                raise AtomError(
+                    f"{label} pytest {option} paths must stay inside project_path"
+                ) from exc
+            if not candidate.exists():
+                raise AtomError(
+                    f"{label} pytest {option} path must exist when the plan is compiled: "
+                    f"{candidate}"
+                )
+            resolved = candidate.resolve(strict=True)
+            if lexical != resolved:
+                raise AtomError(
+                    f"{label} pytest {option} paths must not contain symbolic-link aliases"
+                )
+            if option == "pythonpath" and not resolved.is_dir():
+                raise AtomError(f"{label} pytest pythonpath entries must be directories")
+            resolved_values[option].append(resolved)
+    return resolved_values
+
+
+def _validate_pytest_selector_boundaries(
+    project: Path,
+    cwd: Path,
+    tokens: list[str],
+    label: str,
+) -> list[Path]:
+    """Keep every positional pytest selector inside the immutable project scope."""
+    selectors: list[Path] = []
+    skip_value = False
+    for item in tokens:
+        if skip_value:
+            skip_value = False
+            continue
+        if item in PYTEST_SELECTOR_VALUE_OPTIONS:
+            skip_value = True
+            continue
+        if item.startswith("-"):
+            continue
+        path_text = item.split("::", 1)[0]
+        if not path_text:
+            raise AtomError(f"{label} contains an empty pytest selector")
+        selector = Path(path_text).expanduser()
+        if not selector.is_absolute():
+            selector = cwd / selector
+        if not selector.exists():
+            raise AtomError(
+                f"{label} test selector must exist when the plan is compiled: {selector}"
+            )
+        lexical = Path(os.path.abspath(selector))
+        strict_resolved = selector.resolve(strict=True)
+        try:
+            strict_resolved.relative_to(project)
+        except ValueError as exc:
+            raise AtomError(f"{label} test selectors must stay inside project_path") from exc
+        if lexical != strict_resolved:
+            raise AtomError(
+                f"{label} test selectors must not contain symbolic-link aliases"
+            )
+        selectors.append(strict_resolved)
+    return selectors
+
+
+def _validate_pytest_collection_boundaries(
+    project: Path,
+    roots: list[Path],
+    label: str,
+    discovered_links: set[Path] | None = None,
+) -> set[Path]:
+    """Reject escaping collection trees and return discoverable conftests."""
+    pending = [(root, True) for root in roots]
+    visited_directories: set[tuple[str, ...]] = set()
+    discovered_conftests: set[Path] = set()
+    inspected = 0
+    while pending:
+        current, is_explicit_root = pending.pop()
+        try:
+            current_state = current.lstat()
+            resolved = current.resolve(strict=True)
+        except OSError as exc:
+            raise AtomError(
+                f"{label} pytest collection scope cannot be inspected: {current}"
+            ) from exc
+        try:
+            resolved.relative_to(project)
+        except ValueError as exc:
+            raise AtomError(
+                f"{label} pytest collection scope must stay inside project_path"
+            ) from exc
+        if stat.S_ISLNK(current_state.st_mode) or getattr(
+            current_state, "st_reparse_tag", 0
+        ):
+            try:
+                resolved_state = resolved.stat()
+            except OSError as exc:
+                raise AtomError(
+                    f"{label} pytest collection link cannot be inspected: {current}"
+                ) from exc
+        else:
+            resolved_state = current_state
+        if not stat.S_ISDIR(resolved_state.st_mode):
+            continue
+        if not is_explicit_root and (
+            (resolved / "pyvenv.cfg").is_file()
+            or (resolved / "conda-meta" / "history").is_file()
+        ):
+            # Match pytest's default virtual-environment collection exclusion.
+            # An explicitly selected environment remains audited.
+            continue
+        directory_identity = _pytest_directory_visit_key(resolved, resolved_state)
+        if directory_identity in visited_directories:
+            continue
+        visited_directories.add(directory_identity)
+        try:
+            with os.scandir(resolved) as entries:
+                for entry in entries:
+                    inspected += 1
+                    if inspected > MAX_PYTEST_SCOPE_ENTRIES:
+                        raise AtomError(
+                            f"{label} pytest collection scope exceeds the bounded "
+                            "static audit; use narrower selectors or testpaths"
+                        )
+                    entry_path = Path(entry.path)
+                    try:
+                        entry_state = entry.stat(follow_symlinks=False)
+                    except OSError as exc:
+                        raise AtomError(
+                            f"{label} pytest collection entry cannot be inspected: "
+                            f"{entry_path}"
+                        ) from exc
+                    is_link = stat.S_ISLNK(entry_state.st_mode) or bool(
+                        getattr(entry_state, "st_reparse_tag", 0)
+                    )
+                    if is_link:
+                        if discovered_links is not None:
+                            discovered_links.add(Path(os.path.abspath(entry_path)))
+                        try:
+                            target = entry_path.resolve(strict=True)
+                            target.relative_to(project)
+                        except (OSError, ValueError) as exc:
+                            raise AtomError(
+                                f"{label} pytest collection link escapes project_path: "
+                                f"{entry_path}"
+                            ) from exc
+                        if target.is_dir():
+                            pending.append((entry_path, False))
+                        elif entry.name == "conftest.py" and target.is_file():
+                            discovered_conftests.add(target)
+                    elif stat.S_ISDIR(entry_state.st_mode):
+                        pending.append((entry_path, False))
+                    elif (
+                        entry.name == "conftest.py"
+                        and stat.S_ISREG(entry_state.st_mode)
+                    ):
+                        discovered_conftests.add(entry_path.resolve(strict=True))
+        except AtomError:
+            raise
+        except OSError as exc:
+            raise AtomError(
+                f"{label} pytest collection directory cannot be inspected: {current}"
+            ) from exc
+    return discovered_conftests
+
+
+def _pytest_baseline_source_coverage(
+    project: Path,
+    cwd: Path,
+    tokens: list[str],
+    config_path: Path,
+    explicit_paths: list[Path],
+    label: str,
+) -> bool:
+    """Require direct collection scopes and conftests inside declared snapshots."""
+    selectors = _validate_pytest_selector_boundaries(project, cwd, tokens, label)
+    config_paths = _validate_pytest_config_paths(config_path, project, label)
+    collection_roots = selectors or config_paths["testpaths"] or [cwd]
+    discovered_links: set[Path] = set()
+    discovered_conftests = _validate_pytest_collection_boundaries(
+        project,
+        collection_roots,
+        label,
+        discovered_links,
+    )
+    source_roots = [*collection_roots, *config_paths["pythonpath"]]
+    explicit = {path.resolve(strict=True) for path in explicit_paths}
+    if not explicit or discovered_links:
+        return False
+    if not discovered_conftests.issubset(explicit):
+        return False
+
+    for root in source_roots:
+        root = root.resolve(strict=True)
+        if root.is_file():
+            if root not in explicit:
+                return False
+            conftest_dir = root.parent
+        else:
+            if not any(path == root or root in path.parents for path in explicit):
+                return False
+            conftest_dir = root
+        current = conftest_dir
+        while True:
+            conftest = current / "conftest.py"
+            if conftest.is_file() and conftest.resolve(strict=True) not in explicit:
+                return False
+            if current == project or current.parent == current:
+                break
+            current = current.parent
+    return True
+
+
+def _pytest_directory_visit_key(path: Path, state: os.stat_result) -> tuple[str, ...]:
+    """Use an inode only when the filesystem supplies a meaningful one."""
+    inode = int(getattr(state, "st_ino", 0) or 0)
+    if inode:
+        return ("inode", str(getattr(state, "st_dev", 0)), str(inode))
+    return ("path", os.path.normpath(os.path.abspath(os.fspath(path))))
+
+
+def _resolve_pytest_config(
+    project: Path,
+    cwd: Path,
+    raw_config_path: Any,
+    initial_args: list[str],
+    label: str,
+) -> tuple[Path, Path, list[str], str]:
+    """Select one immutable config inside the declared project boundary."""
+    try:
+        cwd.relative_to(project)
+    except ValueError as exc:
+        raise AtomError(f"{label} cwd must stay inside project_path") from exc
+    _validate_pytest_selector_boundaries(project, cwd, initial_args, label)
+    if raw_config_path is not None:
+        if (
+            not isinstance(raw_config_path, str)
+            or not raw_config_path
+            or "\x00" in raw_config_path
+        ):
+            raise AtomError(f"{label} config_path must be a non-empty path")
+        unresolved = Path(raw_config_path).expanduser()
+        if not unresolved.is_absolute():
+            unresolved = project / unresolved
+        if unresolved.is_symlink():
+            raise AtomError(f"{label} config_path must not be a symbolic link")
+        config_path = unresolved.resolve(strict=True)
+        try:
+            config_path.relative_to(project)
+        except ValueError as exc:
+            raise AtomError(f"{label} config_path must stay inside project_path") from exc
+        if not config_path.is_file():
+            raise AtomError(f"{label} config_path is not a file: {config_path}")
+        if config_path.suffix not in {".ini", ".cfg", ".toml"}:
+            raise AtomError(
+                f"{label} config_path must use a pytest-supported .ini, .cfg, or .toml suffix"
+            )
+        if config_path.name in {"pytest.toml", ".pytest.toml"}:
+            raise AtomError(
+                f"{label} config_path uses version-specific pytest TOML; use pytest.ini or pyproject [tool.pytest.ini_options]"
+            )
+        valid, addopts = _pytest_config_addopts(config_path)
+        if not valid:
+            raise AtomError(f"{label} config_path has no pytest configuration: {config_path}")
+        return config_path, config_path.parent, addopts, "pytest_config"
+
+    selector_paths: list[Path] = []
+    skip_value = False
+    for index, item in enumerate(initial_args):
+        if skip_value:
+            skip_value = False
+            continue
+        if item in PYTEST_SELECTOR_VALUE_OPTIONS:
+            skip_value = True
+            continue
+        if item.startswith("-"):
+            if (
+                "=" not in item
+                and item not in PYTEST_SELECTOR_NO_VALUE_OPTIONS
+                and not (
+                    len(item) > 2
+                    and item.startswith(("-k", "-m", "-o", "-p", "-r", "-W"))
+                )
+                and index + 1 < len(initial_args)
+            ):
+                next_text = initial_args[index + 1].split("::", 1)[0]
+                next_path = Path(next_text).expanduser()
+                if not next_path.is_absolute():
+                    next_path = cwd / next_path
+                if next_path.exists():
+                    raise AtomError(
+                        f"{label} cannot infer whether {item} consumes a path; "
+                        "use --option=value or provide config_path explicitly"
+                    )
+            continue
+        path_text = item.split("::", 1)[0]
+        selector = Path(path_text).expanduser()
+        if not selector.is_absolute():
+            selector = cwd / selector
+        if not selector.exists():
+            continue
+        selector = selector.resolve(strict=True)
+        selector_dir = selector if selector.is_dir() else selector.parent
+        try:
+            selector_dir.relative_to(project)
+        except ValueError as exc:
+            raise AtomError(f"{label} test selectors must stay inside project_path") from exc
+        selector_paths.append(selector_dir)
+    if selector_paths:
+        try:
+            search_base = Path(os.path.commonpath([str(path) for path in selector_paths]))
+        except ValueError as exc:
+            raise AtomError(f"{label} test selectors do not share one filesystem root") from exc
+    else:
+        search_base = cwd
+
+    fallback_pyproject: tuple[Path, list[str]] | None = None
+    current = search_base
+    while True:
+        for version_specific_name in ("pytest.toml", ".pytest.toml"):
+            if (current / version_specific_name).is_file():
+                raise AtomError(
+                    f"{label} found version-specific {version_specific_name}; "
+                    "use pytest.ini or pyproject [tool.pytest.ini_options]"
+                )
+        for name in PYTEST_CONFIG_NAMES:
+            candidate = current / name
+            if not candidate.is_file():
+                continue
+            if candidate.is_symlink():
+                raise AtomError(f"{label} discovered pytest config must not be a symbolic link")
+            valid, addopts = _pytest_config_addopts(candidate)
+            if valid:
+                try:
+                    candidate.relative_to(project)
+                except ValueError as exc:
+                    raise AtomError(
+                        f"{label} would inherit pytest config outside project_path; "
+                        "expand project_path or provide config_path"
+                    ) from exc
+                return (
+                    candidate.resolve(strict=True),
+                    current,
+                    addopts,
+                    "pytest_config",
+                )
+            if name == "pyproject.toml" and fallback_pyproject is None:
+                fallback_pyproject = (candidate.resolve(strict=True), addopts)
+        if current.parent == current:
+            break
+        current = current.parent
+    if fallback_pyproject is not None:
+        try:
+            fallback_pyproject[0].relative_to(project)
+        except ValueError as exc:
+            raise AtomError(
+                f"{label} would inherit pyproject.toml outside project_path; "
+                "expand project_path or provide config_path"
+            ) from exc
+        return (
+            fallback_pyproject[0],
+            fallback_pyproject[0].parent,
+            fallback_pyproject[1],
+            "fallback_pyproject",
+        )
+    if len(set(selector_paths)) > 1:
+        raise AtomError(
+            f"{label} has multiple selector roots without a common pytest config; "
+            "provide config_path explicitly"
+        )
+    empty_rootdir: Path | None = None
+    current = search_base
+    while True:
+        if (current / "setup.py").is_file():
+            try:
+                current.relative_to(project)
+            except ValueError as exc:
+                raise AtomError(
+                    f"{label} would inherit setup.py root outside project_path; "
+                    "expand project_path or provide config_path"
+                ) from exc
+            empty_rootdir = current
+            break
+        if current.parent == current:
+            break
+        current = current.parent
+    if empty_rootdir is None:
+        empty_rootdir = Path(os.path.commonpath([str(cwd), str(search_base)]))
+    if not PYTEST_EMPTY_CONFIG.is_file() or PYTEST_EMPTY_CONFIG.is_symlink():
+        raise AtomError("AtomLane's bundled empty pytest config is unavailable")
+    valid, addopts = _pytest_config_addopts(PYTEST_EMPTY_CONFIG)
+    if not valid or addopts:
+        raise AtomError("AtomLane's bundled empty pytest config is invalid")
+    return (
+        PYTEST_EMPTY_CONFIG.resolve(strict=True),
+        empty_rootdir,
+        [],
+        "bundled_empty",
+    )
+
+
+def _bounded_string_array(value: Any, label: str, maximum: int) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or len(value) > maximum
+        or not all(
+            isinstance(item, str)
+            and "\x00" not in item
+            and len(item) <= MAX_COMMAND_CHARS
+            for item in value
+        )
+    ):
+        raise AtomError(f"{label} must be an array of at most {maximum} bounded strings")
+    return list(value)
+
+
+def _resolve_entrypoint_cwd(project: Path, raw: Any, label: str) -> Path:
+    cwd = Path(raw if raw is not None else project).expanduser()
+    if not cwd.is_absolute():
+        cwd = project / cwd
+    cwd = cwd.resolve(strict=False)
+    if not cwd.is_dir():
+        raise AtomError(f"{label} cwd does not exist: {cwd}")
+    return cwd
+
+
+def _resolve_test_runner(argv: list[str], effective_os: str, label: str) -> list[str]:
+    resolved = list(argv)
+    executable = Path(argv[0]).expanduser()
+    # Parser tests can target the other OS without pretending its executable is
+    # available on this host. Production compilation always takes this branch.
+    if effective_os == os.name:
+        if executable.is_absolute():
+            # Preserve virtual-environment and shim paths. Dereferencing a
+            # venv's Python symlink silently switches sys.prefix and loses the
+            # environment that owns pytest/xdist.
+            candidate = Path(os.path.abspath(os.fspath(executable)))
+            if not candidate.is_file():
+                raise AtomError(f"{label} runner executable does not exist: {candidate}")
+            resolved[0] = str(candidate)
+        else:
+            candidate = resolve_host_executable(argv[0])
+            if not candidate:
+                raise AtomError(f"{label} runner executable is unavailable: {argv[0]}")
+            resolved[0] = os.path.abspath(candidate)
+    if not _is_exact_pytest_runner_prefix(resolved):
+        raise AtomError(
+            f"{label} runner_argv must be an exact pytest runner prefix; put selectors and pytest flags in arguments"
+        )
+    return resolved
+
+
+def _pytest_runner_attestation(path: Path, label: str) -> dict[str, Any]:
+    """Hash-bind the resolved interpreter while preserving a venv symlink argv."""
+    invocation = Path(os.path.abspath(os.fspath(path)))
+    try:
+        invocation_state = invocation.lstat()
+        resolved = invocation.resolve(strict=True)
+        resolved_state = resolved.lstat()
+    except OSError as exc:
+        raise AtomError(f"{label} runner executable cannot be inspected") from exc
+    if (
+        stat.S_ISLNK(resolved_state.st_mode)
+        or getattr(resolved_state, "st_reparse_tag", 0)
+        or not stat.S_ISREG(resolved_state.st_mode)
+        or resolved_state.st_ino == 0
+        or not 0 < resolved_state.st_size <= MAX_PYTEST_RUNNER_BYTES
+    ):
+        raise AtomError(
+            f"{label} resolved runner must be a regular file of at most "
+            f"{MAX_PYTEST_RUNNER_BYTES} bytes"
+        )
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        descriptor = os.open(resolved, flags)
+    except OSError as exc:
+        raise AtomError(f"{label} resolved runner cannot be opened safely") from exc
+    try:
+        opened = os.fstat(descriptor)
+        identity = (opened.st_dev, opened.st_ino)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or identity != (resolved_state.st_dev, resolved_state.st_ino)
+            or opened.st_size != resolved_state.st_size
+        ):
+            raise AtomError(f"{label} resolved runner changed while being opened")
+        digest = hashlib.sha256()
+        total = 0
+        while True:
+            chunk = os.read(descriptor, 1_048_576)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_PYTEST_RUNNER_BYTES:
+                raise AtomError(f"{label} resolved runner exceeds the size limit")
+            digest.update(chunk)
+        settled = os.fstat(descriptor)
+        final_path_state = resolved.lstat()
+        if (
+            (settled.st_dev, settled.st_ino) != identity
+            or (final_path_state.st_dev, final_path_state.st_ino) != identity
+            or settled.st_size != opened.st_size
+            or settled.st_mtime_ns != opened.st_mtime_ns
+            or settled.st_ctime_ns != opened.st_ctime_ns
+            or invocation.resolve(strict=True) != resolved
+            or invocation.lstat().st_mode != invocation_state.st_mode
+        ):
+            raise AtomError(f"{label} runner changed while it was hashed")
+    except OSError as exc:
+        raise AtomError(f"{label} resolved runner cannot be read safely") from exc
+    finally:
+        os.close(descriptor)
+    return {
+        "schema": "atomlane/pytest-runner-attestation/v1",
+        "invocation_path": str(invocation),
+        "resolved_path": str(resolved),
+        "device": opened.st_dev,
+        "inode": opened.st_ino,
+        "size": opened.st_size,
+        "mode": stat.S_IMODE(opened.st_mode),
+        "mtime_ns": opened.st_mtime_ns,
+        "ctime_ns": opened.st_ctime_ns,
+        "sha256": digest.hexdigest(),
+    }
+
+
+def _reject_pytest_module_shadowing(
+    cwd: Path,
+    python_paths: list[Path],
+    label: str,
+) -> None:
+    """Keep pytest and the owned xdist plugin on the trusted runner path."""
+    for root in {cwd.resolve(strict=True), *(path.resolve(strict=True) for path in python_paths)}:
+        for module in ("pytest", "xdist"):
+            candidates = [root / module, root / f"{module}.py", root / f"{module}.pyc"]
+            try:
+                candidates.extend(
+                    path
+                    for path in root.glob(f"{module}.*")
+                    if path.suffix.casefold() in {".so", ".pyd", ".dll"}
+                )
+            except OSError as exc:
+                raise AtomError(
+                    f"{label} module-shadowing scope cannot be inspected: {root}"
+                ) from exc
+            if any(path.exists() or path.is_symlink() for path in candidates):
+                raise AtomError(
+                    f"{label} project paths must not shadow the trusted {module} module"
+                )
+
+
+def _path_identity(path: Path | str, effective_os: str) -> str:
+    value = os.fspath(path)
+    normalized = (
+        ntpath.normpath(value)
+        if effective_os == "nt"
+        else os.path.normpath(value)
+    )
+    # macOS volumes commonly normalize Unicode and fold case. Apply the same
+    # conservative identity on every POSIX host so a plan proven on a
+    # case-sensitive volume cannot become unsafe when moved to macOS.
+    return unicodedata.normalize("NFC", normalized).casefold()
+
+
+def _path_identity_is_equal_or_descendant(
+    path: Path | str,
+    directory: Path | str,
+    effective_os: str,
+) -> bool:
+    """Compare paths conservatively across case-folding and Unicode aliases."""
+    candidate = _path_identity(path, effective_os)
+    parent = _path_identity(directory, effective_os)
+    if candidate == parent:
+        return True
+    separator = "\\" if effective_os == "nt" else os.sep
+    prefix = parent if parent.endswith(separator) else parent + separator
+    return candidate.startswith(prefix)
+
+
+def _path_physical_anchor_identity(
+    path: Path | str,
+    effective_os: str,
+) -> tuple[int, int, tuple[str, ...]]:
+    """Anchor a present or future path to the nearest existing filesystem object."""
+    current = Path(os.path.abspath(os.fspath(path)))
+    remaining: list[str] = []
+    while True:
+        try:
+            state = current.stat()
+        except FileNotFoundError:
+            parent = current.parent
+            if parent == current:
+                raise AtomError(f"path has no existing physical ancestor: {path}")
+            remaining.insert(0, _path_identity(current.name, effective_os))
+            current = parent
+            continue
+        except OSError as exc:
+            raise AtomError(f"path physical identity is unavailable: {path}") from exc
+        inode = int(getattr(state, "st_ino", 0) or 0)
+        if inode <= 0:
+            raise AtomError(f"path physical identity is unavailable: {path}")
+        return int(state.st_dev), inode, tuple(remaining)
+
+
+def _path_physical_lineage(path: Path | str) -> tuple[tuple[int, int], ...]:
+    """Return physical identities for each existing object on a lexical ancestry."""
+    current = Path(os.path.abspath(os.fspath(path)))
+    lineage: list[tuple[int, int]] = []
+    while True:
+        try:
+            state = current.stat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise AtomError(f"path physical lineage is unavailable: {path}") from exc
+        else:
+            inode = int(getattr(state, "st_ino", 0) or 0)
+            if inode <= 0:
+                raise AtomError(f"path physical lineage is unavailable: {path}")
+            identity = (int(state.st_dev), inode)
+            if not lineage or lineage[-1] != identity:
+                lineage.append(identity)
+        parent = current.parent
+        if parent == current:
+            return tuple(lineage)
+        current = parent
+
+
+def _paths_are_equivalent(
+    left: Path | str,
+    right: Path | str,
+    effective_os: str,
+) -> bool:
+    """Treat lexical aliases and physically anchored aliases as one path."""
+    return (
+        _path_identity(left, effective_os) == _path_identity(right, effective_os)
+        or _path_physical_anchor_identity(left, effective_os)
+        == _path_physical_anchor_identity(right, effective_os)
+    )
+
+
+def _path_is_equal_or_descendant(
+    candidate: Path | str,
+    directory: Path | str,
+    effective_os: str,
+) -> bool:
+    """Compare an intended path boundary through lexical and physical aliases."""
+    if _path_identity_is_equal_or_descendant(
+        candidate,
+        directory,
+        effective_os,
+    ):
+        return True
+    candidate_anchor = _path_physical_anchor_identity(candidate, effective_os)
+    directory_anchor = _path_physical_anchor_identity(directory, effective_os)
+    if (
+        candidate_anchor[:2] == directory_anchor[:2]
+        and len(candidate_anchor[2]) >= len(directory_anchor[2])
+        and candidate_anchor[2][: len(directory_anchor[2])] == directory_anchor[2]
+    ):
+        return True
+    try:
+        directory_state = Path(directory).stat()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise AtomError(
+            f"path physical identity is unavailable: {directory}"
+        ) from exc
+    if not stat.S_ISDIR(directory_state.st_mode):
+        return False
+    inode = int(getattr(directory_state, "st_ino", 0) or 0)
+    if inode <= 0:
+        raise AtomError(f"path physical identity is unavailable: {directory}")
+    directory_identity = (int(directory_state.st_dev), inode)
+    return directory_identity in _path_physical_lineage(candidate)
+
+
+def _paths_overlap(
+    left: Path | str,
+    *,
+    left_is_directory: bool,
+    right: Path | str,
+    right_is_directory: bool,
+    effective_os: str,
+) -> bool:
+    """Return whether two intended file/directory paths can name overlapping storage."""
+    return (
+        _paths_are_equivalent(left, right, effective_os)
+        or left_is_directory
+        and _path_is_equal_or_descendant(right, left, effective_os)
+        or right_is_directory
+        and _path_is_equal_or_descendant(left, right, effective_os)
+    )
+
+
+def _pytest_output_overlaps_collection(
+    output_path: Path | str,
+    collection_root: Path,
+    effective_os: str,
+    *,
+    output_is_directory: bool = False,
+) -> bool:
+    try:
+        root_state = collection_root.stat()
+    except OSError as exc:
+        raise AtomError(
+            f"pytest collection root physical identity is unavailable: {collection_root}"
+        ) from exc
+    return _paths_overlap(
+        output_path,
+        left_is_directory=output_is_directory,
+        right=collection_root,
+        right_is_directory=stat.S_ISDIR(root_state.st_mode),
+        effective_os=effective_os,
+    )
+
+
+WINDOWS_RESERVED_COMPONENT_RE = re.compile(
+    r"^(?:con|prn|aux|nul|conin\$|conout\$|com[0-9\u00b9\u00b2\u00b3]|"
+    r"lpt[0-9\u00b9\u00b2\u00b3])$",
+    re.IGNORECASE,
+)
+
+
+def _windows_output_path_spelling_is_unambiguous(value: str) -> bool:
+    """Reject Win32 spellings that can alias another output pathname."""
+    lexical = value.replace("/", "\\")
+    if not lexical or "\x00" in lexical or lexical.startswith(
+        ("\\\\?\\", "\\\\.\\", "\\??\\", "\\\\??\\")
+    ):
+        return False
+    windows_path = PureWindowsPath(lexical)
+    if windows_path.drive and not windows_path.root:
+        return False
+    if windows_path.root and not windows_path.drive:
+        return False
+
+    def component_is_safe(component: str) -> bool:
+        if (
+            not component
+            or component[-1] in {" ", "."}
+            or any(ord(character) < 32 for character in component)
+            or any(character in '<>:"|?*' for character in component)
+        ):
+            return False
+        basename = component.split(".", 1)[0].rstrip(" .")
+        return WINDOWS_RESERVED_COMPONENT_RE.fullmatch(basename) is None
+
+    if windows_path.drive.startswith("\\\\"):
+        unc_parts = windows_path.drive.lstrip("\\").split("\\")
+        if len(unc_parts) != 2 or not all(map(component_is_safe, unc_parts)):
+            return False
+    elif windows_path.drive and not re.fullmatch(r"[A-Za-z]:", windows_path.drive):
+        return False
+    anchor = windows_path.anchor
+    for component in windows_path.parts:
+        if component == anchor or component in {".", ".."}:
+            continue
+        if not component_is_safe(component):
+            return False
+    return True
+
+
+def _path_is_within_reserved_pytest_basetemp(path: Path | str) -> bool:
+    """Reserve generated base-temp namespaces against report placement."""
+    candidate = Path(path)
+    return any(
+        PYTEST_BASETEMP_NAME_RE.fullmatch(parent.name) is not None
+        for parent in (candidate, *candidate.parents)
+    )
+
+
+def _regular_file_identity(path: Path) -> tuple[int, int] | None:
+    try:
+        state = path.lstat()
+    except FileNotFoundError:
+        return None
+    if (
+        stat.S_ISLNK(state.st_mode)
+        or getattr(state, "st_reparse_tag", 0)
+        or not stat.S_ISREG(state.st_mode)
+    ):
+        return None
+    return state.st_dev, state.st_ino
+
+
+def _snapshot_test_configuration(
+    compilation: Compilation,
+    project: Path,
+    config_path: Path,
+    snapshot_paths: list[str],
+    required_paths: list[Path],
+) -> tuple[list[dict[str, str]], list[dict[str, Any]], list[dict[str, Any]]]:
+    candidates: list[Path] = [config_path, *required_paths]
+    explicit_candidates: list[Path] = []
+    for raw in snapshot_paths:
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = project / path
+        lexical = Path(os.path.abspath(path))
+        path = path.resolve(strict=True)
+        if lexical != path:
+            raise AtomError(
+                "test-suite snapshot paths must not contain symbolic-link aliases"
+            )
+        try:
+            path.relative_to(project)
+        except ValueError as exc:
+            raise AtomError(f"test-suite snapshot escapes project: {path}") from exc
+        if not path.is_file():
+            raise AtomError(f"test-suite snapshot is not a file: {path}")
+        candidates.append(path)
+        if path != config_path.resolve(strict=False):
+            explicit_candidates.append(path)
+    accesses: list[dict[str, str]] = []
+    snapshots: list[dict[str, Any]] = []
+    for path in sorted(set(candidates)):
+        snapshots.append(compilation.snapshot(path))
+        accesses.append({"resource": str(path), "mode": "snapshot"})
+    explicit_snapshots = [
+        compilation.snapshot(path) for path in sorted(set(explicit_candidates))
+    ]
+    return accesses, snapshots, explicit_snapshots
+
+
+def compile_test_suite(
+    compilation: Compilation,
+    entrypoint: dict[str, Any],
+    *,
+    entry_id: str,
+    effective_os: str,
+    native_worker_ceiling: int | None,
+) -> Fragment:
+    """Compile one explicitly trusted pytest suite into its native worker pool."""
+    framework = entrypoint.get("framework", "pytest")
+    if framework != "pytest":
+        raise AtomError(f"entrypoint {entry_id} supports only framework=pytest in this release")
+    cwd = _resolve_entrypoint_cwd(
+        compilation.project,
+        entrypoint.get("cwd", str(compilation.project)),
+        f"entrypoint {entry_id}",
+    )
+    runner_argv = _bounded_string_array(
+        entrypoint.get("runner_argv", []),
+        f"entrypoint {entry_id} runner_argv",
+        32,
+    )
+    if not runner_argv:
+        raise AtomError(f"entrypoint {entry_id} runner_argv must not be empty")
+    runner_argv = _resolve_test_runner(
+        runner_argv, effective_os, f"entrypoint {entry_id}"
+    )
+    runner_attestation = (
+        _pytest_runner_attestation(
+            Path(runner_argv[0]), f"entrypoint {entry_id}"
+        )
+        if effective_os == os.name
+        else {
+            "schema": "atomlane/pytest-runner-attestation/cross-platform-static",
+            "invocation_path": runner_argv[0],
+        }
+    )
+    arguments = _bounded_string_array(
+        entrypoint.get("arguments", []),
+        f"entrypoint {entry_id} arguments",
+        128,
+    )
+    _validate_pytest_tokens(arguments, label=f"entrypoint {entry_id}")
+
+    worker_raw = entrypoint.get("worker_count", "auto")
+    if worker_raw == "auto":
+        worker_count = max(1, min(64, int(native_worker_ceiling or (os.cpu_count() or 1))))
+        worker_source = "adaptive_host_budget"
+    elif isinstance(worker_raw, int) and not isinstance(worker_raw, bool) and 1 <= worker_raw <= 64:
+        worker_count = worker_raw
+        worker_source = "explicit"
+    else:
+        raise AtomError(f"entrypoint {entry_id} worker_count must be auto or an integer from 1 to 64")
+    distribution = entrypoint.get("distribution", "worksteal")
+    if distribution not in PYTEST_DISTRIBUTIONS:
+        raise AtomError(f"entrypoint {entry_id} has unsupported pytest distribution: {distribution}")
+
+    case_count_hint = entrypoint.get("case_count_hint")
+    if case_count_hint is not None and (
+        isinstance(case_count_hint, bool)
+        or not isinstance(case_count_hint, int)
+        or not 1 <= case_count_hint <= 10_000_000
+    ):
+        raise AtomError(f"entrypoint {entry_id} case_count_hint must be a positive integer")
+    if (
+        worker_source == "adaptive_host_budget"
+        and case_count_hint is not None
+        and worker_count > case_count_hint
+    ):
+        worker_count = case_count_hint
+        worker_source = "adaptive_host_budget_and_case_hint"
+    memory_per_worker = entrypoint.get("estimated_memory_mb_per_worker")
+    if memory_per_worker is not None and (
+        isinstance(memory_per_worker, bool)
+        or not isinstance(memory_per_worker, (int, float))
+        or not 1 <= float(memory_per_worker) <= 1_048_576
+    ):
+        raise AtomError(
+            f"entrypoint {entry_id} estimated_memory_mb_per_worker must be 1..1048576"
+        )
+    duration = entrypoint.get("estimated_duration_seconds")
+    if duration is not None and (
+        isinstance(duration, bool)
+        or not isinstance(duration, (int, float))
+        or not 0 < float(duration) <= 86_400
+    ):
+        raise AtomError(f"entrypoint {entry_id} estimated_duration_seconds must be 0..86400")
+    timeout = entrypoint.get("timeout_seconds", 900)
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not 0 < float(timeout) <= 86_400
+    ):
+        raise AtomError(f"entrypoint {entry_id} timeout_seconds must be 0..86400")
+
+    declared_accesses = entrypoint.get("declared_accesses", [])
+    declared_effects = entrypoint.get("declared_effects", [])
+    if not isinstance(declared_accesses, list) or len(declared_accesses) > 256:
+        raise AtomError(f"entrypoint {entry_id} declared_accesses must be a bounded array")
+    if not isinstance(declared_effects, list) or len(declared_effects) > 128:
+        raise AtomError(f"entrypoint {entry_id} declared_effects must be a bounded array")
+    complete = entrypoint.get("effects_declared_complete", False)
+    if not isinstance(complete, bool):
+        raise AtomError(f"entrypoint {entry_id} effects_declared_complete must be boolean")
+    independence_declared = entrypoint.get("independence_declared", False)
+    if not isinstance(independence_declared, bool):
+        raise AtomError(f"entrypoint {entry_id} independence_declared must be boolean")
+    baseline_source_closure_declared = entrypoint.get(
+        "baseline_source_closure_declared", False
+    )
+    if not isinstance(baseline_source_closure_declared, bool):
+        raise AtomError(
+            f"entrypoint {entry_id} baseline_source_closure_declared must be boolean"
+        )
+    snapshot_paths = _bounded_string_array(
+        entrypoint.get("snapshot_paths", []),
+        f"entrypoint {entry_id} snapshot_paths",
+        256,
+    )
+
+    environment = entrypoint.get("env", {})
+    if not isinstance(environment, dict) or len(environment) > 128:
+        raise AtomError(f"entrypoint {entry_id} env must be a bounded object")
+    environment = dict(environment)
+    if not all(
+        isinstance(key, str)
+        and isinstance(value, str)
+        and key
+        and "=" not in key
+        and "\x00" not in key + value
+        for key, value in environment.items()
+    ):
+        raise AtomError(f"entrypoint {entry_id} env must contain valid string entries")
+    for canonical in PYTEST_CRITICAL_ENV:
+        matching = [
+            key
+            for key in environment
+            if key == canonical
+            or effective_os == "nt" and key.casefold() == canonical.casefold()
+        ]
+        if len(matching) > 1:
+            raise AtomError(
+                f"entrypoint {entry_id} env contains duplicate {canonical} keys"
+            )
+        ambient_value = ""
+        for key, value in os.environ.items():
+            if key == canonical or (
+                effective_os == "nt" and key.casefold() == canonical.casefold()
+            ):
+                ambient_value = value
+                break
+        selected = environment.pop(matching[0]) if matching else ambient_value
+        environment[canonical] = selected
+    for canonical in PYTEST_FORCED_EMPTY_ENV:
+        matching = [
+            key
+            for key in environment
+            if key == canonical
+            or effective_os == "nt" and key.casefold() == canonical.casefold()
+        ]
+        if len(matching) > 1:
+            raise AtomError(
+                f"entrypoint {entry_id} env contains duplicate {canonical} keys"
+            )
+        if matching and environment.pop(matching[0]):
+            raise AtomError(
+                f"entrypoint {entry_id} {canonical} must be empty for trusted pytest/xdist resolution"
+            )
+        environment[canonical] = ""
+    if environment["PYTEST_DEBUG"]:
+        raise AtomError(
+            f"entrypoint {entry_id} PYTEST_DEBUG must be empty because it writes implicit debug output"
+        )
+    try:
+        # Pytest itself parses PYTEST_ADDOPTS with POSIX shlex semantics on
+        # every supported host. Matching it exactly prevents quoted options
+        # from bypassing the worker-budget checks on Windows.
+        environment_addopts = shlex.split(environment["PYTEST_ADDOPTS"], posix=True)
+    except ValueError as exc:
+        raise AtomError(f"entrypoint {entry_id} PYTEST_ADDOPTS is not parseable") from exc
+    _validate_pytest_tokens(
+        environment_addopts,
+        label=f"entrypoint {entry_id} PYTEST_ADDOPTS",
+    )
+    environment_plugin = _pytest_environment_plugin_control(
+        environment["PYTEST_PLUGINS"]
+    )
+    if environment_plugin is not None:
+        raise AtomError(
+            f"entrypoint {entry_id} PYTEST_PLUGINS must not alter AtomLane's "
+            f"xdist/cacheprovider controls: {environment_plugin}"
+        )
+    config_path, config_rootdir, config_addopts, config_selection_kind = (
+        _resolve_pytest_config(
+            compilation.project,
+            cwd,
+            entrypoint.get("config_path"),
+            [*environment_addopts, *arguments],
+            f"entrypoint {entry_id}",
+        )
+    )
+    uses_empty_config = config_selection_kind == "bundled_empty"
+    validated_config_paths = _validate_pytest_config_paths(
+        config_path,
+        compilation.project,
+        f"entrypoint {entry_id}",
+    )
+    validated_selectors = _validate_pytest_selector_boundaries(
+        compilation.project,
+        cwd,
+        [*config_addopts, *environment_addopts, *arguments],
+        f"entrypoint {entry_id}",
+    )
+    collection_roots = (
+        validated_selectors or validated_config_paths["testpaths"] or [cwd]
+    )
+    _reject_pytest_module_shadowing(
+        cwd,
+        validated_config_paths["pythonpath"],
+        f"entrypoint {entry_id}",
+    )
+    _validate_pytest_collection_boundaries(
+        compilation.project,
+        collection_roots,
+        f"entrypoint {entry_id}",
+    )
+    token = secrets.token_hex(16)
+    temp_root = Path(tempfile.gettempdir()).resolve(strict=False)
+    basetemp = temp_root / f"atomlane-pytest-{token}-tmp"
+    junit_raw = entrypoint.get("junit_path")
+    if junit_raw is None:
+        junit_path = temp_root / f"atomlane-pytest-{token}-junit.xml"
+    else:
+        if not isinstance(junit_raw, str) or not junit_raw or "\x00" in junit_raw:
+            raise AtomError(f"entrypoint {entry_id} junit_path must be a non-empty path")
+        if effective_os == "nt" and not _windows_output_path_spelling_is_unambiguous(
+            junit_raw
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path has an ambiguous or reserved "
+                "Windows pathname"
+            )
+        unresolved_junit = Path(junit_raw).expanduser()
+        if not unresolved_junit.is_absolute():
+            unresolved_junit = cwd / unresolved_junit
+        try:
+            unresolved_state = unresolved_junit.lstat()
+        except FileNotFoundError:
+            unresolved_state = None
+        if unresolved_state is not None and (
+            stat.S_ISLNK(unresolved_state.st_mode)
+            or getattr(unresolved_state, "st_reparse_tag", 0)
+            or not stat.S_ISREG(unresolved_state.st_mode)
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path must be absent or a non-link regular file"
+            )
+        if unresolved_state is not None and unresolved_state.st_nlink != 1:
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path aliases another filesystem entry"
+            )
+        junit_path = unresolved_junit.resolve(strict=False)
+        if not junit_path.parent.is_dir():
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path parent does not exist: {junit_path.parent}"
+            )
+    if _path_is_within_reserved_pytest_basetemp(junit_path):
+        raise AtomError(
+            f"entrypoint {entry_id} junit_path must not use AtomLane's reserved "
+            "pytest base-temp namespace"
+        )
+    _path_physical_anchor_identity(junit_path, effective_os)
+    _path_physical_anchor_identity(basetemp, effective_os)
+    if _paths_overlap(
+        junit_path,
+        left_is_directory=False,
+        right=basetemp,
+        right_is_directory=True,
+        effective_os=effective_os,
+    ):
+        raise AtomError(f"entrypoint {entry_id} junit_path overlaps basetemp")
+    for collection_root in collection_roots:
+        collection_root = collection_root.resolve(strict=True)
+        if _pytest_output_overlaps_collection(
+            junit_path,
+            collection_root,
+            effective_os,
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path overlaps the pytest collection scope"
+            )
+        if _pytest_output_overlaps_collection(
+            basetemp,
+            collection_root,
+            effective_os,
+            output_is_directory=True,
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} basetemp overlaps the pytest collection scope"
+            )
+    junit_identity = _path_identity(junit_path, effective_os)
+    junit_file_identity = _regular_file_identity(junit_path)
+    for prior_suite in compilation.test_suites:
+        prior_contract = prior_suite.get("selection_contract", {})
+        prior_roots = prior_contract.get("collection_roots", [])
+        prior_junit = prior_suite.get("junit_path")
+        prior_basetemp = prior_suite.get("basetemp_path")
+        if any(
+            _pytest_output_overlaps_collection(
+                output_path,
+                Path(prior_root),
+                effective_os,
+                output_is_directory=output_is_directory,
+            )
+            for output_path, output_is_directory in (
+                (junit_path, False),
+                (basetemp, True),
+            )
+            for prior_root in prior_roots
+            if isinstance(prior_root, str)
+        ) or (
+            (isinstance(prior_junit, str) or isinstance(prior_basetemp, str))
+            and any(
+                _pytest_output_overlaps_collection(
+                    output_path,
+                    collection_root.resolve(strict=True),
+                    effective_os,
+                    output_is_directory=output_is_directory,
+                )
+                for output_path, output_is_directory in (
+                    (prior_junit, False),
+                    (prior_basetemp, True),
+                )
+                if isinstance(output_path, str)
+                for collection_root in collection_roots
+            )
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} JUnit output overlaps another suite's "
+                "pytest collection scope"
+            )
+        if isinstance(prior_junit, str) and _paths_are_equivalent(
+            junit_path,
+            prior_junit,
+            effective_os,
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} junit_path must be unique within the plan"
+            )
+        if isinstance(prior_basetemp, str) and (
+            _paths_overlap(
+                junit_path,
+                left_is_directory=False,
+                right=prior_basetemp,
+                right_is_directory=True,
+                effective_os=effective_os,
+            )
+            or isinstance(prior_junit, str)
+            and _paths_overlap(
+                basetemp,
+                left_is_directory=True,
+                right=prior_junit,
+                right_is_directory=False,
+                effective_os=effective_os,
+            )
+            or _paths_overlap(
+                basetemp,
+                left_is_directory=True,
+                right=prior_basetemp,
+                right_is_directory=True,
+                effective_os=effective_os,
+            )
+        ):
+            raise AtomError(
+                f"entrypoint {entry_id} pytest outputs overlap another suite's outputs"
+            )
+
+    argv = [*runner_argv, "-p", "xdist"]
+    if worker_count > 1:
+        argv.extend(["-n", str(worker_count), "--dist", distribution])
+    argv.extend(
+        [
+            "-c",
+            str(config_path),
+            f"--confcutdir={compilation.project}",
+            *([f"--rootdir={config_rootdir}"] if uses_empty_config else []),
+            "-p",
+            "no:cacheprovider",
+            *(
+                [
+                    "--maxprocesses",
+                    str(worker_count),
+                    "--max-worker-restart",
+                    "0",
+                ]
+                if worker_count > 1
+                else []
+            ),
+            f"--basetemp={basetemp}",
+            f"--junitxml={junit_path}",
+            *arguments,
+        ]
+    )
+    if len(argv) > 256:
+        raise AtomError(f"entrypoint {entry_id} expanded pytest argv exceeds 256 entries")
+
+    snapshot_accesses, selection_snapshots, explicit_source_snapshots = (
+        _snapshot_test_configuration(
+            compilation,
+            compilation.project,
+            config_path,
+            snapshot_paths,
+            [path for path in collection_roots if path.is_file()],
+        )
+    )
+    explicit_source_paths = [
+        (
+            Path(snapshot["path"])
+            if Path(snapshot["path"]).is_absolute()
+            else compilation.project / snapshot["path"]
+        ).resolve(strict=True)
+        for snapshot in explicit_source_snapshots
+    ]
+    baseline_source_coverage = _pytest_baseline_source_coverage(
+        compilation.project,
+        cwd,
+        [*config_addopts, *environment_addopts, *arguments],
+        config_path,
+        explicit_source_paths,
+        f"entrypoint {entry_id}",
+    )
+    protected_input_identities = {
+        _path_identity(access["resource"], effective_os)
+        for access in snapshot_accesses
+    }
+    protected_file_identities = {
+        identity
+        for access in snapshot_accesses
+        if (identity := _regular_file_identity(Path(access["resource"]))) is not None
+    }
+    if Path(runner_argv[0]).is_absolute():
+        protected_input_identities.add(_path_identity(runner_argv[0], effective_os))
+        protected_input_identities.add(
+            _path_identity(Path(runner_argv[0]).resolve(strict=False), effective_os)
+        )
+        runner_file_identity = _regular_file_identity(
+            Path(runner_argv[0]).resolve(strict=False)
+        )
+        if runner_file_identity is not None:
+            protected_file_identities.add(runner_file_identity)
+    for prior_suite in compilation.test_suites:
+        prior_junit = prior_suite.get("junit_path")
+        if isinstance(prior_junit, str):
+            prior_identity = _path_identity(prior_junit, effective_os)
+            if prior_identity in protected_input_identities:
+                raise AtomError(
+                    f"entrypoint {entry_id} snapshot or runner overlaps the JUnit output of another suite"
+                )
+            prior_junit_file_identity = _regular_file_identity(Path(prior_junit))
+            if (
+                prior_junit_file_identity is not None
+                and prior_junit_file_identity in protected_file_identities
+            ):
+                raise AtomError(
+                    f"entrypoint {entry_id} snapshot or runner aliases the JUnit output of another suite"
+                )
+        prior_contract = prior_suite.get("selection_contract", {})
+        prior_runner = prior_contract.get("runner_argv", [])
+        if prior_runner and isinstance(prior_runner[0], str):
+            prior_runner_path = Path(prior_runner[0])
+            if prior_runner_path.is_absolute():
+                protected_input_identities.add(
+                    _path_identity(prior_runner_path, effective_os)
+                )
+                prior_runner_identity = _regular_file_identity(
+                    prior_runner_path.resolve(strict=False)
+                )
+                if prior_runner_identity is not None:
+                    protected_file_identities.add(prior_runner_identity)
+                protected_input_identities.add(
+                    _path_identity(
+                        prior_runner_path.resolve(strict=False), effective_os
+                    )
+                )
+        for snapshot in prior_contract.get("source_snapshots", []):
+            raw_path = snapshot.get("path") if isinstance(snapshot, dict) else None
+            if isinstance(raw_path, str):
+                prior_path = Path(raw_path)
+                if not prior_path.is_absolute():
+                    prior_path = compilation.project / prior_path
+                protected_input_identities.add(
+                    _path_identity(prior_path.resolve(strict=False), effective_os)
+                )
+                prior_snapshot_identity = _regular_file_identity(
+                    prior_path.resolve(strict=False)
+                )
+                if prior_snapshot_identity is not None:
+                    protected_file_identities.add(prior_snapshot_identity)
+    if junit_identity in protected_input_identities:
+        raise AtomError(
+            f"entrypoint {entry_id} junit_path overlaps a snapshotted input or runner executable"
+        )
+    if (
+        junit_file_identity is not None
+        and junit_file_identity in protected_file_identities
+    ):
+        raise AtomError(
+            f"entrypoint {entry_id} junit_path aliases a snapshotted input or runner executable"
+        )
+    if _path_identity(basetemp, effective_os) in protected_input_identities:
+        raise AtomError(
+            f"entrypoint {entry_id} basetemp overlaps a snapshotted input or runner executable"
+        )
+    if _path_identity(basetemp, effective_os) == junit_identity:
+        raise AtomError(f"entrypoint {entry_id} junit_path overlaps basetemp")
+    selection_contract = {
+        "schema": "atomlane/pytest-selection/v1",
+        "runner_argv": runner_argv,
+        "runner_attestation": runner_attestation,
+        "arguments": arguments,
+        "cwd": str(cwd),
+        "env": environment,
+        "source_snapshots": sorted(selection_snapshots, key=lambda item: item["path"]),
+        "explicit_source_snapshots": sorted(
+            explicit_source_snapshots, key=lambda item: item["path"]
+        ),
+        "baseline_source_closure_declared": baseline_source_closure_declared,
+        "baseline_source_coverage": baseline_source_coverage,
+        "config_path": str(config_path),
+        "config_rootdir": str(config_rootdir),
+        "collection_roots": [
+            str(path.resolve(strict=True)) for path in collection_roots
+        ],
+        "config_addopts": config_addopts,
+        "environment_addopts": environment_addopts,
+        "uses_bundled_empty_config": uses_empty_config,
+        "config_selection_kind": config_selection_kind,
+        "config_addopts_policy": "preserved_validated",
+    }
+    selection_fingerprint = "sha256:" + hashlib.sha256(
+        json.dumps(
+            selection_contract,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    blockers: list[str] = []
+    if not complete:
+        blockers.append("INCOMPLETE_TEST_EFFECT_MODEL")
+    if worker_count > 1 and not independence_declared:
+        blockers.append("TEST_CASE_INDEPENDENCE_NOT_DECLARED")
+    claims = [
+        {"resource": "worker_slot", "units": 1},
+        {"resource": "cpu_core", "units": worker_count},
+    ]
+    total_memory = (
+        float(memory_per_worker) * worker_count
+        if memory_per_worker is not None
+        else None
+    )
+    if total_memory is not None:
+        claims.append({"resource": "memory_mb", "units": total_memory})
+    atom_id = compilation.emit(
+        {
+            "id": entry_id,
+            "operation": {
+                "kind": "test",
+                "argv": argv,
+                "cwd": str(cwd),
+                "env": environment,
+                "completion": "process_exit",
+                "timeout_seconds": float(timeout),
+                "internal_parallelism": {
+                    "kind": "bounded" if worker_count > 1 else "none",
+                    "tokens": worker_count if worker_count > 1 else None,
+                },
+            },
+            "accesses": [
+                *snapshot_accesses,
+                *declared_accesses,
+                {"resource": str(basetemp), "mode": "transaction"},
+                {"resource": str(junit_path), "mode": "overwrite"},
+            ],
+            "effects": declared_effects,
+            "claims": claims,
+            "profile": "cpu",
+            "side_effect": True,
+            "semantics": {
+                "idempotent": None,
+                "retryable": False,
+                "deterministic": None,
+                "cacheable": False,
+                "commutative": False,
+                "cancel_safe": None,
+                "splittable": False,
+                "reorderable": "forbidden",
+            },
+            "cost": {
+                "duration_seconds": float(duration) if duration is not None else None,
+                "memory_mb": total_memory,
+                "cpu_cores": worker_count,
+            },
+            "batch": {"key": f"pytest:{entry_id}", "strategy": "native_command"},
+            "assurance": {
+                "parse": "exact",
+                "control": "exact",
+                "effects": "complete_declared" if complete else "unknown",
+                "codegen": "exact_argv",
+                "rank": 1.0 if complete else 0.5,
+                "blockers": blockers,
+            },
+            "provenance": {
+                "adapter": "test_suite",
+                "source": "task_plan",
+                "symbol": entry_id,
+                "confidence": 1.0,
+            },
+        }
+    )
+    suite = {
+        "schema": "atomlane/test-suite/v1",
+        "id": entry_id,
+        "framework": "pytest",
+        "strategy": "native_worker_pool" if worker_count > 1 else "native_serial",
+        "atom_id": atom_id,
+        "configured_workers": worker_count,
+        "worker_count_source": worker_source,
+        "worker_evidence": "configured_not_observed",
+        "distribution": distribution if worker_count > 1 else None,
+        "case_count_hint": case_count_hint,
+        "junit_path": str(junit_path),
+        "basetemp_path": str(basetemp),
+        "effects_declared_complete": complete,
+        "independence_declared": independence_declared,
+        "selection_contract": selection_contract,
+        "selection_fingerprint": selection_fingerprint,
+        "explicit_snapshot_count": len(explicit_source_snapshots),
+        "baseline_source_closure_declared": baseline_source_closure_declared,
+        "baseline_source_coverage": baseline_source_coverage,
+        "config_addopts_policy": "preserved_validated",
+        "collection_execution_performed": False,
+        "native_dependency": "pytest-xdist",
+    }
+    compilation.test_suites.append(suite)
+    compilation.diagnostic(
+        "PYTEST_ADDOPTS_VALIDATED",
+        f"Preserved and hash-bound {len(config_addopts)} config and {len(environment_addopts)} environment addopts tokens after rejecting control conflicts.",
+        source="task_plan",
+        symbol=entry_id,
+    )
+    compilation.diagnostic(
+        "PYTEST_XDIST_RUNTIME_REQUIRED",
+        "The compiled pytest route requires pytest-xdist in the selected runner environment; AtomLane never installs it automatically.",
+        source="task_plan",
+        symbol=entry_id,
+    )
+    if worker_count > 1:
+        compilation.native_delegates.append(
+            {
+                "kind": "pytest_native_worker_pool",
+                "atoms": [atom_id],
+                "argv": argv,
+                "cwd": str(cwd),
+                "configured_workers": worker_count,
+                "worker_evidence": "configured_not_observed",
+                "distribution": distribution,
+                "reason": "pytest-xdist owns collection, fixtures, case scheduling, and worker lifecycle.",
+            }
+        )
+        if not independence_declared:
+            compilation.diagnostic(
+                "TEST_CASE_INDEPENDENCE_NOT_DECLARED",
+                "Parallel pytest execution remains blocked until the caller explicitly declares that selected cases are independent under the modeled fixtures and effects.",
+                source="task_plan",
+                symbol=entry_id,
+            )
+    return Fragment([atom_id], [atom_id], [atom_id])
 
 
 def _git_root(cwd: Path) -> Path:
@@ -1876,6 +3863,7 @@ def compile_entrypoints(
     raw_entrypoints: Any,
     *,
     target_os: str | None = None,
+    native_worker_ceiling: int | None = None,
 ) -> dict[str, Any]:
     """Compile host entrypoints, with an explicit OS seam for parser tests.
 
@@ -1967,6 +3955,14 @@ def compile_entrypoints(
                 raise AtomError(f"entrypoint {entry_id} profiles must be a string array")
             compiler = ComposeCompiler(compilation, compose_file)
             fragment = compiler.compile(services, set(profiles_raw))
+        elif adapter == "test_suite":
+            fragment = compile_test_suite(
+                compilation,
+                entrypoint,
+                entry_id=entry_id,
+                effective_os=effective_os,
+                native_worker_ceiling=native_worker_ceiling,
+            )
         elif adapter == "powershell_file":
             if effective_os != "nt":
                 raise AtomError(

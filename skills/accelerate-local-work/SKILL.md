@@ -179,8 +179,8 @@ base-temp path through report parsing. If another run owns one, fail fast and
 recompile for fresh generated paths or choose a distinct `junit_path`; do not
 wait and include queue time in a savings comparison. Lease the normalized path,
 physical parent-plus-basename, and existing target; recompute the complete key
-set while held. On native Windows, derive the lease root from the current
-token's LocalAppData Known Folder rather than profile environment variables.
+set while held. On native Windows, derive the lease root from the profile
+directory bound to the current process token rather than profile environment variables.
 Positional selectors, config `testpaths`/`pythonpath`, and explicit
 `snapshot_paths` must already resolve directly inside the project without a
 symbolic-link/reparse alias and are revalidated before launch. Any link found

@@ -4,12 +4,12 @@ import contextlib
 import io
 import json
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
 import time
 import unittest
+from html.parser import HTMLParser
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -19,6 +19,26 @@ import live_runner
 import mcp_server
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+class _InlineScriptExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._chunks: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "script" and not attrs:
+            self._chunks = []
+
+    def handle_data(self, data: str) -> None:
+        if self._chunks is not None:
+            self._chunks.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self._chunks is not None:
+            self.scripts.append("".join(self._chunks).strip())
+            self._chunks = None
 
 
 class PytestNativeProgressTests(unittest.TestCase):
@@ -130,9 +150,9 @@ class PytestNativeIndicatorStaticTests(unittest.TestCase):
         indicator = (ROOT / "assets" / "parallel-indicator.html").read_text(
             encoding="utf-8"
         )
-        inline_scripts = re.findall(
-            r"<script>\s*(.*?)\s*</script>", indicator, re.DOTALL
-        )
+        extractor = _InlineScriptExtractor()
+        extractor.feed(indicator)
+        inline_scripts = extractor.scripts
         self.assertEqual(len(inline_scripts), 1)
         harness = (
             "import vm from 'node:vm';\nconst source = "

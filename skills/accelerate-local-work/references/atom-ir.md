@@ -293,9 +293,9 @@ revalidates the plan while holding them, and releases only after stable report
 parsing and evidence generation. A collision fails fast rather than entering
 the measured execution interval. Every output contributes a normalized path
 key, a physical parent-plus-basename key, and an existing-target key; the full
-set is recomputed while held. Windows obtains the private lease root from the
-current token's LocalAppData Known Folder, independent of profile environment
-variables.
+set is recomputed while held. Windows constructs the private lease root from
+the profile directory bound to the current process token, independent of
+profile environment variables.
 
 The runner prefix must use an exact Python `-m pytest` module invocation;
 direct `pytest` and `py.test` console scripts are rejected. AtomLane preserves

@@ -347,8 +347,8 @@ would contaminate the run's elapsed-time comparison. A lease set contains the
 normalized path key, the physical parent identity plus normalized basename, and
 the existing target identity when present; the full set is recomputed after
 acquisition. This keeps a key stable when a previously absent output is created
-and collapses firmlink/bind-mount aliases. Native Windows discovers the private
-lease root through the current token's LocalAppData Known Folder, not
+and collapses firmlink/bind-mount aliases. Native Windows constructs the private
+lease root from the profile directory bound to the current process token, not
 `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, or `LOCALAPPDATA`.
 
 The compiled worker count consumes the shared CPU capacity budget, and an

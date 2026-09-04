@@ -38,8 +38,9 @@ All notable changes to this project are documented here.
   overwrite one another's evidence. Lease keys combine normalized paths,
   physical parent-plus-basename identities, and existing target identities,
   closing firmlink/bind-mount aliases and the absent-to-created output race.
-  Native Windows resolves the private lease root through the current token's
-  LocalAppData Known Folder instead of mutable profile environment variables.
+  Native Windows constructs the private lease root from the profile directory
+  bound to the current process token instead of mutable profile environment
+  variables.
 - Applied case-folded, Unicode-normalized collection/output overlap checks in
   both compilation and runtime validation, augmented by physical ancestor/file
   identities and applied in both directions across multiple suites, so

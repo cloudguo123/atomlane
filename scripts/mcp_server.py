@@ -4734,53 +4734,78 @@ def _pytest_output_lease_identity(path: str) -> str:
     return _path_identity(resolved, os.name)
 
 
-def _windows_known_local_app_data() -> Path:
-    """Resolve LocalAppData from the current token, independent of env variables."""
-    if os.name != "nt":
-        raise InputError("Windows known-folder lookup requires native Windows")
+def _windows_profile_directory_from_apis(
+    kernel32: Any,
+    advapi32: Any,
+    userenv: Any,
+) -> str:
+    """Read the current process token's profile through native Windows APIs."""
     import ctypes
-    import uuid
+    from ctypes import wintypes
 
-    class Guid(ctypes.Structure):
-        _fields_ = [
-            ("data1", ctypes.c_uint32),
-            ("data2", ctypes.c_uint16),
-            ("data3", ctypes.c_uint16),
-            ("data4", ctypes.c_ubyte * 8),
-        ]
-
-    folder_id = Guid.from_buffer_copy(
-        uuid.UUID("f1b32785-6fba-4fcf-9d55-7b8e7f157091").bytes_le
-    )
-    path_pointer = ctypes.c_void_p()
-    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
-    ole32 = ctypes.WinDLL("ole32", use_last_error=True)
-    shell32.SHGetKnownFolderPath.argtypes = [
-        ctypes.POINTER(Guid),
-        ctypes.c_uint32,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_void_p),
+    token_query = 0x0008
+    get_last_error = getattr(ctypes, "get_last_error", lambda: 0)
+    token = wintypes.HANDLE()
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
     ]
-    shell32.SHGetKnownFolderPath.restype = ctypes.c_long
-    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
-    ole32.CoTaskMemFree.restype = None
-    result = shell32.SHGetKnownFolderPath(
-        ctypes.byref(folder_id),
-        0,
-        None,
-        ctypes.byref(path_pointer),
-    )
-    if result != 0 or not path_pointer.value:
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    userenv.GetUserProfileDirectoryW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    userenv.GetUserProfileDirectoryW.restype = wintypes.BOOL
+
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), token_query, ctypes.byref(token)):
         raise InputError(
-            f"Windows LocalAppData known folder is unavailable (HRESULT 0x{result & 0xFFFFFFFF:08x})"
+            "Windows current-token profile is unavailable "
+            f"(WinError {get_last_error()})"
         )
     try:
-        value = ctypes.wstring_at(path_pointer.value)
+        size = wintypes.DWORD(0)
+        userenv.GetUserProfileDirectoryW(token, None, ctypes.byref(size))
+        if size.value <= 1:
+            raise InputError(
+                "Windows current-token profile size is unavailable "
+                f"(WinError {get_last_error()})"
+            )
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not userenv.GetUserProfileDirectoryW(token, buffer, ctypes.byref(size)):
+            raise InputError(
+                "Windows current-token profile is unavailable "
+                f"(WinError {get_last_error()})"
+            )
+        if not buffer.value:
+            raise InputError("Windows current-token profile is empty")
+        return buffer.value
     finally:
-        ole32.CoTaskMemFree(path_pointer)
-    if not value:
-        raise InputError("Windows LocalAppData known folder is empty")
-    return Path(value)
+        kernel32.CloseHandle(token)
+
+
+def _windows_token_local_app_data() -> Path:
+    """Resolve stable per-user local state without consulting process env."""
+    if os.name != "nt":
+        raise InputError("Windows profile lookup requires native Windows")
+    import ctypes
+
+    try:
+        profile = Path(
+            _windows_profile_directory_from_apis(
+                ctypes.WinDLL("kernel32", use_last_error=True),
+                ctypes.WinDLL("advapi32", use_last_error=True),
+                ctypes.WinDLL("userenv", use_last_error=True),
+            )
+        ).resolve(strict=True)
+    except OSError as exc:
+        raise InputError("Windows current-token profile is unavailable") from exc
+    return profile / "AppData" / "Local"
 
 
 def _pytest_output_lease_root(
@@ -4792,7 +4817,7 @@ def _pytest_output_lease_root(
     active_os = host_os or os.name
     if active_os == "nt":
         return (
-            known_local_app_data or _windows_known_local_app_data()
+            known_local_app_data or _windows_token_local_app_data()
         ) / "AtomLane" / "pytest-output-leases-v1"
     return (
         Path("/tmp").resolve(strict=True)

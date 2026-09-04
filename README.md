@@ -208,8 +208,8 @@ The boundary is intentionally explicit:
   generated paths or provide a distinct explicit `junit_path`. Each output
   locks its normalized path, physical parent-plus-basename, and any existing
   target identity; those keys are rechecked while held. On Windows, the lease
-  root comes from the current token's LocalAppData known folder rather than
-  mutable profile environment variables.
+  root is constructed from the profile directory bound to the current process
+  token rather than mutable profile environment variables.
 - `worker_count=auto` is capped by the host resource budget and any supplied
   case-count hint; the hint is not treated as proof of independence. A worker
   count is a bounded capacity decision, not CPU affinity. pytest-xdist

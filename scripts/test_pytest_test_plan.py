@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import ctypes
 import importlib.util
 import json
 import os
@@ -24,6 +25,16 @@ import atom_frontends
 import mcp_server
 from atom_engine import AtomError
 from atom_frontends import compile_entrypoints
+
+
+class _FakeCFunction:
+    def __init__(self, callback):
+        self.callback = callback
+        self.calls = 0
+
+    def __call__(self, *args):
+        self.calls += 1
+        return self.callback(*args)
 
 
 class PytestTestSuiteFrontendTests(unittest.TestCase):
@@ -1344,20 +1355,109 @@ class PytestTestSuiteFrontendTests(unittest.TestCase):
                 ):
                     self.fail("physical output alias acquired a second lease")
 
-    @unittest.skipUnless(os.name == "nt", "requires native Windows known folders")
-    def test_windows_lease_root_ignores_profile_environment(self) -> None:
+    def test_windows_profile_api_closes_token_and_preserves_unicode(self) -> None:
+        profile = r"C:\Users\测试用户"
+        closed_tokens: list[int] = []
+
+        class Kernel32:
+            GetCurrentProcess = _FakeCFunction(lambda: ctypes.c_void_p(-1))
+            CloseHandle = _FakeCFunction(lambda token: closed_tokens.append(token.value) or 1)
+
+        class Advapi32:
+            OpenProcessToken = _FakeCFunction(
+                lambda _process, _rights, token: setattr(token._obj, "value", 1234) or 1
+            )
+
+        def get_profile(_token, buffer, size) -> int:
+            size._obj.value = len(profile) + 1
+            if buffer is None:
+                return 0
+            buffer.value = profile
+            return 1
+
+        class Userenv:
+            GetUserProfileDirectoryW = _FakeCFunction(get_profile)
+
+        value = mcp_server._windows_profile_directory_from_apis(Kernel32, Advapi32, Userenv)
+
+        self.assertEqual(value, profile)
+        self.assertEqual(Userenv.GetUserProfileDirectoryW.calls, 2)
+        self.assertEqual(closed_tokens, [1234])
+
+    def test_windows_profile_api_fails_closed_and_closes_open_token(self) -> None:
+        close_handle = _FakeCFunction(lambda _token: 1)
+
+        class Kernel32:
+            GetCurrentProcess = _FakeCFunction(lambda: ctypes.c_void_p(-1))
+            CloseHandle = close_handle
+
+        class Advapi32:
+            OpenProcessToken = _FakeCFunction(
+                lambda _process, _rights, token: setattr(token._obj, "value", 1234) or 1
+            )
+
+        class Userenv:
+            GetUserProfileDirectoryW = _FakeCFunction(lambda _token, _buffer, _size: 0)
+
+        with self.assertRaisesRegex(mcp_server.InputError, "profile size is unavailable"):
+            mcp_server._windows_profile_directory_from_apis(Kernel32, Advapi32, Userenv)
+        self.assertEqual(close_handle.calls, 1)
+
+    def test_windows_profile_api_does_not_close_absent_token(self) -> None:
+        close_handle = _FakeCFunction(lambda _token: 1)
+
+        class Kernel32:
+            GetCurrentProcess = _FakeCFunction(lambda: ctypes.c_void_p(-1))
+            CloseHandle = close_handle
+
+        class Advapi32:
+            OpenProcessToken = _FakeCFunction(lambda _process, _rights, _token: 0)
+
+        class Userenv:
+            GetUserProfileDirectoryW = _FakeCFunction(lambda _token, _buffer, _size: 0)
+
+        with self.assertRaisesRegex(mcp_server.InputError, "current-token profile is unavailable"):
+            mcp_server._windows_profile_directory_from_apis(Kernel32, Advapi32, Userenv)
+        self.assertEqual(close_handle.calls, 0)
+
+    @unittest.skipUnless(os.name == "nt", "requires native Windows profile APIs")
+    def test_windows_lease_root_ignores_profile_environment_in_fresh_process(self) -> None:
         original = mcp_server._pytest_output_lease_root()
-        with mock.patch.dict(
-            os.environ,
-            {
-                "USERPROFILE": r"Z:\untrusted-profile",
-                "HOMEDRIVE": "Z:",
-                "HOMEPATH": r"\untrusted-profile",
-                "LOCALAPPDATA": r"Z:\untrusted-local-app-data",
-            },
-        ):
-            changed = mcp_server._pytest_output_lease_root()
-        self.assertEqual(changed, original)
+        for create_fake_local_app_data in (False, True):
+            with self.subTest(create_fake_local_app_data=create_fake_local_app_data), tempfile.TemporaryDirectory(
+                prefix="atomlane-fake-windows-profile-"
+            ) as temporary:
+                fake_profile = Path(temporary) / "fake-profile"
+                fake_profile.mkdir()
+                fake_local_app_data = fake_profile / "AppData" / "Local"
+                if create_fake_local_app_data:
+                    fake_local_app_data.mkdir(parents=True)
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "PYTHONPATH": str(SCRIPT_DIR),
+                        "USERPROFILE": str(fake_profile),
+                        "HOMEDRIVE": "Z:",
+                        "HOMEPATH": r"\untrusted-profile",
+                        "LOCALAPPDATA": str(fake_local_app_data),
+                        "TMPDIR": str(fake_profile / "temp"),
+                        "TMP": str(fake_profile / "temp"),
+                        "TEMP": str(fake_profile / "temp"),
+                    }
+                )
+                completed = subprocess.run(
+                    [sys.executable, "-c", "import mcp_server; print(mcp_server._pytest_output_lease_root())"],
+                    text=True,
+                    capture_output=True,
+                    env=environment,
+                    timeout=10,
+                    check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                self.assertEqual(
+                    os.path.normcase(completed.stdout.strip()),
+                    os.path.normcase(str(original)),
+                )
 
     def test_output_leases_cross_process_with_different_temp_environment(self) -> None:
         with tempfile.TemporaryDirectory(prefix="atomlane-lease-process-") as temporary:
@@ -1383,6 +1483,15 @@ context = json.load(sys.stdin)
 try:
     lease = mcp_server._acquire_pytest_output_leases(context)
 except mcp_server.InputError as exc:
+    cause = exc.__cause__
+    details = [f"{type(exc).__name__}: {exc}"]
+    if cause is not None:
+        details.append(
+            f"cause={type(cause).__name__} "
+            f"errno={getattr(cause, 'errno', None)} "
+            f"winerror={getattr(cause, 'winerror', None)}"
+        )
+    print("; ".join(details), file=sys.stderr)
     raise SystemExit(23 if "already in use" in str(exc) else 24)
 else:
     lease.close()
@@ -1410,11 +1519,22 @@ else:
                     check=False,
                 )
 
+            released = subprocess.run(
+                [sys.executable, "-c", child_code],
+                input=json.dumps(context),
+                text=True,
+                capture_output=True,
+                env=environment,
+                timeout=10,
+                check=False,
+            )
+
         self.assertEqual(
             completed.returncode,
             23,
             completed.stdout + completed.stderr,
         )
+        self.assertEqual(released.returncode, 0, released.stdout + released.stderr)
 
     def test_junit_output_cannot_overlap_config_snapshot_or_runner(self) -> None:
         with tempfile.TemporaryDirectory(prefix="atomlane-pytest-output-alias-") as temporary:

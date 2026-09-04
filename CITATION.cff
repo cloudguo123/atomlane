@@ -4,8 +4,8 @@ title: AtomLane
 type: software
 authors:
   - family-names: cloudguo123
-version: 0.15.0
-date-released: 2026-09-02
+version: 0.16.0
+date-released: 2026-09-04
 license: MPL-2.0
 repository-code: https://github.com/cloudguo123/atomlane
 url: https://cloudguo123.github.io/atomlane/

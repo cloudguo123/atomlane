@@ -16,7 +16,7 @@ WINDOWS_HOOK_SCRIPT = ROOT / "scripts" / "task-assessment-hook.cmd"
 class TaskAssessmentHookTests(unittest.TestCase):
     def test_classifier_is_conservative(self) -> None:
         cases = {
-            "What is a convex hull?": "direct",
+            "What is a binary heap?": "direct",
             "Explain why this function is slow.": "direct",
             "Fix the typo in README and run the test.": "inspect",
             "Run four independent suites in parallel for five minutes.": "candidate",

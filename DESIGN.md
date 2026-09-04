@@ -1,4 +1,4 @@
-# AtomLane 0.14
+# AtomLane 0.16
 
 AtomLane compiles structured local work into an immutable,
 semantics-preserving atomic plan and executes that exact verified plan against
@@ -6,6 +6,16 @@ the current platform realm and resource envelope. It combines conservative
 effect analysis, typed dependencies, native concurrency delegation,
 platform-specific supervision, bounded scheduling, live progress, and savings
 accounting.
+
+Version 0.16 adds a proof-carrying pytest test-suite frontend. A suite such as
+100 independent cases remains one native pytest-xdist invocation: AtomLane
+owns the exact immutable plan, declared effects, CPU/memory budget, containment,
+live visibility, fresh JUnit validation, and savings accounting, while pytest
+owns collection, fixtures, case scheduling, and worker lifecycle.
+
+Version 0.15 adds the plugin-bundled, read-only task-assessment hook and keeps
+its lexical routing result separate from project inspection, safety proof, and
+execution authorization.
 
 Version 0.14 moves current project-owned source to MPL-2.0 while preserving
 all historical MIT grants through 0.13.0. The community release remains free
@@ -61,6 +71,8 @@ repairing it.
   explicit before a source refactor is reviewed.
 - Make the per-prompt acceleration preflight visible while keeping it advisory,
   deterministic, read-only, and separate from the proof-carrying planner.
+- Accelerate large decoupled pytest suites through a resource-bounded native
+  pytest-xdist pool without converting every testcase into an external atom.
 
 ## Non-goals
 
@@ -79,6 +91,9 @@ repairing it.
 - The Python advisor is not a general auto-parallelizing compiler. It does not
   rewrite arbitrary loops, infer purity from confidence scores, apply patches,
   execute profilers, or claim modeled projections as measured speedups.
+- The pytest frontend does not install pytest-xdist, run hidden collection,
+  infer complete test effects, or promise CPU affinity. Configured native
+  workers are not presented as observed worker concurrency.
 
 ## Architecture
 
@@ -104,7 +119,7 @@ Skill execution-boundary preflight
    v
 atomic_task_plan
    |
-   +-- entrypoint and bounded project discovery
+   +-- entrypoint and bounded project discovery / test_suite_plan frontend
    +-- frontend expansion and native-owner recognition
    +-- typed control, data, event, and resource edges
    +-- effect and lifecycle classification
@@ -261,6 +276,127 @@ the work into legacy subprocesses. If the installed executor does not support
 that delegate or its lifecycle events exactly, the plan is advisory and fails
 closed at execution.
 
+### Pytest native-worker contract
+
+The 0.16 pytest frontend is deliberately a native-owner adapter, not an
+external testcase sharder. `test_suite_plan` lowers one explicitly selected
+pytest runner and its selectors into the standard immutable Atom plan, and
+`atomic_exec` executes that exact plan. One suite is one outer atom even when
+pytest-xdist schedules 100 or more independent cases across several workers.
+
+Planning performs no `pytest --collect-only` pass and imports no test module.
+The runner must be an exact Python `-m pytest` module invocation; direct
+`pytest`/`py.test` console scripts are refused. The resolved interpreter is
+content-hash attested and revalidated immediately before execution while its
+virtual-environment invocation path is preserved. `PYTHONPATH`, `PYTHONHOME`,
+and `PYTHONOPTIMIZE` are forced empty, and project/config-pythonpath candidates
+that could shadow the trusted `pytest` or `xdist` modules are rejected.
+Clearing `PYTHONOPTIMIZE` also prevents inherited `-O` semantics from removing
+ordinary assertions outside pytest's assertion-rewriting boundary. This binds
+the runner selected by the caller; it does not turn the selected Python
+environment or installed packages into an AtomLane-managed trust root.
+It resolves the effective project-local pytest configuration, binds its exact
+path with `-c`, and snapshots it with caller-selected source files. Valid
+configuration `addopts` and `PYTEST_ADDOPTS` remain active and their exact token
+lists are included in the selection fingerprint after conflicting controls are
+rejected. A plain `pyproject.toml` selected only by pytest 8.4's root-directory
+fallback is represented by the distinct, hash-bound `fallback_pyproject`
+selection kind; runtime validation accepts it only while it still contains no
+pytest configuration. Ambiguous discovery requires an explicit `config_path`; Python 3.10
+needs importable `tomli` to parse `pyproject.toml`. Test reads, writes,
+databases, ports, services, environment mutations, and other non-file effects
+must still be declared completely. An incomplete effect model blocks execution.
+A multi-worker plan separately requires
+`independence_declared=true`; neither a case-count hint nor a complete
+suite-level effect list is silently treated as proof of fixture/order
+independence. The frontend also refuses native-worker, distribution, base-temp,
+JUnit, non-executing, and conflicting plugin controls supplied through runner
+arguments, configuration, or `PYTEST_ADDOPTS`; this prevents two authorities
+from silently disagreeing. Positional selectors and config `testpaths` or
+`pythonpath` values must resolve to existing project-local paths without a
+symbolic-link/reparse alias and are revalidated before process launch. Explicit
+source snapshots use the same lexical-to-final identity rule. A hash-bound
+`--confcutdir=<project_root>` prevents pytest from loading parent-directory
+`conftest.py` files beyond the declared project. AtomLane explicitly loads the xdist plugin
+so `PYTEST_DISABLE_PLUGIN_AUTOLOAD` remains usable. It disables the shared
+pytest cache provider and rejects cache-dependent selection flags. JUnit and
+base-temp output paths may not overlap snapshotted inputs, the bound config,
+the runner executable, or each other; explicit JUnit outputs must also remain
+outside every collection directory in every suite in the plan. Compilation and
+runtime use the same case-folded, Unicode-NFC path identity in both cross-suite
+directions and also compare physical ancestor/file identities, covering macOS
+firmlinks and mount aliases. Windows report paths additionally reject
+Win32-lossy spellings: trailing spaces/dots, alternate streams, device names,
+root-relative/drive-relative forms, and device namespaces. Unknown third-party pytest options that
+consume a value must use `--option=value`; otherwise the frontend cannot safely
+distinguish that value from a positional selector. The
+selected environment must already contain pytest-xdist for both serial-baseline
+and multi-worker execution; AtomLane never installs it. Independent cases use
+`worksteal` by default; file/scope/group affinity schedulers are explicit
+opt-ins.
+The 0.16 release gate covers `macos-14` and `windows-2025`, CPython 3.10–3.13,
+pytest 8.4.2, and pytest-xdist 3.8.0; other dependency versions and host images
+are outside this version's verified compatibility claim.
+
+Each JUnit and base-temp path is also a runtime lease resource. AtomLane
+normalizes and globally sorts those resources, acquires non-blocking
+cross-process locks, then repeats semantic/source/path validation while holding
+them. Locks remain held through stable JUnit parsing and evidence generation.
+Any collision fails fast; it is not queued as capacity work because waiting
+would contaminate the run's elapsed-time comparison. A lease set contains the
+normalized path key, the physical parent identity plus normalized basename, and
+the existing target identity when present; the full set is recomputed after
+acquisition. This keeps a key stable when a previously absent output is created
+and collapses firmlink/bind-mount aliases. Native Windows discovers the private
+lease root through the current token's LocalAppData Known Folder, not
+`USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, or `LOCALAPPDATA`.
+
+The compiled worker count consumes the shared CPU capacity budget, and an
+optional per-worker memory estimate is multiplied into the suite claim.
+`worker_count=auto` is capped by the current host resource plan and any supplied
+case-count hint; an explicit count is still a ceiling subject to plan validation. These are scheduling
+budgets, not core placement. AtomLane neither requests nor claims CPU affinity;
+pytest-xdist and the operating system schedule the native worker processes.
+
+The report distinguishes three facts:
+
+- `native_workers_configured`: the hash-bound pool size requested from xdist;
+- `outer_peak_concurrency`: the observed number of AtomLane outer atoms; and
+- `native_workers_observed`: unavailable unless a compatible runtime observer
+  proves inner process activity.
+
+Configured worker capacity is not observed worker activity, so native-pool
+parallel efficiency also remains unavailable without that observer.
+
+A measured comparison is a two-plan protocol. AtomLane first executes the same
+selection with `worker_count=1`; a fresh, non-empty, counter-consistent,
+all-passing JUnit run with no skipped cases may return session-attested
+`serial_baseline_evidence`. Every suite must set
+`baseline_source_closure_declared=true`; its `snapshot_paths`, together with the
+automatically bound effective-config snapshot, must cover every semantically
+relevant selected test, source, helper, project-local plugin, `conftest`, and
+configuration.
+AtomLane performs bounded static checks over direct selectors, configured
+`testpaths`/`pythonpath`, directory roots, and discoverable `conftest` files.
+Any symbolic link or reparse point discovered in the collection tree makes the
+run ineligible to issue baseline evidence; otherwise a target could change while
+the lexical selector remained constant. The check cannot establish closure over arbitrary dynamic imports or plugin
+loading, so the boolean is a caller assertion and the resulting attestation is
+not proof of complete semantic closure. The multi-worker plan must have the same
+selection fingerprint and produce a fresh passing JUnit with the same testcase
+identities and outcomes. A bare `serial_baseline_seconds` number is rejected for
+a native pytest pool.
+Installed pytest/xdist distributions and plugins outside the project are not
+content-attested; compatibility therefore also assumes the caller keeps that
+trusted environment unchanged between the two runs.
+
+Without compatible attested evidence, the sum of complete, runtime-plausible
+testcase timings in the fresh counter-consistent JUnit may provide an explicitly
+estimated comparison without rerunning the tests. If neither comparison is
+available, per-run savings remain pending and the cumulative ledger is not
+credited. Estimated comparisons remain visible and enter only the estimated
+ledger bucket; they never enter the primary credited total.
+
 ## Plan identity and TOCTOU boundary
 
 `atomic_task_plan` returns the complete compiled object with `plan_hash`.
@@ -278,8 +414,9 @@ atomic_exec({
 The caller must not reconstruct or edit the object. A semantic change requires
 replanning. `atomic_exec` rejects missing or mismatched hashes, unsupported plan
 versions, invalid structure, and failed execution preconditions. Execution-
-only output caps and a caller-supplied serial baseline are outside the semantic
-plan and do not permit changing it.
+only output caps and ordinary-task serial baselines are outside the semantic
+plan and do not permit changing it. Native pytest pools accept only the
+session-attested baseline protocol described above, not caller-supplied seconds.
 
 The public `plan_hash` covers the complete returned envelope, including its
 schedule, resource policy, diagnostics, and native-delegate decisions. A
@@ -382,6 +519,9 @@ uses the Linux contract and Docker uses the daemon/VM contract.
 
 ## Tool surfaces
 
+- `test_suite_plan`: compile one explicitly declared pytest suite into the
+  standard immutable plan, delegating inner scheduling to a bounded
+  pytest-xdist worker pool without executing collection during planning.
 - `atomic_task_plan`: compile and validate an immutable atomic execution plan,
   emit blockers/diagnostics, native delegates, resource decisions, forecasts,
   and `plan_hash` without executing project commands.
@@ -433,17 +573,34 @@ Completion reports:
 - speedup multiplier and whether it is measured or estimated;
 - parallel efficiency;
 - `time_saved_seconds` for an eligible successful invocation, clamped at zero;
+- provenance-specific `measured_time_saved_seconds` or
+  `estimated_time_saved_seconds`;
+- `ledger_credit_eligible`, `ledger_credit_recorded`, and
+  `credited_time_saved_seconds` so comparison validity is not confused with a
+  successful ledger write;
 - `overhead_seconds` when an eligible invocation is slower than its comparison;
 - `savings_eligible` plus an explicit reason when a failed, timed-out, or empty
   invocation is excluded; and
-- `cumulative_saved_seconds` across successful eligible invocations only.
+- primary `cumulative_saved_seconds` for measured credits plus retained legacy
+  unclassified values, and a separate `cumulative_estimated_saved_seconds`.
 
-A supplied `serial_baseline_seconds` supports a measured comparison. Otherwise
-the estimate uses observed successful atom durations and never reruns commands
-merely to benchmark them. Failed, timed-out, and all-skipped invocations do not
-change the ledger; successful negative deltas are reported as overhead and
-credit zero savings. Eligible invocations atomically update a locked statistics
-file, whose saved-seconds total is monotonic. macOS keeps the legacy-compatible path
+A supplied `serial_baseline_seconds` supports a measured comparison for
+ordinary work. Otherwise ordinary multi-atom work uses observed successful atom
+durations and never reruns commands merely to benchmark them. A native pytest
+pool rejects bare seconds: a measured comparison requires closure-declared,
+statically checked, session-attested evidence from a matching `worker_count=1`
+run; otherwise only fresh, counter-consistent, complete, runtime-plausible JUnit
+testcase timings can support an explicitly estimated comparison. Without one,
+savings remain pending and the run does not change the ledger.
+Failed, timed-out, and all-skipped invocations likewise do not change the
+ledger; successful negative deltas are reported as overhead and credit zero
+savings. Ledger v2 records measured and estimated observations in separate
+buckets. Only a measured comparison is eligible for the primary cumulative
+credit; an estimate remains visible in the estimated bucket. A v1 ledger is
+migrated without rewriting history: its existing count and total become
+`legacy_unclassified`, and the compatible primary total remains legacy plus new
+measured credits. Updates use one locked atomic replacement; an unreadable or
+invalid existing file is never silently reset. macOS keeps the legacy-compatible path
 `~/Library/Application Support/Codex/AtomLane/stats.json`;
 Windows uses `%LOCALAPPDATA%\AtomLane\stats.json`. Tests override this path.
 
@@ -506,3 +663,10 @@ Version 0.12.0 adds native Windows Preview resource probes, NT path semantics,
 staged Job Object supervision, optional ConPTY, `pwsh` file atoms, realm-bound
 plans, Windows CI, and portable explicit-spawn Python previews. The CI evidence
 comes from `windows-2025` and is not evidence of Windows 11 Desktop UI support.
+
+Version 0.16.0 adds `test_suite_plan` and the pytest native-worker contract:
+resource-bounded pytest-xdist delegation, no hidden collection or dependency
+installation, immutable effect/configuration evidence, preserved and hash-bound
+addopts, collision-free outputs, live configured-worker visibility, attested
+serial baselines, fresh validated JUnit summaries, and savings that remain
+pending until a compatible measured or plausible JUnit comparison exists.

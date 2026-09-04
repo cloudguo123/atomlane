@@ -514,7 +514,8 @@ def main() -> int:
         assert "并行加速已完成" in resource["text"]
         assert "ui/notifications/tool-result" in resource["text"]
         assert "本次节约" in resource["text"]
-        assert "累计节约" in resource["text"]
+        assert "累计已入账" in resource["text"]
+        assert "累计估算（未入账）" in resource["text"]
         assert "setInterval" in resource["text"]
         assert "指示器预览" in resource["text"]
 
@@ -627,9 +628,16 @@ def main() -> int:
         stats = json.loads((pathlib.Path(temp_dir) / "stats.json").read_text(encoding="utf-8"))
         completed_runs = [parallel, mapped, dag, serial, live_result, atomic_result]
         expected_credited_runs = sum(
-            item["indicator"]["savings_eligible"] is True for item in completed_runs
+            item["indicator"]["ledger_credit_eligible"] is True
+            for item in completed_runs
         )
-        assert stats["run_count"] == expected_credited_runs == 5
+        expected_estimated_runs = sum(
+            item["indicator"]["savings_eligible"] is True
+            and item["indicator"]["ledger_credit_eligible"] is False
+            for item in completed_runs
+        )
+        assert stats["run_count"] == expected_credited_runs
+        assert stats["estimated_run_count"] == expected_estimated_runs
 
     print("Self-test passed: in-task scanning, scenario routing, adaptive resources, live execution, map, and DAG")
     return 0

@@ -64,7 +64,7 @@ The public test dashboard retains a controlled five-minute run: four independent
 
 ## Open-source status
 
-MPL-2.0 open source, free for personal, research, educational, and commercial use. Releases through 0.13.0 retain their historical MIT grants. macOS Stable plus a scoped native Windows Preview, Python 3.10+, and no third-party Python runtime dependency. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
+MPL-2.0 open source, free for personal, research, educational, and commercial use. Releases through 0.13.0 retain their historical MIT grants. macOS Stable plus a scoped native Windows Preview and Python 3.10+. The AtomLane core adds no third-party Python runtime dependency; the optional pytest worker-pool route uses the caller's preinstalled pytest and pytest-xdist environment. Project inspection and optional trace analysis remain local; results are never uploaded automatically.
 
 ## Submission boundary
 

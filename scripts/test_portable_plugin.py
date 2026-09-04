@@ -97,7 +97,7 @@ class CodexPluginPackagingTests(unittest.TestCase):
         )
         citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(version, "0.15.0")
+        self.assertEqual(version, "0.16.0")
         self.assertEqual(package["version"], version)
         self.assertEqual(package["license"], "MPL-2.0")
         self.assertEqual(lock["version"], version)

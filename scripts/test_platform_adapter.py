@@ -393,6 +393,98 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertEqual(result["run_count"], 12)
                 self.assertEqual(result["cumulative_saved_seconds"], 15.0)
 
+    def test_stats_lock_keeps_measured_and_estimated_buckets_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            stats = Path(temporary) / "stats.json"
+            errors: list[BaseException] = []
+            errors_lock = threading.Lock()
+            start = threading.Barrier(12, timeout=5)
+
+            def record(evidence_kind: str) -> None:
+                try:
+                    start.wait()
+                    mcp_server._record_time_saved(
+                        1.0,
+                        evidence_kind=evidence_kind,
+                    )
+                except BaseException as exc:  # noqa: BLE001 - retain failures.
+                    with errors_lock:
+                        errors.append(exc)
+
+            with mock.patch.dict(
+                os.environ,
+                {"ATOMLANE_STATS_PATH": str(stats)},
+            ):
+                threads = [
+                    threading.Thread(
+                        target=record,
+                        args=("measured" if index % 2 == 0 else "estimated",),
+                        daemon=True,
+                    )
+                    for index in range(12)
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=20)
+
+            self.assertFalse(any(thread.is_alive() for thread in threads))
+            self.assertEqual(errors, [])
+            result = json.loads(stats.read_text(encoding="utf-8"))
+            self.assertEqual(result["run_count"], 6)
+            self.assertEqual(result["cumulative_saved_seconds"], 6.0)
+            self.assertEqual(result["measured_run_count"], 6)
+            self.assertEqual(result["estimated_run_count"], 6)
+            self.assertEqual(result["cumulative_estimated_saved_seconds"], 6.0)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX flock semantics")
+    def test_posix_file_lock_can_fail_immediately_without_sleeping(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "execution.lock"
+            with (
+                platform_adapter.exclusive_file_lock(lock_path),
+                mock.patch.object(platform_adapter.time, "sleep") as sleep,
+                self.assertRaises(TimeoutError),
+                platform_adapter.exclusive_file_lock(
+                    lock_path,
+                    timeout_seconds=0.0,
+                ),
+            ):
+                self.fail("contended non-blocking lock unexpectedly yielded")
+            sleep.assert_not_called()
+
+    def test_windows_file_lock_zero_timeout_does_not_retry(self) -> None:
+        attempts = 0
+
+        def locking(_fd: int, mode: int, _length: int) -> None:
+            nonlocal attempts
+            if mode == 1:
+                attempts += 1
+                raise OSError(errno.EACCES, "simulated contention")
+
+        fake_msvcrt = types.SimpleNamespace(
+            LK_NBLCK=1,
+            LK_UNLCK=2,
+            locking=locking,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "execution.lock"
+            with (
+                mock.patch.object(
+                    platform_adapter.platform, "system", return_value="Windows"
+                ),
+                mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                mock.patch.object(platform_adapter.time, "sleep") as sleep,
+                self.assertRaises(TimeoutError),
+                platform_adapter.exclusive_file_lock(
+                    lock_path,
+                    timeout_seconds=0.0,
+                ),
+            ):
+                self.fail("contended non-blocking lock unexpectedly yielded")
+            self.assertEqual(attempts, 1)
+            sleep.assert_not_called()
+
     def test_windows_stats_lock_retries_expected_contention(self) -> None:
         acquire_attempts = 0
         operations: list[int] = []

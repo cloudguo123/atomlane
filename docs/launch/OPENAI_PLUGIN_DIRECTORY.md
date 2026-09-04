@@ -56,8 +56,9 @@ The executor consumes the exact immutable plan and matching hash. It releases
 ready successors without wave barriers, preserves failure propagation, adapts
 containment and resource budgets to the current realm, and delegates
 concurrency to workload-native owners when safer. Long
-runs show live running, ready, completed, and failed counts together with
-per-run and cumulative estimated time saved. The project is open source under
+runs show live running, ready, completed, and failed counts together with the
+current run's estimate, the measured cumulative credited total, and a separate
+uncredited cumulative estimate. The project is open source under
 MPL-2.0, free for personal, research, educational, and commercial use,
 local-first, and backed by public tests and reproducible benchmark evidence.
 
@@ -138,9 +139,12 @@ local-first, and backed by public tests and reproducible benchmark evidence.
 
 ## Current release notes
 
-Version 0.14 adopts MPL-2.0 for current project-owned source while preserving
-all MIT grants through 0.13.0. The community release remains open source and
-free for personal, research, educational, and commercial use; it requires no
-AtomLane account. macOS remains Stable and native Windows remains a scoped,
-fail-closed Preview. Public CI, native evidence, and separate five-minute
-macOS and Windows benchmark artifacts are linked from the live report.
+Version 0.16 adds a resource-bounded pytest-xdist worker-pool route for large,
+explicitly independent suites, with live progress, source-bound execution,
+JUnit-backed measurements, and separated measured/estimated savings. Current
+project-owned source remains MPL-2.0 while all MIT grants through 0.13.0 remain
+valid. The community release is open source and free for personal, research,
+educational, and commercial use; it requires no AtomLane account. macOS remains
+Stable and native Windows remains a scoped, fail-closed Preview. Public CI,
+native evidence, and separate five-minute macOS and Windows benchmark artifacts
+are linked from the live report.

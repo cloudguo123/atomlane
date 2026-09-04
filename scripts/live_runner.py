@@ -47,14 +47,26 @@ class ConsoleProgress:
             return
         self.last_elapsed = elapsed
         self.last_signature = signature
-        savings_text = (
-            f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
-            if snapshot.get("savings_eligible_so_far", True)
-            else "本次节约不计入（已有失败或超时）"
-        )
+        if not snapshot.get("savings_eligible_so_far", True):
+            savings_text = "本次节约不计入（已有失败或超时）"
+        elif snapshot.get("savings_pending_native_report"):
+            savings_text = "节约待串行基线/JUnit"
+        else:
+            savings_text = (
+                f"当前预计节约 {snapshot['estimated_saved_so_far_seconds']:.1f}s"
+            )
+        native_parts: list[str] = []
+        configured_workers = snapshot.get("native_workers_configured")
+        if isinstance(configured_workers, int) and not isinstance(configured_workers, bool):
+            native_parts.append(f"原生 workers {configured_workers}（配置）")
+        test_cases_planned = snapshot.get("test_cases_planned")
+        if isinstance(test_cases_planned, int) and not isinstance(test_cases_planned, bool):
+            native_parts.append(f"计划用例 {test_cases_planned}（提示）")
+        native_text = "".join(f"｜{part}" for part in native_parts)
         print(
             "⏱️ 实时"
             f"｜已运行 {elapsed:.1f}s"
+            f"{native_text}"
             f"｜运行中 {snapshot['running_tasks']}"
             f"｜就绪 {snapshot.get('ready_tasks', 0)}"
             f"｜已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}"

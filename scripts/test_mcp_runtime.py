@@ -427,7 +427,9 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(indicator["time_saved_seconds"], 0.0)
         self.assertEqual(indicator["overhead_seconds"], 0.5)
         self.assertEqual(indicator["cumulative_saved_seconds"], 0.0)
-        self.assertEqual(indicator["cumulative_run_count"], 1)
+        self.assertEqual(indicator["cumulative_run_count"], 0)
+        self.assertEqual(indicator["cumulative_estimated_run_count"], 1)
+        self.assertFalse(indicator["ledger_credit_eligible"])
         with self.assertRaisesRegex(ValueError, "finite non-negative"):
             mcp_server._record_time_saved(-0.1)
         with self.assertRaisesRegex(ValueError, "finite non-negative"):

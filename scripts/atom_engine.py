@@ -822,6 +822,12 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
             raise AtomError(f"atom {atom_id} stdin must be valid UTF-8 text") from exc
         if stdin_size > MAX_STDIN_BYTES:
             raise AtomError(f"atom {atom_id} stdin exceeds {MAX_STDIN_BYTES} bytes")
+    timeout_seconds = _bounded_number(
+        operation_raw.get("timeout_seconds"),
+        f"atom {atom_id} operation.timeout_seconds",
+        minimum=0.001,
+        maximum=86_400,
+    )
     if os.name == "nt":
         if any(
             re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is None
@@ -1045,6 +1051,11 @@ def normalize_atom(raw: Any, index: int, project: Path) -> dict[str, Any]:
             "stdin": stdin,
             "completion": completion,
             "internal_parallelism": {"kind": internal_kind, "tokens": internal_tokens},
+            **(
+                {"timeout_seconds": timeout_seconds}
+                if timeout_seconds is not None
+                else {}
+            ),
             "terminal_mode": terminal_mode,
             "resource_limits": resource_limits,
             "broker_boundary": broker_boundary,

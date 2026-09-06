@@ -396,15 +396,27 @@ class RuntimeTests(unittest.TestCase):
             {"resource": "worker_slot", "units": 2.0},
             {"resource": "cpu_core", "units": 2.0},
         ]
-        plan = mcp_server.atomic_task_plan(
-            {
-                "project_path": str(self.project),
-                "atoms": [atom],
-                "max_concurrency": 2,
-                "responsiveness": "throughput",
-            }
-        )
         real_concurrency_plan = mcp_server.concurrency_plan
+
+        def two_worker_plan(*args, **kwargs):
+            resource_plan = real_concurrency_plan(*args, **kwargs)
+            resource_plan["recommended_concurrency"] = 2
+            resource_plan["chosen_concurrency"] = 2
+            return resource_plan
+
+        with mock.patch.object(
+            mcp_server,
+            "concurrency_plan",
+            side_effect=two_worker_plan,
+        ):
+            plan = mcp_server.atomic_task_plan(
+                {
+                    "project_path": str(self.project),
+                    "atoms": [atom],
+                    "max_concurrency": 2,
+                    "responsiveness": "throughput",
+                }
+            )
         calls = 0
 
         def recovering_plan(*args, **kwargs):

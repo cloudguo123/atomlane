@@ -13,11 +13,11 @@ fail-closed Preview.
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
 [![Five-minute benchmark](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
-[![Test report](https://img.shields.io/badge/test_report-live-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
+[![Website](https://img.shields.io/badge/website-live-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/cloudguo123/atomlane?color=80b7ff)](https://github.com/cloudguo123/atomlane/discussions)
 
-[中文说明](README.zh-CN.md) · [Live report](https://cloudguo123.github.io/atomlane/) · [Report first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
+[中文说明](README.zh-CN.md) · [Website](https://cloudguo123.github.io/atomlane/) · [Report first run](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [Share a benchmark](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
 **Open source under MPL-2.0—free for personal, research, educational, and
 commercial use.** The current community release requires no AtomLane account
@@ -69,7 +69,7 @@ establish Windows 11 Desktop UI integration. See the
 [Windows Preview guide](docs/WINDOWS_PREVIEW.md) before using Windows workflows.
 The pytest native-worker route additionally requires pytest and pytest-xdist in
 the selected runner environment; AtomLane never installs them automatically.
-Version 0.16 is release-gated on `macos-14` and `windows-2025`, CPython
+Version 0.17 is release-gated on `macos-14` and `windows-2025`, CPython
 3.10–3.13, pytest 8.4.2, and pytest-xdist 3.8.0. Other dependency versions and
 host images are not claimed as release-verified by this version.
 

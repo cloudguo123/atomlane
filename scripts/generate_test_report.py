@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the public verification suite and render a self-contained test dashboard."""
+"""Run public verification and render the AtomLane evidence-backed product site."""
 
 from __future__ import annotations
 
@@ -1835,7 +1835,7 @@ def build_report(*, report_role: str = REPORT_ROLE_DASHBOARD) -> dict[str, Any]:
     return report
 
 
-def render_html(report: dict[str, Any]) -> str:
+def render_legacy_report_html(report: dict[str, Any]) -> str:
     data = json.dumps(report, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     overall = report["overall"].upper()
     generated = html.escape(report["generated_at"])
@@ -2127,6 +2127,165 @@ if(!g.available){{
 </body>
 </html>
 """
+
+
+def _site_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _site_duration(value: Any) -> str:
+    seconds = _site_number(value)
+    if seconds is None:
+        return "Pending"
+    rounded = max(0, round(seconds))
+    hours, remainder = divmod(rounded, 3600)
+    minutes, remaining_seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {remaining_seconds:02d}s"
+    return f"{remaining_seconds}s"
+
+
+def _site_benchmark_metrics(evidence: Any) -> dict[str, str]:
+    if not isinstance(evidence, dict) or evidence.get("available") is not True:
+        return {
+            "status": "Evidence pending",
+            "speedup": "—",
+            "wall": "Pending",
+            "saved": "Pending",
+            "cumulative": "Pending",
+        }
+    latest = evidence.get("latest")
+    cumulative = evidence.get("cumulative")
+    if not isinstance(latest, dict) or not isinstance(cumulative, dict):
+        return {
+            "status": "Evidence pending",
+            "speedup": "—",
+            "wall": "Pending",
+            "saved": "Pending",
+            "cumulative": "Pending",
+        }
+    savings = latest.get("savings")
+    parallel = latest.get("parallel")
+    if not isinstance(savings, dict) or not isinstance(parallel, dict):
+        return {
+            "status": "Evidence pending",
+            "speedup": "—",
+            "wall": "Pending",
+            "saved": "Pending",
+            "cumulative": "Pending",
+        }
+    speedup = _site_number(savings.get("speedup_multiplier"))
+    return {
+        "status": "Verified" if latest.get("status") == "passed" else "Needs review",
+        "speedup": f"{speedup:.2f}×" if speedup is not None else "—",
+        "wall": _site_duration(parallel.get("wall_time_seconds")),
+        "saved": _site_duration(savings.get("seconds")),
+        "cumulative": _site_duration(cumulative.get("saved_seconds")),
+    }
+
+
+def render_html(report: dict[str, Any]) -> str:
+    """Render the public product landing page from source-bound report evidence."""
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    windows_verified = bool(
+        isinstance(report.get("windows_preview"), dict)
+        and report["windows_preview"].get("available") is True
+    )
+    operating_system = (
+        "macOS Stable, native Windows Preview" if windows_verified else "macOS Stable"
+    )
+    verified_test_count = str(summary.get("passed", summary.get("total", "—")))
+    meta_description = (
+        "AtomLane compiles safe atomic plans, adapts concurrency to each macOS or "
+        "Windows host, keeps long runs visible, and reports measured time savings."
+    )
+    structured_data = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "AtomLane",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": operating_system,
+            "softwareVersion": str(report.get("version", "unknown")),
+            "codeRepository": "https://github.com/cloudguo123/atomlane",
+            "url": "https://cloudguo123.github.io/atomlane/",
+            "license": "https://www.mozilla.org/MPL/2.0/",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+    mac = _site_benchmark_metrics(report.get("benchmark"))
+    windows = _site_benchmark_metrics(report.get("windows_benchmark"))
+    failed = int(summary.get("failed", 0) or 0)
+    errors = int(summary.get("errors", 0) or 0)
+    source = report.get("source") if isinstance(report.get("source"), dict) else {}
+    commit = str(source.get("commit_short") or source.get("commit") or "unavailable")
+    overall = (
+        "All required checks passed"
+        if report.get("overall") == "passed"
+        else "Verification needs attention"
+    )
+    og_alt = "AtomLane adaptive parallel execution with live progress"
+    benchmark = report.get("benchmark")
+    if isinstance(benchmark, dict) and benchmark.get("available") is True:
+        latest = benchmark.get("latest")
+        if isinstance(latest, dict):
+            serial = latest.get("serial_equivalent")
+            parallel = latest.get("parallel")
+            savings = latest.get("savings")
+            if all(isinstance(item, dict) for item in (serial, parallel, savings)):
+                serial_seconds = round(_site_number(serial.get("seconds")) or 0)
+                wall_seconds = round(_site_number(parallel.get("wall_time_seconds")) or 0)
+                saved_seconds = round(_site_number(savings.get("seconds")) or 0)
+
+                def duration_words(total_seconds: int) -> str:
+                    minutes, seconds = divmod(max(0, total_seconds), 60)
+                    return f"{minutes} minutes {seconds} seconds"
+
+                og_alt = (
+                    "AtomLane benchmark: "
+                    f"{duration_words(serial_seconds)} serial equivalent, "
+                    f"{duration_words(wall_seconds)} parallel wall time, "
+                    f"{duration_words(saved_seconds)} saved"
+                )
+
+    replacements = {
+        "META_DESCRIPTION": meta_description,
+        "OG_IMAGE_ALT": og_alt,
+        "STRUCTURED_DATA": structured_data,
+        "VERSION": str(report.get("version", "unknown")),
+        "TESTS_PASSED": verified_test_count,
+        "FAILURES": str(failed + errors),
+        "GATES_PASSED": str(summary.get("checks_passed", "—")),
+        "GATES_TOTAL": str(summary.get("checks_total", "—")),
+        "MAC_STATUS": mac["status"],
+        "MAC_SPEEDUP": mac["speedup"],
+        "MAC_WALL": mac["wall"],
+        "MAC_SAVED": mac["saved"],
+        "MAC_CUMULATIVE": mac["cumulative"],
+        "WINDOWS_STATUS": windows["status"],
+        "WINDOWS_SPEEDUP": windows["speedup"],
+        "WINDOWS_WALL": windows["wall"],
+        "WINDOWS_SAVED": windows["saved"],
+        "WINDOWS_CUMULATIVE": windows["cumulative"],
+        "COMMIT_SHORT": commit[:10],
+        "GENERATED_AT": str(report.get("generated_at", "unavailable")),
+        "OVERALL_STATUS": overall,
+    }
+    template = (ROOT / "assets" / "site" / "index.html").read_text(encoding="utf-8")
+    for key, value in replacements.items():
+        replacement = value if key == "STRUCTURED_DATA" else html.escape(value)
+        template = template.replace("{{" + key + "}}", replacement)
+    unresolved = re.findall(r"\{\{[A-Z_]+\}\}", template)
+    if unresolved:
+        raise ValueError(f"unresolved site template tokens: {sorted(set(unresolved))}")
+    return template
 
 
 def main() -> int:

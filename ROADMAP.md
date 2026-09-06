@@ -13,6 +13,10 @@ This roadmap favors evidence and semantics over raw process count.
 - Collect separate native Windows, WSL, and Docker VM resource evidence; never
   merge their execution envelopes or performance claims.
 - Collect reproducible Web, Docker, research, native-build, and batch-workload results.
+- Collect multi-process host-scheduler evidence across Apple heterogeneous,
+  x86/SMT, and native Windows machines: batch admission, uncontended
+  borrowing, fair-share convergence, crash recovery, dynamic capacity changes,
+  and sustained throughput without hiding interactive latency.
 - Collect reproducible pytest-xdist evidence for suites with 100+ independent
   cases across macOS and native Windows, including fixture locality, each
   supported distribution mode, shared-resource refusals, memory behavior,
@@ -33,6 +37,9 @@ This roadmap favors evidence and semantics over raw process count.
 - Calibrated duration and memory forecasts with confidence ranges.
 - Incremental plan reuse guarded by source snapshots and semantic hashes.
 - Better nested-worker budgeting across compilers, tests, BLAS, BuildKit, GPU, and outer tasks.
+- Add optional calibrated CPU/memory demand learning per workload fingerprint;
+  preserve explicit confidence and never let a learned estimate weaken effect,
+  control-flow, realm, or authorization gates.
 - Add optional native-worker observation only where runtime evidence can
   distinguish workers actually started from the hash-bound configured ceiling;
   never infer it from outer concurrency or JUnit case counts.

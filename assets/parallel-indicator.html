@@ -51,6 +51,7 @@
       <div class="metric"><div class="label">本次节约</div><div id="current-saved" class="value">—</div></div>
       <div class="metric"><div class="label">累计已入账</div><div id="cumulative-saved" class="value">—</div></div>
       <div class="metric"><div class="label">累计估算（未入账）</div><div id="cumulative-estimated" class="value">—</div></div>
+      <div class="metric"><div class="label">主机调度</div><div id="host-scheduler" class="value">等待中</div></div>
     </div>
     <div class="track" aria-hidden="true"><div id="fill" class="fill"></div></div>
     <div id="note" class="note">会根据本机可用 CPU、负载、内存和电源状态自动限制并发。</div>
@@ -136,6 +137,7 @@
       const summary = payload.summary || {};
       const counts = summary.status_counts || {};
       const plan = payload.resource_plan || {};
+      const hostScheduler = plan.shared_host_scheduler || {};
       const parallel = Boolean(indicator.parallel);
       const failed = Number(counts.failed || 0) + Number(counts.timed_out || 0);
       const succeeded = Number(counts.succeeded || 0);
@@ -232,6 +234,9 @@
             ?? indicator.cumulative_estimated_saved_seconds
         )
         : "不可用";
+      byId("host-scheduler").textContent = hostScheduler.admission_scope
+        ? `峰值 ${number(hostScheduler.peak_reserved_worker_slots, 0)} slots`
+        : hostScheduler.available === false ? "不可用" : "已评估";
       byId("fill").style.width = `${nativeSavingsPending || !efficiencyKnown ? 0 : Math.round(efficiency * 100)}%`;
       if (native) {
         const outerEvidence = native.outerPeak == null ? "外层实测峰值未知" : `外层实测峰值 ${native.outerPeak} 路`;
@@ -281,6 +286,7 @@
       byId("current-saved").textContent = native ? "待基线/JUnit" : "实时计算中";
       byId("cumulative-saved").textContent = "完成后更新";
       byId("cumulative-estimated").textContent = "完成后更新";
+      byId("host-scheduler").textContent = "等待全局准入";
       byId("note").textContent = native
         ? `${native.configured} workers 是配置值；实际 worker 数待运行时证据。节约时间待串行基线或 JUnit 时序。`
         : "正在按本机可用 CPU、负载、内存和电源状态限制并发。";
@@ -311,6 +317,8 @@
       const savingsPending = message.includes("节约待串行基线/JUnit");
       const nativeWorkers = message.match(/原生 workers\s+(\d+)（配置）/);
       const plannedCases = message.match(/计划用例\s+(\d+)（提示）/);
+      const hostSessions = message.match(/主机会话\s+(\d+)/);
+      const hostSlots = message.match(/全局占用\s+([0-9.]+)\s+slots/);
       liveHasProgress = true;
       if (elapsed) byId("elapsed").textContent = `${elapsed[1]} 秒`;
       if (nativeWorkers) {
@@ -327,6 +335,9 @@
       if (savingsIneligible) byId("current-saved").textContent = "未计入";
       else if (savingsPending) byId("current-saved").textContent = "待基线/JUnit";
       else if (saved) byId("current-saved").textContent = `${saved[1]} 秒（实时估算）`;
+      if (hostSessions || hostSlots) {
+        byId("host-scheduler").textContent = `${hostSessions ? `${hostSessions[1]} 会话` : ""}${hostSessions && hostSlots ? " · " : ""}${hostSlots ? `${hostSlots[1]} slots` : ""}`;
+      }
       byId("note").textContent = message;
     }
 

@@ -99,7 +99,7 @@ budget as portable evidence for another.
 
 | Capability | macOS Stable | Native Windows Preview |
 | --- | --- | --- |
-| Shared core | Atom IR, hashes, effect/conflict checks, scheduler, live progress, savings ledger | The same core and proof rules |
+| Shared core | Atom IR, hashes, effect/conflict checks, cross-process host admission, live progress, savings ledger | The same core and proof rules |
 | Automatic entrypoints | Supported shell, package, Make, Compose, test, and build frontends | Exact argv and declared whole-file `.ps1`; shell/package/Make/Compose/`.cmd`/`.bat` automatic lowering is not yet supported |
 | Process boundary | POSIX session/process group | Staged kill-on-close Job Object for the supervisor and normally inherited target tree |
 | Terminal/output | Bounded pipes and live runner | Separate UTF-8 pipes or output-only ConPTY; ConPTY stdin is rejected |
@@ -123,6 +123,37 @@ shell · package scripts · Make · Compose · tests · builds · declared work
                               ▼
               exact verified execution + live savings
 ```
+
+## Host-wide adaptive scheduling
+
+AtomLane 0.17 coordinates concurrent `atomic_exec` runs across Codex tasks on
+the same machine. Each ready set is evaluated as one batch: local Atom IR first
+removes dependency, effect, and capacity conflicts, then a cross-process host
+ledger admits CPU, memory, worker, and accelerator tokens under one locked
+snapshot. It does not perform a full scheduling decision separately for every
+atom.
+
+- One active session can borrow the complete safe envelope instead of leaving
+  cores idle.
+- Competing sessions receive a soft fair share and reuse capacity immediately
+  as other atoms finish.
+- The capacity model distinguishes Apple heterogeneous cores, SMT hosts, and
+  homogeneous CPUs. CPU work starts from physical cores; mixed and I/O owners
+  can use logical capacity.
+- `interactive` retains user headroom, `balanced` retains less, and
+  `throughput` may use the full detected CPU pool when thermal, power, memory,
+  and external load permit it.
+- Capacity is refreshed every five seconds and may recover inside the immutable
+  compiled ceiling. AtomLane-managed reservations are not double-counted as
+  unrelated system load. A live CPU-busy signal is preferred over stale
+  one-minute load when the platform exposes it; changes affect new admissions,
+  not atoms already running.
+- Live progress shows active host sessions and globally reserved worker slots.
+  Dead sessions are reclaimed using heartbeat plus process-start identity;
+  invalid shared state fails closed.
+
+The ledger is coordination, not CPU affinity. macOS and Windows retain native
+thread placement, and Docker/WSL capacity remains in its own daemon or VM realm.
 
 ## What it accelerates
 

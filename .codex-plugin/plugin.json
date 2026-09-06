@@ -1,6 +1,6 @@
 {
   "name": "atomlane",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "AtomLane combines a universal safety core with platform-native, workload-tailored parallel execution on macOS Stable and native Windows Preview.",
   "author": {
     "name": "cloudguo123",
@@ -31,12 +31,15 @@
   "interface": {
     "displayName": "AtomLane",
     "shortDescription": "Universal-safe, workload-tailored parallelism",
-    "longDescription": "AtomLane uses one typed safety core for control flow, effects, conflicts, resources, hashes, and authorization, then tailors execution to the active platform and workload. It statically finds reviewable Python candidates without importing or executing target code, delegates concurrency to native owners when safer, adapts containment and budgets for macOS Stable or native Windows Preview, isolates Windows, WSL, and Docker realms, and executes exact verified plans with live progress and honestly labeled savings.",
+    "longDescription": "AtomLane uses one typed safety core for control flow, effects, conflicts, resources, hashes, and authorization, then tailors execution to the active platform and workload. Its cross-process host scheduler evaluates each ready batch together, shares CPU and memory capacity across concurrent Codex tasks, and adapts to topology, load, thermal, power, and memory conditions. It delegates concurrency to native owners when safer, isolates Windows, WSL, and Docker realms, and executes exact verified plans with live progress and honestly labeled savings.",
     "developerName": "cloudguo123",
     "category": "Productivity",
     "capabilities": [
       "Local execution",
       "Parallel scheduling",
+      "Cross-process host admission control",
+      "Batch-level ready-set scheduling",
+      "Dynamic CPU and memory capacity refresh",
       "Atomic workload compilation",
       "Typed effect analysis",
       "Plan hash verification",

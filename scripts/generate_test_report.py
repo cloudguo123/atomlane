@@ -39,6 +39,14 @@ DOMAIN_META = {
         "description": "Atom lowering, conflict safety, resource admission, hashes, and snapshots",
         "accent": "#65e6b4",
     },
+    "test_host_scheduler": {
+        "label": "Cross-process host scheduler",
+        "description": (
+            "Batch admission, fair sharing, capacity accounting, crash recovery, "
+            "and privacy-safe host identity"
+        ),
+        "accent": "#50d9a5",
+    },
     "test_atom_frontends": {
         "label": "Static workload frontends",
         "description": "Shell, package scripts, Make, Compose, and inferred dataflow",

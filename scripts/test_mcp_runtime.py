@@ -6,11 +6,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mcp_server
@@ -25,6 +27,43 @@ class RuntimeTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def _atom(self, atom_id: str, argv: list[str]) -> dict:
+        return {
+            "id": atom_id,
+            "operation": {
+                "kind": "read",
+                "argv": argv,
+                "cwd": str(self.project),
+                "completion": "process_exit",
+                "internal_parallelism": {"kind": "none", "tokens": None},
+            },
+            "dependencies": [],
+            "accesses": [],
+            "effects": [],
+            "claims": [],
+            "side_effect": False,
+            "semantics": {
+                "idempotent": True,
+                "retryable": False,
+                "deterministic": True,
+                "cacheable": False,
+                "commutative": False,
+                "cancel_safe": True,
+                "splittable": False,
+                "reorderable": "explicit",
+            },
+            "cost": {"duration_seconds": 0.15, "startup_seconds": 0.0},
+            "batch": None,
+            "assurance": {
+                "parse": "exact",
+                "control": "exact",
+                "effects": "complete_declared",
+                "codegen": "exact_argv",
+                "rank": 1.0,
+                "blockers": [],
+            },
+        }
 
     def test_reverse_order_failure_propagates_to_fixed_point(self) -> None:
         result = asyncio.run(
@@ -217,6 +256,196 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(
             result["results"][0]["stdout"].strip(), expected.encode("utf-8").hex()
         )
+        self.assertEqual(
+            result["resource_plan"]["shared_host_scheduler"]["admission_scope"],
+            "cross-process host capacity",
+        )
+        started = [
+            event
+            for event in result["event_journal"]
+            if event["event"] == "started"
+        ]
+        self.assertTrue(started[0]["host_reservation"].startswith("r_"))
+        scheduler_state = json.loads(
+            (self.project / "host-scheduler-v1.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(scheduler_state["sessions"], {})
+        self.assertEqual(scheduler_state["reservations"], {})
+
+    def test_atomic_ready_set_is_admitted_as_resource_batches(self) -> None:
+        atoms = []
+        for index in range(12):
+            atoms.append(
+                {
+                    "id": f"batch-{index:02d}",
+                    "operation": {
+                        "kind": "read",
+                        "argv": [
+                            sys.executable,
+                            "-c",
+                            "import time;time.sleep(0.03)",
+                        ],
+                        "cwd": str(self.project),
+                        "completion": "process_exit",
+                        "internal_parallelism": {"kind": "none", "tokens": None},
+                    },
+                    "dependencies": [],
+                    "accesses": [],
+                    "effects": [],
+                    "claims": [],
+                    "side_effect": False,
+                    "semantics": {
+                        "idempotent": True,
+                        "retryable": False,
+                        "deterministic": True,
+                        "cacheable": False,
+                        "commutative": False,
+                        "cancel_safe": True,
+                        "splittable": False,
+                        "reorderable": "explicit",
+                    },
+                    "cost": {"duration_seconds": 0.03, "startup_seconds": 0.0},
+                    "batch": None,
+                    "assurance": {
+                        "parse": "exact",
+                        "control": "exact",
+                        "effects": "complete_declared",
+                        "codegen": "exact_argv",
+                        "rank": 1.0,
+                        "blockers": [],
+                    },
+                }
+            )
+
+        real_concurrency_plan = mcp_server.concurrency_plan
+
+        def four_worker_plan(*args, **kwargs):
+            resource_plan = real_concurrency_plan(*args, **kwargs)
+            resource_plan["recommended_concurrency"] = 4
+            resource_plan["chosen_concurrency"] = 4
+            return resource_plan
+
+        with mock.patch.object(
+            mcp_server, "concurrency_plan", side_effect=four_worker_plan
+        ):
+            plan = mcp_server.atomic_task_plan(
+                {
+                    "project_path": str(self.project),
+                    "atoms": atoms,
+                    "max_concurrency": 4,
+                    "responsiveness": "throughput",
+                }
+            )
+            result = asyncio.run(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+            )
+
+        batches = [
+            event
+            for event in result["event_journal"]
+            if event["event"] == "host_batch_evaluated"
+            and event["candidate_count"] > 0
+        ]
+        self.assertGreaterEqual(len(batches), 3)
+        self.assertTrue(all(event["candidate_count"] <= 4 for event in batches))
+        self.assertTrue(all(event["admitted_count"] > 0 for event in batches))
+        self.assertEqual(result["summary"]["status_counts"], {"succeeded": 12})
+
+    def test_atomic_capacity_refresh_runs_while_a_long_atom_is_active(self) -> None:
+        atom = self._atom(
+            "long-active",
+            [sys.executable, "-c", "import time;time.sleep(0.15)"],
+        )
+        plan = mcp_server.atomic_task_plan(
+            {
+                "project_path": str(self.project),
+                "atoms": [atom],
+                "max_concurrency": 1,
+                "responsiveness": "throughput",
+            }
+        )
+        with mock.patch.object(
+            mcp_server,
+            "HOST_CAPACITY_REFRESH_SECONDS",
+            0.05,
+        ):
+            result = asyncio.run(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+            )
+
+        refreshed = [
+            event
+            for event in result["event_journal"]
+            if event["event"] == "capacity_refreshed"
+        ]
+        completed = next(
+            event
+            for event in result["event_journal"]
+            if event["event"] == "completed"
+        )
+        self.assertGreaterEqual(len(refreshed), 2)
+        self.assertLess(refreshed[0]["sequence"], completed["sequence"])
+
+    def test_atomic_waits_for_runtime_capacity_to_recover(self) -> None:
+        atom = self._atom("recovering-capacity", [sys.executable, "-c", "pass"])
+        atom["claims"] = [
+            {"resource": "worker_slot", "units": 2.0},
+            {"resource": "cpu_core", "units": 2.0},
+        ]
+        plan = mcp_server.atomic_task_plan(
+            {
+                "project_path": str(self.project),
+                "atoms": [atom],
+                "max_concurrency": 2,
+                "responsiveness": "throughput",
+            }
+        )
+        real_concurrency_plan = mcp_server.concurrency_plan
+        calls = 0
+
+        def recovering_plan(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            resource_plan = real_concurrency_plan(*args, **kwargs)
+            chosen = 1 if calls == 1 else 2
+            resource_plan["recommended_concurrency"] = chosen
+            resource_plan["chosen_concurrency"] = chosen
+            return resource_plan
+
+        with (
+            mock.patch.object(
+                mcp_server,
+                "HOST_CAPACITY_REFRESH_SECONDS",
+                0.05,
+            ),
+            mock.patch.object(
+                mcp_server,
+                "concurrency_plan",
+                side_effect=recovering_plan,
+            ),
+        ):
+            result = asyncio.run(
+                mcp_server.run_atomic(
+                    {"compiled_plan": plan, "plan_hash": plan["plan_hash"]}
+                )
+            )
+
+        started = next(
+            event
+            for event in result["event_journal"]
+            if event["event"] == "started"
+        )
+        refreshed = next(
+            event
+            for event in result["event_journal"]
+            if event["event"] == "capacity_refreshed"
+        )
+        self.assertLess(refreshed["sequence"], started["sequence"])
+        self.assertEqual(result["summary"]["status_counts"], {"succeeded": 1})
 
     def test_atomic_executor_rejects_lifecycle_edges_it_cannot_honor(self) -> None:
         def atom(atom_id: str, dependencies: list[dict[str, str]] | None = None) -> dict:

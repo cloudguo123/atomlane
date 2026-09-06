@@ -358,6 +358,19 @@ leases permit; it should not wait for an unrelated stage-wide barrier. Allocate
 one hierarchical concurrency budget across outer processes and native inner
 workers.
 
+At execution, the invocation-local ready set is compiled into one conflict-free
+ordered admission batch before consulting host capacity. `atomic_exec` submits
+that batch to a shared cross-process ledger under one state lock. Generic
+worker, CPU, memory, and accelerator claims are host-wide; project artifacts,
+typed effects, and control edges remain plan-local semantic contracts. The host
+layer may admit a subset for capacity or fair sharing, but it must not reorder,
+rewrite, or invent atoms. It may restore capacity after pressure clears only up
+to the immutable compiled envelope.
+
+Native macOS/Windows, WSL, and Docker daemon/VM capacity are distinct ledgers.
+The host coordinator is not evidence of CPU affinity, native-worker observation,
+or containment of broker-created work.
+
 ## Reference acceptance cases
 
 These cases are useful forward tests for planner changes:

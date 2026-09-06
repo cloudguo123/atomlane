@@ -111,6 +111,8 @@ class PytestNativeProgressTests(unittest.TestCase):
             "native_workers_configured": 4,
             "test_cases_planned": 100,
             "savings_pending_native_report": True,
+            "host_active_sessions": 2,
+            "host_reserved_worker_slots": 6.0,
         }
 
         mcp_output = io.StringIO()
@@ -121,6 +123,8 @@ class PytestNativeProgressTests(unittest.TestCase):
         self.assertIn("原生 workers 4（配置）", message)
         self.assertIn("计划用例 100（提示）", message)
         self.assertIn("节约待串行基线/JUnit", message)
+        self.assertIn("主机会话 2", message)
+        self.assertIn("全局占用 6 slots", message)
         self.assertNotIn("峰值 4", message)
 
         console_output = io.StringIO()
@@ -128,6 +132,7 @@ class PytestNativeProgressTests(unittest.TestCase):
             live_runner.ConsoleProgress()(snapshot)
         self.assertIn("原生 workers 4（配置）", console_output.getvalue())
         self.assertIn("节约待串行基线/JUnit", console_output.getvalue())
+        self.assertIn("主机会话 2", console_output.getvalue())
 
 
 class PytestNativeIndicatorStaticTests(unittest.TestCase):
@@ -144,6 +149,8 @@ class PytestNativeIndicatorStaticTests(unittest.TestCase):
         self.assertIn("estimated_sum_of_testcase_durations", indicator)
         self.assertIn("累计已入账", indicator)
         self.assertIn("未计入累计已入账", indicator)
+        self.assertIn("主机调度", indicator)
+        self.assertIn("host-scheduler", indicator)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for DOM smoke test")
     def test_indicator_executes_input_progress_and_result_lifecycle(self) -> None:

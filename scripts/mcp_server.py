@@ -65,6 +65,7 @@ from atom_frontends import (
     _windows_output_path_spelling_is_unambiguous,
     compile_entrypoints,
 )
+from host_scheduler import HostScheduler, HostSchedulerError, host_fingerprint
 from platform_adapter import (
     brokered_execution_boundary,
     default_stats_path,
@@ -89,7 +90,7 @@ from windows_job_runner import (
 from windows_runtime import WindowsJobController, WindowsJobError
 
 SERVER_NAME = "atomlane"
-SERVER_VERSION = "0.16.0"
+SERVER_VERSION = "0.17.0"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_CATALOG_PATH = PLUGIN_ROOT / "catalog" / "scenarios.json"
 INDICATOR_RESOURCE_URI = f"ui://widget/atomlane-indicator-{SERVER_VERSION}.html"
@@ -116,6 +117,9 @@ MAX_JUNIT_TEST_CASES = 100_000
 MAX_JUNIT_XML_ELEMENTS = 250_000
 MAX_SAVINGS_STATS_BYTES = 64 * 1024
 MAX_SERIAL_BASELINE_ATTESTATIONS = 256
+HOST_CAPACITY_REFRESH_SECONDS = 5.0
+HOST_SCHEDULER_HEARTBEAT_SECONDS = 2.0
+HOST_SCHEDULER_QUEUE_POLL_SECONDS = 0.1
 TASK_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _INVALID_SAVINGS_LEDGER = object()
 _STATIC_HARDWARE_CACHE: dict[str, Any] | None = None
@@ -2062,6 +2066,10 @@ class ProgressReporter:
         self.ready_tasks = max(0, int(ready_tasks))
         self.emit()
 
+    def update_context(self, **values: Any) -> None:
+        self.context.update(values)
+        self.emit()
+
     def task_started(self, task_id: str) -> None:
         self.active[task_id] = time.monotonic()
         self.emit()
@@ -2483,7 +2491,19 @@ def machine_snapshot() -> dict[str, Any]:
     thermal_names = {0: "nominal", 1: "fair", 2: "serious", 3: "critical"}
     thermal_value = process_state.get("thermal_state")
     power = _power_snapshot()
-    return {
+    if platform.system() == "Darwin" and platform.machine() == "arm64" and performance_levels:
+        architecture_class = "apple_heterogeneous"
+    elif logical > physical:
+        architecture_class = "smt"
+    else:
+        architecture_class = "homogeneous"
+    smt_ratio = round(logical / max(1, physical), 3)
+    performance_weighted_cpus = (
+        round(performance_cores + efficiency_cores * 0.6, 3)
+        if performance_cores and efficiency_cores
+        else float(physical)
+    )
+    snapshot = {
         "platform": platform.platform(),
         "machine": platform.machine(),
         "execution_environment": execution_environment(),
@@ -2495,6 +2515,9 @@ def machine_snapshot() -> dict[str, Any]:
         "physical_cpus": max(1, physical),
         "performance_cores": performance_cores or None,
         "efficiency_cores": efficiency_cores or None,
+        "architecture_class": architecture_class,
+        "smt_ratio": smt_ratio,
+        "performance_weighted_cpus": performance_weighted_cpus,
         "performance_levels": performance_levels,
         "gpu": static["gpu"],
         "memory_total_bytes": memory_total,
@@ -2509,6 +2532,8 @@ def machine_snapshot() -> dict[str, Any]:
         ),
         "power": power,
     }
+    snapshot["host_fingerprint"] = host_fingerprint(snapshot)
+    return snapshot
 
 
 def concurrency_plan(
@@ -2532,8 +2557,23 @@ def concurrency_plan(
     snapshot = machine_snapshot()
     logical = snapshot["logical_cpus"]
     physical = snapshot["physical_cpus"]
-    reserve_fractions = {"interactive": 0.25, "balanced": 0.15, "throughput": 0.06}
-    minimum_reserve = 2 if logical >= 8 and responsiveness == "interactive" else 1
+    scheduler_status: dict[str, Any]
+    try:
+        scheduler_status = HostScheduler(snapshot["host_fingerprint"]).snapshot()
+        scheduler_status["available"] = True
+    except HostSchedulerError as exc:
+        scheduler_status = {
+            "available": False,
+            "error": str(exc),
+            "policy": "execution fails closed when shared admission state is invalid",
+        }
+    reserve_fractions = {"interactive": 0.25, "balanced": 0.12, "throughput": 0.0}
+    if responsiveness == "interactive":
+        minimum_reserve = 2 if logical >= 8 else 1
+    elif responsiveness == "balanced":
+        minimum_reserve = 1 if logical >= 4 else 0
+    else:
+        minimum_reserve = 0
     adaptive_reserve = max(minimum_reserve, math.ceil(logical * reserve_fractions[responsiveness]))
     effective_reserve = reserve_cores if reserve_cores is not None else adaptive_reserve
     effective_reserve = min(effective_reserve, max(0, logical - 1))
@@ -2551,15 +2591,50 @@ def concurrency_plan(
         f"{profile} workload on {snapshot.get('chip') or snapshot['machine']}",
         f"{responsiveness} mode reserves {effective_reserve} active CPU cores for system responsiveness",
     ]
+    architecture_class = snapshot["architecture_class"]
+    if architecture_class == "apple_heterogeneous":
+        reasons.append(
+            "Apple heterogeneous cores are scheduled as one host pool; throughput mode may use every active P/E core while macOS retains placement authority"
+        )
+    elif architecture_class == "smt" and profile == "cpu":
+        reasons.append(
+            "CPU-bound concurrency starts from physical cores; SMT siblings remain available to the OS and mixed/I/O native owners"
+        )
+    else:
+        reasons.append("host concurrency follows the detected homogeneous CPU topology")
     load1 = snapshot["load_average"]["one_minute"]
+    cpu_busy_percent = snapshot["load_average"].get("cpu_busy_percent")
+    live_cpu_load = (
+        float(cpu_busy_percent) / 100.0 * logical
+        if isinstance(cpu_busy_percent, (int, float))
+        and not isinstance(cpu_busy_percent, bool)
+        and math.isfinite(float(cpu_busy_percent))
+        else None
+    )
+    observed_load = live_cpu_load if live_cpu_load is not None else load1
+    managed_cpu_load = (
+        float(scheduler_status.get("reserved", {}).get("cpu_core", 0.0))
+        if scheduler_status.get("available")
+        else 0.0
+    )
+    external_load = max(0.0, observed_load - managed_cpu_load)
     if profile in {"cpu", "mixed"}:
-        load_limited = max(1, math.floor(logical - effective_reserve - min(load1, logical - 1)))
+        load_limited = max(
+            1,
+            math.floor(
+                logical
+                - effective_reserve
+                - min(external_load, logical - 1)
+            ),
+        )
         if load_limited < base:
             base = load_limited
-            reasons.append("reduced for processes already consuming CPU")
-    elif load1 >= logical * 0.8:
+            reasons.append("reduced for non-AtomLane processes already consuming CPU")
+    elif external_load >= logical * 0.8:
         base = max(1, math.ceil(base * 0.75))
-        reasons.append("reduced I/O fan-out because current CPU load is elevated")
+        reasons.append(
+            "reduced I/O fan-out because non-AtomLane CPU load is elevated"
+        )
 
     thermal_factors = {"fair": 0.8, "serious": 0.5, "critical": 0.25}
     thermal = snapshot["thermal_state"]
@@ -2614,6 +2689,28 @@ def concurrency_plan(
         "qos_clamp": qos_clamp,
         "estimated_memory_mb_per_task": estimated_memory_mb_per_task,
         "memory_limited_concurrency": memory_limit,
+        "load_accounting": {
+            "one_minute_total": load1,
+            "live_cpu_busy_percent": cpu_busy_percent,
+            "capacity_signal": (
+                "live_cpu_busy" if live_cpu_load is not None else "one_minute_load"
+            ),
+            "atomlane_reserved_cpu_cores": round(managed_cpu_load, 6),
+            "estimated_external_load": round(external_load, 6),
+            "policy": "managed reservations are not double-counted as external pressure",
+        },
+        "architecture_model": {
+            "class": architecture_class,
+            "logical_cpus": logical,
+            "physical_cpus": physical,
+            "performance_cores": snapshot.get("performance_cores"),
+            "efficiency_cores": snapshot.get("efficiency_cores"),
+            "performance_weighted_cpus": snapshot.get(
+                "performance_weighted_cpus"
+            ),
+            "smt_ratio": snapshot.get("smt_ratio"),
+        },
+        "shared_host_scheduler": scheduler_status,
         "reasons": reasons,
         "machine": snapshot,
     }
@@ -6361,6 +6458,16 @@ async def run_atomic(
     arguments: dict[str, Any],
     progress_callback: Any | None = None,
 ) -> dict[str, Any]:
+    try:
+        return await _run_atomic_impl(arguments, progress_callback)
+    except HostSchedulerError as exc:
+        raise InputError(f"shared host scheduler refused execution: {exc}") from exc
+
+
+async def _run_atomic_impl(
+    arguments: dict[str, Any],
+    progress_callback: Any | None = None,
+) -> dict[str, Any]:
     # Freeze both the plan and execution-only options before deriving lease
     # keys. Embedded callers may otherwise mutate the input between the
     # pre-lock and post-lock validations.
@@ -6387,6 +6494,89 @@ async def run_atomic(
         )
     finally:
         leases.close()
+
+
+def _fresh_atomic_runtime_capacities(
+    compiled_capacities: dict[str, float],
+    runtime_profile: str,
+    responsiveness: str,
+) -> tuple[dict[str, Any], dict[str, float]]:
+    compiled_worker_limit = max(
+        1,
+        min(
+            MAX_CONCURRENCY,
+            int(compiled_capacities.get("worker_slot", 1.0)),
+        ),
+    )
+    resource_plan = concurrency_plan(
+        runtime_profile,
+        compiled_worker_limit,
+        None,
+        None,
+        responsiveness,
+    )
+    capacities = dict(compiled_capacities)
+    capacities["worker_slot"] = min(
+        capacities.get("worker_slot", 1.0),
+        float(resource_plan["chosen_concurrency"]),
+    )
+    capacities["cpu_core"] = min(
+        capacities.get("cpu_core", capacities["worker_slot"]),
+        float(max(1, resource_plan["chosen_concurrency"])),
+    )
+    current_available = resource_plan["machine"].get(
+        "memory_available_bytes_approx"
+    )
+    if current_available and "memory_mb" in capacities:
+        capacities["memory_mb"] = min(
+            capacities["memory_mb"],
+            max(256.0, float(current_available) / (1024 * 1024) * 0.60),
+        )
+    resource_plan["compiled_capacities"] = compiled_capacities
+    resource_plan["effective_runtime_capacities"] = dict(capacities)
+    resource_plan["runtime_capacity_policy"] = (
+        "fresh conditions may tighten or restore capacity only inside the "
+        "immutable compiled envelope"
+    )
+    return resource_plan, capacities
+
+
+def _managed_host_capacities(capacities: dict[str, float]) -> dict[str, float]:
+    return {
+        resource: float(capacities[resource])
+        for resource in (
+            "worker_slot",
+            "cpu_core",
+            "memory_mb",
+            "accelerator_slot",
+        )
+        if resource in capacities and float(capacities[resource]) > 0
+    }
+
+
+def _managed_atom_claims(atom: dict[str, Any]) -> dict[str, float]:
+    claims = {
+        item["resource"]: float(item["units"])
+        for item in atom["claims"]
+        if item["resource"]
+        in {"worker_slot", "cpu_core", "memory_mb", "accelerator_slot"}
+    }
+    claims.setdefault("worker_slot", 1.0)
+    if "cpu_core" not in claims:
+        claims["cpu_core"] = {
+            "cpu": 1.0,
+            "mixed": 1.0,
+            "io": 0.25,
+            "accelerator": 0.5,
+        }.get(atom.get("profile"), 1.0)
+    if atom.get("profile") == "accelerator":
+        claims.setdefault("accelerator_slot", 1.0)
+    return claims
+
+
+def _project_scheduler_hash(plan: dict[str, Any]) -> str:
+    project = str(plan.get("project_root", ""))
+    return "sha256:" + hashlib.sha256(project.encode("utf-8")).hexdigest()
 
 
 async def _run_atomic_with_output_leases(
@@ -6468,42 +6658,48 @@ async def _run_atomic_with_output_leases(
         started,
         _atomic_progress_context(plan),
     )
-    compiled_resource_plan = plan.get("resource_plan") if isinstance(plan.get("resource_plan"), dict) else {}
+    compiled_resource_plan = (
+        plan.get("resource_plan")
+        if isinstance(plan.get("resource_plan"), dict)
+        else {}
+    )
     responsiveness = compiled_resource_plan.get("responsiveness", "interactive")
     if responsiveness not in {"interactive", "balanced", "throughput"}:
         responsiveness = "interactive"
     runtime_profile = compiled_resource_plan.get("profile", "mixed")
     if runtime_profile not in {"cpu", "io", "mixed", "accelerator"}:
         runtime_profile = "mixed"
-    compiled_worker_limit = max(1, min(MAX_CONCURRENCY, int(capacities.get("worker_slot", 1.0))))
-    resource_plan = concurrency_plan(
+    resource_plan, capacities = _fresh_atomic_runtime_capacities(
+        compiled_capacities,
         runtime_profile,
-        compiled_worker_limit,
-        None,
-        None,
         responsiveness,
     )
-    # Resource conditions may worsen after compilation. Runtime may only
-    # tighten the immutable envelope, never increase it.
-    capacities["worker_slot"] = min(
-        capacities.get("worker_slot", 1.0),
-        float(resource_plan["chosen_concurrency"]),
-    )
-    capacities["cpu_core"] = min(
-        capacities.get("cpu_core", capacities["worker_slot"]),
-        float(max(1, resource_plan["chosen_concurrency"])),
-    )
-    current_available = resource_plan["machine"].get("memory_available_bytes_approx")
-    if current_available and "memory_mb" in capacities:
-        capacities["memory_mb"] = min(
-            capacities["memory_mb"],
-            max(256.0, float(current_available) / (1024 * 1024) * 0.60),
-        )
-    resource_plan["compiled_capacities"] = compiled_capacities
-    resource_plan["effective_runtime_capacities"] = dict(capacities)
-    resource_plan["runtime_capacity_policy"] = "fresh conditions may only tighten the compiled envelope"
     nice_adjustment = resource_plan.get("nice_adjustment", 10)
     qos_clamp = resource_plan.get("qos_clamp")
+    machine = resource_plan["machine"]
+    runtime_host_id = machine.get("host_fingerprint") or host_fingerprint(machine)
+    host_scheduler = HostScheduler(runtime_host_id)
+    host_session_id = "s_" + secrets.token_hex(24)
+    host_reservations: dict[str, str] = {}
+    host_scheduler_peak_slots = 0.0
+    host_scheduler_stall_seconds = 0.0
+    last_capacity_refresh = time.monotonic()
+    last_host_batch_signature: tuple[object, ...] | None = None
+    host_scheduler.register(
+        host_session_id,
+        capacities=_managed_host_capacities(capacities),
+        profile=runtime_profile,
+        responsiveness=responsiveness,
+        project_hash=_project_scheduler_hash(plan),
+    )
+    initial_host_state = host_scheduler.snapshot()
+    reporter.update_context(
+        host_scheduler="active",
+        host_active_sessions=initial_host_state["active_sessions"],
+        host_reserved_worker_slots=initial_host_state["reserved"].get(
+            "worker_slot", 0.0
+        ),
+    )
     priority = {
         item["atom"]: (float(item.get("start_seconds", 0.0)), item["atom"])
         for item in plan.get("schedule", {}).get("timeline", [])
@@ -6525,6 +6721,9 @@ async def _run_atomic_with_output_leases(
         for claim in atom["claims"]:
             key = claim["resource"]
             usage[key] = max(0.0, usage.get(key, 0.0) - float(claim["units"]))
+        reservation_id = host_reservations.pop(atom["id"], None)
+        if reservation_id is not None:
+            host_scheduler.release(host_session_id, reservation_id)
 
     def admits(atom: dict[str, Any]) -> bool:
         for claim in atom["claims"]:
@@ -6533,6 +6732,39 @@ async def _run_atomic_with_output_leases(
             if usage.get(key, 0.0) + float(claim["units"]) > capacity + 1e-9:
                 return False
         return all(not atom_conflicts(atom, by_id[running_id]) for running_id in running.values())
+
+    def fits_compiled_envelope(atom: dict[str, Any]) -> bool:
+        return all(
+            float(claim["units"])
+            <= compiled_capacities.get(claim["resource"], 1.0) + 1e-9
+            for claim in atom["claims"]
+        )
+
+    def local_admission_batch(ready_ids: list[str]) -> list[str]:
+        simulated_usage = dict(usage)
+        selected: list[str] = []
+        running_ids = list(running.values())
+        for atom_id in ready_ids:
+            atom = by_id[atom_id]
+            if any(
+                simulated_usage.get(claim["resource"], 0.0)
+                + float(claim["units"])
+                > capacities.get(claim["resource"], 1.0) + 1e-9
+                for claim in atom["claims"]
+            ):
+                continue
+            if any(
+                atom_conflicts(atom, by_id[other_id])
+                for other_id in [*running_ids, *selected]
+            ):
+                continue
+            selected.append(atom_id)
+            for claim in atom["claims"]:
+                key = claim["resource"]
+                simulated_usage[key] = simulated_usage.get(key, 0.0) + float(
+                    claim["units"]
+                )
+        return selected
 
     def reserve(atom: dict[str, Any]) -> None:
         for claim in atom["claims"]:
@@ -6551,7 +6783,22 @@ async def _run_atomic_with_output_leases(
                 return "impossible"
         return "waiting" if waiting else "ready"
 
+    async def host_heartbeat() -> None:
+        while True:
+            await asyncio.sleep(HOST_SCHEDULER_HEARTBEAT_SECONDS)
+            host_scheduler.heartbeat(host_session_id)
+            shared = host_scheduler.snapshot()
+            reporter.update_context(
+                host_scheduler="active",
+                host_active_sessions=shared["active_sessions"],
+                host_reserved_worker_slots=shared["reserved"].get(
+                    "worker_slot", 0.0
+                ),
+                host_waiting_tasks=shared["waiting_tasks"],
+            )
+
     await reporter.start()
+    heartbeat_task = asyncio.create_task(host_heartbeat())
     try:
         while pending or running:
             # Failure/success guards propagate to a fixed point, independent of
@@ -6573,11 +6820,70 @@ async def _run_atomic_with_output_leases(
                 (atom_id for atom_id in pending if dependency_state(by_id[atom_id]) == "ready"),
                 key=lambda atom_id: priority.get(atom_id, (float("inf"), atom_id)),
             )
-            admitted_ids: set[str] = set()
-            for atom_id in ready:
+            now = time.monotonic()
+            if now - last_capacity_refresh >= HOST_CAPACITY_REFRESH_SECONDS:
+                resource_plan, capacities = _fresh_atomic_runtime_capacities(
+                    compiled_capacities,
+                    runtime_profile,
+                    responsiveness,
+                )
+                last_capacity_refresh = now
+                record(
+                    "capacity_refreshed",
+                    "host",
+                    worker_slots=capacities.get("worker_slot"),
+                    cpu_cores=capacities.get("cpu_core"),
+                    memory_mb=capacities.get("memory_mb"),
+                )
+            host_scheduler.heartbeat(
+                host_session_id,
+                ready_tasks=len(ready),
+                running_tasks=len(running),
+                capacities=_managed_host_capacities(capacities),
+            )
+            local_batch = local_admission_batch(ready)
+            host_batch = host_scheduler.try_acquire_batch(
+                host_session_id,
+                [
+                    {
+                        "atom_id": atom_id,
+                        "claims": _managed_atom_claims(by_id[atom_id]),
+                    }
+                    for atom_id in local_batch
+                ],
+            )
+            host_admissions = host_batch["admitted"]
+            admitted_ids = set(host_admissions)
+            host_admission_denied = bool(host_batch["denied"])
+            host_batch_signature = (
+                tuple(local_batch),
+                tuple(sorted(admitted_ids)),
+                tuple(
+                    (str(item.get("atom_id")), str(item.get("reason")))
+                    for item in host_batch["denied"]
+                ),
+            )
+            if host_batch_signature != last_host_batch_signature:
+                record(
+                    "host_batch_evaluated",
+                    "host",
+                    candidate_count=len(local_batch),
+                    admitted_count=len(admitted_ids),
+                    denied_count=len(host_batch["denied"]),
+                    decision_scope=host_batch["decision_scope"],
+                )
+                last_host_batch_signature = host_batch_signature
+            for atom_id in local_batch:
                 atom = by_id[atom_id]
-                if not admits(atom):
+                host_admission = host_admissions.get(atom_id)
+                if host_admission is None:
                     continue
+                reservation_id = host_admission["reservation_id"]
+                host_reservations[atom_id] = reservation_id
+                host_scheduler_peak_slots = max(
+                    host_scheduler_peak_slots,
+                    float(host_admission["usage"].get("worker_slot", 0.0)),
+                )
                 operation = atom["operation"]
                 task = {
                     "id": atom_id,
@@ -6606,17 +6912,61 @@ async def _run_atomic_with_output_leases(
                 pending.remove(atom_id)
                 launch_order.append(atom_id)
                 reporter.task_started(atom_id)
-                record("started", atom_id)
+                record(
+                    "started",
+                    atom_id,
+                    host_reservation=reservation_id,
+                    host_fair_worker_share=host_admission.get(
+                        "fair_worker_share"
+                    ),
+                )
                 future = asyncio.create_task(execute_task(task, output_limit, int(nice_adjustment), qos_clamp))
                 running[future] = atom_id
-                admitted_ids.add(atom_id)
             reporter.scheduler_state(
                 ready_tasks=sum(1 for atom_id in ready if atom_id not in admitted_ids)
+            )
+            host_scheduler.heartbeat(
+                host_session_id,
+                ready_tasks=sum(
+                    1 for atom_id in ready if atom_id not in admitted_ids
+                ),
+                running_tasks=len(running),
             )
             peak_concurrency = max(peak_concurrency, len(running))
 
             if not running:
                 if pending:
+                    locally_admissible = any(
+                        admits(by_id[atom_id]) for atom_id in ready
+                    )
+                    transiently_capacity_limited = any(
+                        fits_compiled_envelope(by_id[atom_id])
+                        for atom_id in ready
+                    )
+                    if (
+                        (host_admission_denied and locally_admissible)
+                        or transiently_capacity_limited
+                    ):
+                        wait_started = time.monotonic()
+                        if host_admission_denied:
+                            wait_seconds = HOST_SCHEDULER_QUEUE_POLL_SECONDS
+                        else:
+                            wait_seconds = max(
+                                0.01,
+                                HOST_CAPACITY_REFRESH_SECONDS
+                                - (time.monotonic() - last_capacity_refresh),
+                            )
+                        await asyncio.sleep(wait_seconds)
+                        host_scheduler_stall_seconds += (
+                            time.monotonic() - wait_started
+                        )
+                        if heartbeat_task.done():
+                            error = heartbeat_task.exception()
+                            raise InputError(
+                                "shared host scheduler heartbeat stopped"
+                                + (f": {error}" if error else "")
+                            )
+                        continue
                     blocked = {
                         atom_id: {
                             claim["resource"]: {
@@ -6629,7 +6979,27 @@ async def _run_atomic_with_output_leases(
                     }
                     raise InputError(f"atomic scheduler cannot admit pending atoms: {blocked}")
                 break
-            done, _ = await asyncio.wait(running, return_when=asyncio.FIRST_COMPLETED)
+            wait_set: set[asyncio.Task[Any]] = set(running)
+            wait_set.add(heartbeat_task)
+            refresh_timeout = max(
+                0.0,
+                HOST_CAPACITY_REFRESH_SECONDS
+                - (time.monotonic() - last_capacity_refresh),
+            )
+            done, _ = await asyncio.wait(
+                wait_set,
+                timeout=refresh_timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
+                continue
+            if heartbeat_task in done:
+                error = heartbeat_task.exception()
+                raise InputError(
+                    "shared host scheduler heartbeat stopped"
+                    + (f": {error}" if error else "")
+                )
+            done.discard(heartbeat_task)
             for future in sorted(done, key=lambda item: running[item]):
                 atom_id = running.pop(future)
                 release(by_id[atom_id])
@@ -6642,6 +7012,10 @@ async def _run_atomic_with_output_leases(
             for future in running:
                 future.cancel()
             await asyncio.gather(*running, return_exceptions=True)
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+        host_scheduler.close(host_session_id)
         await reporter.stop()
 
     results = [completed[atom["id"]] for atom in atoms]
@@ -6661,6 +7035,16 @@ async def _run_atomic_with_output_leases(
     )
     summary_plan = dict(resource_plan)
     summary_plan["chosen_concurrency"] = int(capacities.get("worker_slot", 1.0))
+    summary_plan["shared_host_scheduler"] = {
+        "schema": "atomlane/host-scheduler/v1",
+        "host_fingerprint": runtime_host_id,
+        "admission_scope": "cross-process host capacity",
+        "fairness": "soft fair-share with uncontended borrowing",
+        "peak_reserved_worker_slots": round(host_scheduler_peak_slots, 6),
+        "full_stall_seconds": round(host_scheduler_stall_seconds, 6),
+        "capacity_refresh_seconds": HOST_CAPACITY_REFRESH_SECONDS,
+        "stale_session_recovery_seconds": 15.0,
+    }
     summary, indicator = _summary(
         results,
         summary_plan,
@@ -7161,7 +7545,7 @@ TOOLS = [
     },
     {
         "name": "atomic_exec",
-        "description": "Execute the exact immutable CompiledPlan returned by atomic_task_plan or test_suite_plan. Revalidates the canonical plan hash and source snapshots, enforces typed dependencies, artifact conflicts, and multidimensional capacities, and refuses opaque or incomplete-effect atoms.",
+        "description": "Execute the exact immutable CompiledPlan returned by atomic_task_plan or test_suite_plan. Revalidates its hash and snapshots, constructs conflict-free ready batches, and coordinates CPU, memory, worker, and accelerator admission across concurrent AtomLane processes. Typed dependencies, effects, and realm boundaries remain fail-closed.",
         "_meta": _indicator_ui_meta(),
         "inputSchema": {
             "type": "object",
@@ -7236,7 +7620,7 @@ TOOLS = [
     },
     {
         "name": "host_resource_plan",
-        "description": "Inspect the current macOS, native Windows, WSL, or Linux execution boundary and recommend concurrency from host CPU, memory, pressure, and responsiveness headroom. Windows facts use native APIs and are never inferred from WSL or Docker VM capacity.",
+        "description": "Inspect the current macOS, native Windows, WSL, or Linux execution boundary and recommend concurrency from CPU topology, memory, pressure, power, responsiveness headroom, and the cross-process AtomLane host ledger. Windows facts use native APIs and are never inferred from WSL or Docker VM capacity.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -7499,9 +7883,18 @@ def _progress_callback(progress_token: Any) -> Any | None:
         if isinstance(test_cases_planned, int) and not isinstance(test_cases_planned, bool):
             native_parts.append(f"计划用例 {test_cases_planned}（提示）")
         native_text = "".join(f"{part}｜" for part in native_parts)
+        host_parts: list[str] = []
+        host_sessions = snapshot.get("host_active_sessions")
+        if isinstance(host_sessions, int) and not isinstance(host_sessions, bool):
+            host_parts.append(f"主机会话 {host_sessions}")
+        host_slots = snapshot.get("host_reserved_worker_slots")
+        if isinstance(host_slots, (int, float)) and not isinstance(host_slots, bool):
+            host_parts.append(f"全局占用 {float(host_slots):g} slots")
+        host_text = "".join(f"{part}｜" for part in host_parts)
         message = (
             f"已运行 {snapshot['elapsed_seconds']:.1f}s｜"
             f"{native_text}"
+            f"{host_text}"
             f"运行中 {snapshot['running_tasks']}｜"
             f"就绪 {snapshot.get('ready_tasks', 0)}｜"
             f"已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}｜"

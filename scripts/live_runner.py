@@ -63,10 +63,19 @@ class ConsoleProgress:
         if isinstance(test_cases_planned, int) and not isinstance(test_cases_planned, bool):
             native_parts.append(f"计划用例 {test_cases_planned}（提示）")
         native_text = "".join(f"｜{part}" for part in native_parts)
+        host_parts: list[str] = []
+        host_sessions = snapshot.get("host_active_sessions")
+        if isinstance(host_sessions, int) and not isinstance(host_sessions, bool):
+            host_parts.append(f"主机会话 {host_sessions}")
+        host_slots = snapshot.get("host_reserved_worker_slots")
+        if isinstance(host_slots, (int, float)) and not isinstance(host_slots, bool):
+            host_parts.append(f"全局占用 {float(host_slots):g} slots")
+        host_text = "".join(f"｜{part}" for part in host_parts)
         print(
             "⏱️ 实时"
             f"｜已运行 {elapsed:.1f}s"
             f"{native_text}"
+            f"{host_text}"
             f"｜运行中 {snapshot['running_tasks']}"
             f"｜就绪 {snapshot.get('ready_tasks', 0)}"
             f"｜已完成 {snapshot['completed_tasks']}/{snapshot['task_count']}"

@@ -251,6 +251,23 @@ concurrency value is a ceiling, not an override of safety limits. Interactive
 mode should retain CPU and memory headroom and reduce work under existing load,
 battery use, Low Power Mode, memory pressure, or thermal pressure.
 
+For `atomic_exec`, ready atoms are evaluated as a batch, not as unrelated
+one-at-a-time decisions. The executor registers the invocation in the shared
+host scheduler and admits native-host worker, CPU, memory, and accelerator
+tokens across concurrent Codex tasks. One session may borrow unused capacity;
+competing sessions receive a soft fair share. Use `throughput` when the user
+explicitly prioritizes full-machine background throughput, `balanced` for a
+mixed foreground/background run, and the default `interactive` mode while the
+user is actively working. Throughput may use the complete detected CPU pool,
+but thermal, power, memory, external-load, and immutable-plan ceilings still
+apply. Docker/WSL resources remain separate daemon/VM realms and are not charged
+as if they were directly contained native-host processes.
+
+Runtime capacity is refreshed while a long plan runs. It may contract or recover
+inside the compiled ceiling; it may never exceed that ceiling. A corrupt or
+foreign shared scheduler ledger is an execution blocker, not permission to fall
+back to uncoordinated fan-out.
+
 On native Windows, every target runs below a kill-on-close Job Object. Optional
 `cpu_rate_percent` and `memory_limit_mb` limits apply Job-wide.
 `max_processes` is available only with `terminal_mode: pipes`, where the Job
@@ -307,7 +324,9 @@ Do not await `atomic_exec` as one blocking MCP call in Codex Desktop.
    running/ready/completed/failed counts, and current estimated time saved. For
    a native pytest pool, also show configured workers and any case-count hint,
    while describing savings as pending until a baseline or fresh JUnit timing
-   report is available.
+   report is available. When present, retain the live host-session count and
+   globally reserved worker-slot evidence rather than hiding cross-task
+   contention.
 4. Continue until `LIVE_RESULT_JSON=` and the process exit code arrive. Do not
    substitute a hand-built legacy exec/map/DAG payload for the compiled atomic
    plan.

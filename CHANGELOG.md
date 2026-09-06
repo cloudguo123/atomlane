@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented here.
 
+## 0.17.0 - 2026-09-06
+
+- Added a privacy-safe cross-process host scheduler for `atomic_exec`. Separate
+  Codex/AtomLane processes now share one bounded CPU, memory, worker, and
+  accelerator admission ledger instead of each treating the host as idle.
+- Changed ready work from one-at-a-time admission calls to one ordered batch
+  decision. The executor first constructs a locally conflict-free ready set,
+  then the host scheduler admits the batch under one locked capacity snapshot.
+- Added soft per-session fair sharing with uncontended borrowing: one active
+  session may fill the available envelope, while competing sessions receive a
+  fair opportunity as running atoms release capacity.
+- Added crash recovery using bounded heartbeats, live-process checks, and
+  process-start identities. Corrupt, aliased, foreign-host, or structurally
+  invalid scheduler state fails closed rather than silently resetting capacity.
+- Added architecture classes for Apple heterogeneous cores, SMT hosts, and
+  homogeneous CPUs. CPU-bound plans start from physical cores, mixed and I/O
+  plans may use logical capacity, and throughput mode may use the full detected
+  CPU pool while thermal, memory, power, and external-load controls remain active.
+- Added five-second runtime capacity refresh inside the immutable compiled
+  envelope. Capacity can contract when conditions worsen and recover when they
+  improve; AtomLane reservations are subtracted from load estimates so its own
+  managed work is not mistaken for unrelated pressure.
+- Added a cached live CPU-busy signal on macOS, Linux, and Windows, with load
+  average retained as a fallback. This avoids leaving cores idle for minutes
+  merely because a completed burst still appears in the one-minute load average.
+- Added live host-scheduler visibility to MCP progress, the terminal live runner,
+  and the indicator UI, including active sessions and globally reserved worker
+  slots. Final results retain batch-admission and capacity-refresh evidence.
+- Added cross-process, batch-capacity, fair-share, stale-recovery, hardware-model,
+  UI-progress, and twelve-atom integration regressions. Docker daemon/VM budgets
+  remain a separate execution realm and are not misreported as native host CPU
+  affinity or containment.
+
 ## 0.16.0 - 2026-09-04
 
 - Added `test_suite_plan`, a proof-carrying pytest frontend that compiles one

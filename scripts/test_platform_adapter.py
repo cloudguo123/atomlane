@@ -699,6 +699,108 @@ class PlatformAdapterTests(unittest.TestCase):
             snapshot["capabilities"]["execution_environment"],
             snapshot["execution_environment"],
         )
+        self.assertIn(
+            snapshot["architecture_class"],
+            {"apple_heterogeneous", "smt", "homogeneous"},
+        )
+        self.assertTrue(snapshot["host_fingerprint"].startswith("sha256:"))
+
+    def test_throughput_mode_can_use_the_full_detected_cpu_pool(self) -> None:
+        machine = {
+            "platform": "test",
+            "machine": "arm64",
+            "execution_environment": {"boundary": "macos_native"},
+            "capabilities": {},
+            "apple_silicon": True,
+            "chip": "Apple Test",
+            "model_identifier": "MacTest",
+            "logical_cpus": 10,
+            "physical_cpus": 10,
+            "performance_cores": 6,
+            "efficiency_cores": 4,
+            "performance_levels": [],
+            "architecture_class": "apple_heterogeneous",
+            "smt_ratio": 1.0,
+            "performance_weighted_cpus": 8.4,
+            "gpu": None,
+            "memory_total_bytes": 32 * 1024**3,
+            "memory_available_bytes_approx": 24 * 1024**3,
+            "memory_free_percent": 75,
+            "load_average": {"one_minute": 0.0, "source": "test"},
+            "thermal_state": "nominal",
+            "low_power_mode": False,
+            "power": {"source": "ac", "battery_percent": 100},
+        }
+        machine["host_fingerprint"] = mcp_server.host_fingerprint(machine)
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(mcp_server, "machine_snapshot", return_value=machine),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "ATOMLANE_SCHEDULER_STATE_PATH": str(
+                        Path(temporary) / "scheduler.json"
+                    )
+                },
+            ),
+        ):
+            plan = mcp_server.concurrency_plan(
+                "cpu", responsiveness="throughput"
+            )
+        self.assertEqual(plan["reserve_cores"], 0)
+        self.assertEqual(plan["chosen_concurrency"], 10)
+        self.assertEqual(
+            plan["architecture_model"]["class"], "apple_heterogeneous"
+        )
+
+    def test_live_cpu_busy_signal_avoids_stale_load_average_throttling(self) -> None:
+        machine = {
+            "platform": "test",
+            "machine": "arm64",
+            "execution_environment": {"boundary": "macos_native"},
+            "capabilities": {},
+            "apple_silicon": True,
+            "chip": "Apple Test",
+            "model_identifier": "MacTest",
+            "logical_cpus": 16,
+            "physical_cpus": 16,
+            "performance_cores": 12,
+            "efficiency_cores": 4,
+            "performance_levels": [],
+            "architecture_class": "apple_heterogeneous",
+            "smt_ratio": 1.0,
+            "performance_weighted_cpus": 14.4,
+            "gpu": None,
+            "memory_total_bytes": 32 * 1024**3,
+            "memory_available_bytes_approx": 24 * 1024**3,
+            "memory_free_percent": 75,
+            "load_average": {
+                "one_minute": 12.0,
+                "cpu_busy_percent": 12.5,
+                "source": "test",
+            },
+            "thermal_state": "nominal",
+            "low_power_mode": False,
+            "power": {"source": "ac", "battery_percent": 100},
+        }
+        machine["host_fingerprint"] = mcp_server.host_fingerprint(machine)
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.object(mcp_server, "machine_snapshot", return_value=machine),
+            mock.patch.dict(
+                os.environ,
+                {
+                    "ATOMLANE_SCHEDULER_STATE_PATH": str(
+                        Path(temporary) / "scheduler.json"
+                    )
+                },
+            ),
+        ):
+            plan = mcp_server.concurrency_plan(
+                "cpu", responsiveness="throughput"
+            )
+        self.assertEqual(plan["chosen_concurrency"], 14)
+        self.assertEqual(plan["load_accounting"]["capacity_signal"], "live_cpu_busy")
 
 
 if __name__ == "__main__":

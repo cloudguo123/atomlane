@@ -436,9 +436,39 @@ memory, load, power state, architecture, and execution realm. macOS additionally
 reports the Mac model, performance/efficiency topology, GPU count, thermal
 state, and Low Power Mode. Native Windows uses kernel APIs for memory, CPU load,
 power, physical topology, and capability probes. Interactive mode is the
-default and retains CPU and memory headroom. Balanced and throughput modes
-expose progressively more capacity while preserving a reserve. A caller's
-maximum concurrency is a ceiling, not an override of adaptive safety limits.
+default and retains CPU and memory headroom. Balanced mode retains a smaller
+reserve. Throughput mode can expose the complete detected CPU pool when power,
+thermal, memory, and competing-load observations allow it. A caller's maximum
+concurrency is a ceiling, not an override of adaptive safety limits.
+
+Version 0.17 adds a host-wide admission layer above invocation-local scheduling.
+Each process registers a privacy-safe session under a hardware/realm fingerprint;
+only hashes, process identity, capacity vectors, demand counters, and reservations
+are persisted. Ready atoms are not independently judged. The executor first
+builds one conflict-free ready batch under the immutable plan, then submits that
+ordered batch under one cross-process state lock. One session may borrow the full
+unused envelope, while simultaneous sessions receive a soft fair share as tokens
+are released. This is a distributed host coordinator rather than a daemon, so it
+adds no separately installed service or privileged process.
+
+The shared ledger covers generic native-host worker, CPU, memory, and accelerator
+tokens for `atomic_exec`. Project effects and control flow remain owned by the
+compiled Atom plan. Docker Desktop/daemon work, WSL, native Windows, and the host
+remain separate scheduling realms; container capacity is still planned from the
+daemon/VM envelope. The host ledger is not CPU affinity and does not claim to pin
+work to Apple performance cores, efficiency cores, or SMT siblings.
+
+While work is running, a heartbeat keeps reservations live and the scheduler
+refreshes host capacity every five seconds. A refreshed envelope may contract or
+recover but never exceed the hash-bound compiled maximum. Load accounting
+subtracts currently reserved AtomLane CPU tokens before estimating unrelated
+pressure. A short-lived CPU-busy observation is preferred over the one-minute
+load average when available, so a completed burst does not suppress capacity for
+minutes. These two rules avoid the feedback failure where AtomLane throttles
+itself merely because its own workers became busy. Capacity changes govern new
+admissions; already running atoms are not preempted. Dead sessions are reclaimed
+only after a stale heartbeat and a failed live-process/start-identity check.
+Invalid shared state fails closed.
 
 Container budgets derive from the Docker daemon's own envelope. Native Windows,
 WSL Linux, and Docker's Linux VM are different realms and never share one
@@ -670,3 +700,8 @@ installation, immutable effect/configuration evidence, preserved and hash-bound
 addopts, collision-free outputs, live configured-worker visibility, attested
 serial baselines, fresh validated JUnit summaries, and savings that remain
 pending until a compatible measured or plausible JUnit comparison exists.
+
+Version 0.17.0 adds cross-process host admission, batch-level ready-set
+decisions, soft fair sharing with uncontended borrowing, crash-safe recovery,
+architecture-aware capacity models, dynamic runtime capacity refresh, and live
+visibility of active sessions and globally reserved worker slots.

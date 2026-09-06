@@ -11,6 +11,7 @@ import os
 import platform
 import shutil
 import struct
+import subprocess
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -20,6 +21,8 @@ WINDOWS_FILE_LOCK_TIMEOUT_SECONDS = 10.0
 WINDOWS_FILE_LOCK_POLL_SECONDS = 0.01
 POSIX_FILE_LOCK_TIMEOUT_SECONDS = 1.0
 POSIX_FILE_LOCK_POLL_SECONDS = 0.01
+CPU_BUSY_CACHE_SECONDS = 0.75
+_CPU_BUSY_CACHE: tuple[str, int, float, float | None] | None = None
 
 WINDOWS_BROKER_EXECUTABLES = {
     "docker": "docker_daemon",
@@ -432,18 +435,161 @@ def _windows_cpu_busy_percent(sample_seconds: float = 0.05) -> float | None:
     return max(0.0, min(100.0, (1.0 - idle_delta / total_delta) * 100.0))
 
 
+def _linux_cpu_busy_percent(sample_seconds: float = 0.05) -> float | None:
+    def sample() -> tuple[int, int] | None:
+        try:
+            fields = Path("/proc/stat").read_text(
+                encoding="ascii",
+                errors="strict",
+            ).splitlines()[0].split()
+            if not fields or fields[0] != "cpu":
+                return None
+            ticks = [int(value) for value in fields[1:]]
+        except (IndexError, OSError, UnicodeError, ValueError):
+            return None
+        if len(ticks) < 4:
+            return None
+        idle = ticks[3] + (ticks[4] if len(ticks) > 4 else 0)
+        return sum(ticks), idle
+
+    before = sample()
+    if before is None:
+        return None
+    time.sleep(max(0.01, min(0.25, sample_seconds)))
+    after = sample()
+    if after is None:
+        return None
+    total_delta = after[0] - before[0]
+    idle_delta = after[1] - before[1]
+    if total_delta <= 0 or idle_delta < 0:
+        return None
+    return max(0.0, min(100.0, (1.0 - idle_delta / total_delta) * 100.0))
+
+
+def _darwin_ps_cpu_busy_percent(logical_cpus: int) -> float | None:
+    try:
+        completed = subprocess.run(
+            ["/bin/ps", "-A", "-o", "%cpu="],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=1,
+            env={"LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+        )
+        if completed.returncode != 0:
+            return None
+        aggregate_percent = sum(
+            float(line.strip())
+            for line in completed.stdout.splitlines()
+            if line.strip()
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return max(
+        0.0,
+        min(100.0, aggregate_percent / max(1, logical_cpus)),
+    )
+
+
+def _darwin_cpu_busy_percent(
+    logical_cpus: int,
+    sample_seconds: float = 0.05,
+) -> float | None:
+    class HostCpuLoadInfo(ctypes.Structure):
+        _fields_ = [("cpu_ticks", ctypes.c_uint * 4)]
+
+    try:
+        system = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+        system.mach_host_self.argtypes = []
+        system.mach_host_self.restype = ctypes.c_uint
+        system.host_statistics.argtypes = [
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_uint),
+        ]
+        system.host_statistics.restype = ctypes.c_int
+        system.mach_port_deallocate.argtypes = [ctypes.c_uint, ctypes.c_uint]
+        system.mach_port_deallocate.restype = ctypes.c_int
+        task_self = ctypes.c_uint.in_dll(system, "mach_task_self_").value
+        host = system.mach_host_self()
+
+        def sample() -> tuple[int, int, int, int] | None:
+            info = HostCpuLoadInfo()
+            count = ctypes.c_uint(4)
+            status = system.host_statistics(
+                host,
+                3,
+                ctypes.cast(ctypes.byref(info), ctypes.POINTER(ctypes.c_int)),
+                ctypes.byref(count),
+            )
+            if status != 0 or count.value < 4:
+                return None
+            return tuple(int(value) for value in info.cpu_ticks)
+
+        try:
+            before = sample()
+            if before is None:
+                return _darwin_ps_cpu_busy_percent(logical_cpus)
+            time.sleep(max(0.01, min(0.25, sample_seconds)))
+            after = sample()
+            if after is None:
+                return _darwin_ps_cpu_busy_percent(logical_cpus)
+        finally:
+            system.mach_port_deallocate(task_self, host)
+    except (AttributeError, OSError, TypeError, ValueError):
+        return _darwin_ps_cpu_busy_percent(logical_cpus)
+
+    deltas = [
+        (after[index] - before[index]) & 0xFFFFFFFF
+        for index in range(4)
+    ]
+    total_delta = sum(deltas)
+    if total_delta <= 0:
+        return _darwin_ps_cpu_busy_percent(logical_cpus)
+    idle_delta = deltas[2]
+    return max(0.0, min(100.0, (1.0 - idle_delta / total_delta) * 100.0))
+
+
+def _cpu_busy_percent(logical_cpus: int) -> float | None:
+    global _CPU_BUSY_CACHE
+    system = platform.system()
+    now = time.monotonic()
+    if (
+        _CPU_BUSY_CACHE is not None
+        and _CPU_BUSY_CACHE[0] == system
+        and _CPU_BUSY_CACHE[1] == logical_cpus
+        and now - _CPU_BUSY_CACHE[2] <= CPU_BUSY_CACHE_SECONDS
+    ):
+        return _CPU_BUSY_CACHE[3]
+    if system == "Windows":
+        value = _windows_cpu_busy_percent()
+    elif system == "Linux":
+        value = _linux_cpu_busy_percent()
+    elif system == "Darwin":
+        value = _darwin_cpu_busy_percent(logical_cpus)
+    else:
+        value = None
+    _CPU_BUSY_CACHE = (system, logical_cpus, now, value)
+    return value
+
+
 def load_snapshot(logical_cpus: int) -> dict[str, float | str | None]:
+    busy = _cpu_busy_percent(logical_cpus)
     try:
         one, five, fifteen = os.getloadavg()
         return {
             "one_minute": one,
             "five_minutes": five,
             "fifteen_minutes": fifteen,
-            "source": "load_average",
-            "cpu_busy_percent": None,
+            "source": (
+                "load_average+live_cpu_busy"
+                if busy is not None
+                else "load_average"
+            ),
+            "cpu_busy_percent": busy,
         }
     except (AttributeError, OSError):
-        busy = _windows_cpu_busy_percent()
         equivalent = (busy / 100.0 * max(1, logical_cpus)) if busy is not None else 0.0
         return {
             "one_minute": equivalent,

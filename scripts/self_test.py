@@ -623,7 +623,22 @@ def main() -> int:
         atomic_result = json.loads(atomic_line.removeprefix("LIVE_RESULT_JSON="))
         assert atomic_result["plan_hash"] == atomic_plan["plan_hash"]
         assert atomic_result["summary"]["status_counts"] == {"succeeded": 2}
-        assert len(atomic_result["event_journal"]) == 4
+        atomic_events = atomic_result["event_journal"]
+        assert sum(item["event"] == "started" for item in atomic_events) == 2
+        assert sum(item["event"] == "completed" for item in atomic_events) == 2
+        assert any(
+            item["event"] == "host_batch_evaluated"
+            and item["candidate_count"] == 2
+            and item["admitted_count"] == 2
+            for item in atomic_events
+        )
+        assert "主机会话" in atomic_completed.stdout
+        assert (
+            atomic_result["resource_plan"]["shared_host_scheduler"][
+                "admission_scope"
+            ]
+            == "cross-process host capacity"
+        )
 
         stats = json.loads((pathlib.Path(temp_dir) / "stats.json").read_text(encoding="utf-8"))
         completed_runs = [parallel, mapped, dag, serial, live_result, atomic_result]

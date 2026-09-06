@@ -60,10 +60,7 @@
       min-height: 76px; border-bottom: 1px solid var(--line);
     }
     .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 830; letter-spacing: -.02em; }
-    .brand-mark { display: grid; gap: 3px; width: 28px; }
-    .brand-mark i { display: block; height: 3px; border-radius: 9px; background: var(--mint); }
-    .brand-mark i:nth-child(2) { width: 74%; margin-left: 26%; background: var(--blue); }
-    .brand-mark i:nth-child(3) { width: 48%; margin-left: 52%; background: var(--mint-soft); }
+    .brand-mark { display: block; width: 34px; height: 34px; border-radius: 8px; }
     .nav { display: flex; align-items: center; gap: 25px; color: var(--muted); font-size: 14px; }
     .nav .nav-cta { color: var(--ink); background: var(--paper); padding: 8px 13px; border-radius: 8px; font-weight: 760; }
     .nav .nav-cta:hover { color: var(--ink); background: var(--mint); }
@@ -177,7 +174,7 @@
 <body>
   <header class="shell topbar">
     <a class="brand" href="#top" aria-label="AtomLane home">
-      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <img class="brand-mark" src="share/favicon.svg" width="34" height="34" alt="">
       <span>AtomLane</span>
     </a>
     <nav class="nav" aria-label="Primary navigation">

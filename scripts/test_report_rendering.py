@@ -642,6 +642,25 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("macOS Stable", verified)
         self.assertIn("Windows Preview", verified)
 
+    def test_public_site_preserves_the_original_atomlane_icon(self) -> None:
+        original = generate_test_report.ROOT / "assets" / "growth" / "listing-logo.svg"
+        published = generate_test_report.ROOT / "docs" / "share" / "favicon.svg"
+        self.assertEqual(published.read_bytes(), original.read_bytes())
+
+        rendered = generate_test_report.render_html(
+            {
+                "overall": "passed",
+                "generated_at": "2026-08-26T00:00:00+00:00",
+                "version": "0.17.0",
+                "summary": {"total": 1, "passed": 1},
+            }
+        )
+        self.assertIn(
+            '<img class="brand-mark" src="share/favicon.svg" '
+            'width="34" height="34" alt="">',
+            rendered,
+        )
+
     def test_report_domains_cover_every_discovered_regression_module(self) -> None:
         discovered = {
             path.stem

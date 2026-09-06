@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="AtomLane compiles safe atomic plans, adapts concurrency to each macOS or Windows host, keeps long runs visible, and reports measured time savings.">
+  <meta name="description" content="{{META_DESCRIPTION}}">
   <meta name="theme-color" content="#070b0a">
   <link rel="canonical" href="https://cloudguo123.github.io/atomlane/">
   <meta property="og:type" content="website">
@@ -13,12 +13,12 @@
   <meta property="og:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
-  <meta property="og:image:alt" content="AtomLane benchmark: 20 minutes 40 seconds serial equivalent, 5 minutes 10 seconds parallel wall time, 15 minutes 30 seconds saved">
+  <meta property="og:image:alt" content="{{OG_IMAGE_ALT}}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="AtomLane — Adaptive parallel execution for Codex">
   <meta name="twitter:description" content="Safe atomic plans, machine-aware scheduling, live progress, and measured time savings.">
   <meta name="twitter:image" content="https://cloudguo123.github.io/atomlane/share/social-preview.png">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AtomLane","applicationCategory":"DeveloperApplication","operatingSystem":"macOS Stable, native Windows Preview","softwareVersion":"0.17.0","codeRepository":"https://github.com/cloudguo123/atomlane","url":"https://cloudguo123.github.io/atomlane/","license":"https://www.mozilla.org/MPL/2.0/","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
+  <script type="application/ld+json">{{STRUCTURED_DATA}}</script>
   <title>AtomLane — Adaptive parallel execution for Codex</title>
   <style>
     :root {
@@ -196,7 +196,7 @@
         <div class="badges" aria-label="Supported platforms and release">
           <span class="badge live">macOS Stable</span>
           <span class="badge">Windows Preview</span>
-          <span class="badge">v0.17.0</span>
+          <span class="badge">v{{VERSION}}</span>
           <span class="badge">MPL-2.0</span>
         </div>
         <div class="actions">
@@ -212,9 +212,9 @@
     </section>
 
     <div class="shell proof-strip" aria-label="Release evidence summary">
-      <div class="proof"><strong>327</strong><span>tests passing</span></div>
-      <div class="proof"><strong>0</strong><span>failures or errors</span></div>
-      <div class="proof"><strong>9/9</strong><span>release gates passed</span></div>
+      <div class="proof"><strong>{{TESTS_PASSED}}</strong><span>tests passing</span></div>
+      <div class="proof"><strong>{{FAILURES}}</strong><span>failures or errors</span></div>
+      <div class="proof"><strong>{{GATES_PASSED}}/{{GATES_TOTAL}}</strong><span>release gates passed</span></div>
       <div class="proof"><strong>2 platforms</strong><span>source-bound CI evidence</span></div>
     </div>
 
@@ -268,23 +268,23 @@
       </div>
       <div class="evidence">
         <article class="evidence-card">
-          <div class="evidence-top"><span class="platform">macOS</span><span class="status">Verified</span></div>
-          <div class="speed">4.00×</div>
+          <div class="evidence-top"><span class="platform">macOS</span><span class="status">{{MAC_STATUS}}</span></div>
+          <div class="speed">{{MAC_SPEEDUP}}</div>
           <p>Controlled four-lane overlap benchmark.</p>
           <div class="evidence-grid">
-            <div class="evidence-metric"><strong>5m 10s</strong><span>wall time</span></div>
-            <div class="evidence-metric"><strong>15m 30s</strong><span>saved this run</span></div>
-            <div class="evidence-metric"><strong>3h 06m</strong><span>cumulative saved</span></div>
+            <div class="evidence-metric"><strong>{{MAC_WALL}}</strong><span>wall time</span></div>
+            <div class="evidence-metric"><strong>{{MAC_SAVED}}</strong><span>saved this run</span></div>
+            <div class="evidence-metric"><strong>{{MAC_CUMULATIVE}}</strong><span>cumulative saved</span></div>
           </div>
         </article>
         <article class="evidence-card">
-          <div class="evidence-top"><span class="platform">Windows</span><span class="status">Verified</span></div>
-          <div class="speed">3.99×</div>
+          <div class="evidence-top"><span class="platform">Windows</span><span class="status">{{WINDOWS_STATUS}}</span></div>
+          <div class="speed">{{WINDOWS_SPEEDUP}}</div>
           <p>Controlled four-lane overlap benchmark.</p>
           <div class="evidence-grid">
-            <div class="evidence-metric"><strong>5m 10s</strong><span>wall time</span></div>
-            <div class="evidence-metric"><strong>15m 30s</strong><span>saved this run</span></div>
-            <div class="evidence-metric"><strong>2h 34m</strong><span>cumulative saved</span></div>
+            <div class="evidence-metric"><strong>{{WINDOWS_WALL}}</strong><span>wall time</span></div>
+            <div class="evidence-metric"><strong>{{WINDOWS_SAVED}}</strong><span>saved this run</span></div>
+            <div class="evidence-metric"><strong>{{WINDOWS_CUMULATIVE}}</strong><span>cumulative saved</span></div>
           </div>
         </article>
       </div>
@@ -294,7 +294,7 @@
         <a href="benchmark-results.json">macOS benchmark artifact ↗</a>
         <a href="windows-benchmark-results.json">Windows benchmark artifact ↗</a>
         <a href="https://github.com/cloudguo123/atomlane/actions">GitHub Actions ↗</a>
-        <span>commit ef4a2b3783 · generated 2026-09-06T07:54:20+00:00</span>
+        <span>commit {{COMMIT_SHORT}} · generated {{GENERATED_AT}}</span>
       </div>
     </section>
 
@@ -317,7 +317,7 @@
   </main>
 
   <footer class="shell">
-    <span>AtomLane v0.17.0 · All required checks passed</span>
+    <span>AtomLane v{{VERSION}} · {{OVERALL_STATUS}}</span>
     <span class="footer-links"><a href="https://github.com/cloudguo123/atomlane">Source</a><a href="https://github.com/cloudguo123/atomlane/blob/main/SECURITY.md">Security</a><a href="https://github.com/cloudguo123/atomlane/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/cloudguo123/atomlane/blob/main/LICENSE">License</a></span>
   </footer>
 

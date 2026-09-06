@@ -12,10 +12,10 @@ Preview。
 [![CI](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/github-code-scanning/codeql)
 [![五分钟基准](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml/badge.svg)](https://github.com/cloudguo123/atomlane/actions/workflows/long-benchmark.yml)
-[![可视化报告](https://img.shields.io/badge/可视化报告-在线-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
+[![官方网站](https://img.shields.io/badge/官方网站-在线-65e6b4.svg)](https://cloudguo123.github.io/atomlane/)
 [![许可：MPL-2.0](https://img.shields.io/badge/许可-MPL--2.0-blue.svg)](LICENSE)
 
-[English](README.md) · [在线报告](https://cloudguo123.github.io/atomlane/) · [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
+[English](README.md) · [官方网站](https://cloudguo123.github.io/atomlane/) · [反馈首次运行](https://github.com/cloudguo123/atomlane/issues/new?template=first-run.yml) · [提交实测结果](https://github.com/cloudguo123/atomlane/issues/new?template=benchmark.yml)
 
 **采用 MPL-2.0 开源许可，个人、科研、教育及商业使用均免费。** 当前社区版本
 无需 AtomLane 账户或付费。未来可能提供替代商业授权或独立许可的扩展能力，但
@@ -60,7 +60,7 @@ codex plugin add atomlane@atomlane
 不等同于已证明 Windows 11 Desktop UI 集成。Windows 用户请先阅读
 [Windows Preview 说明](docs/WINDOWS_PREVIEW.md)。
 pytest 原生 worker 路径还要求所选运行环境已经安装 pytest 与 pytest-xdist；
-AtomLane 永远不会自动安装这些依赖。0.16 版的发布门禁明确覆盖 `macos-14`、
+AtomLane 永远不会自动安装这些依赖。0.17 版的发布门禁明确覆盖 `macos-14`、
 `windows-2025`、CPython 3.10–3.13、pytest 8.4.2 与 pytest-xdist 3.8.0；
 其他依赖版本和主机镜像不属于本版已验证的发布承诺。
 

@@ -13,10 +13,10 @@ indicator and are not Python runtime dependencies.
 
 ## Model Context Protocol SDK
 
-- Package: `@modelcontextprotocol/sdk` 1.30.0
+- Package: `@modelcontextprotocol/sdk` 1.32.1
 - Repository: <https://github.com/modelcontextprotocol/typescript-sdk>
 - License: MIT
-- Included license: `third_party/licenses/mcp-sdk-1.30.0-LICENSE.txt`
+- Included license: `third_party/licenses/mcp-sdk-1.32.1-LICENSE.txt`
 
 ## Zod
 

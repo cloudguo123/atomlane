@@ -2925,12 +2925,16 @@ class RealPytestXdistIntegrationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             test_file = project / "test_parallel_cases.py"
+            # This test requires measured savings, so its independent work
+            # must amortize starting four fresh Python workers on Windows.
+            # The former 5-second serial workload could be faster than worker
+            # startup, in which case zero savings was the correct result.
             test_file.write_text(
                 "import time\n"
                 "import pytest\n\n"
                 "@pytest.mark.parametrize('case_id', range(100))\n"
                 "def test_independent_case(case_id, tmp_path, worker_id):\n"
-                "    time.sleep(0.05)\n"
+                "    time.sleep(0.2)\n"
                 "    assert worker_id == 'master' or worker_id.startswith('gw')\n"
                 "    marker = tmp_path / f'{case_id}.txt'\n"
                 "    marker.write_text(str(case_id), encoding='utf-8')\n"
@@ -2947,7 +2951,7 @@ class RealPytestXdistIntegrationTests(unittest.TestCase):
                     "runner_argv": [sys.executable, "-m", "pytest"],
                     "arguments": ["-q", str(test_file)],
                     "case_count_hint": 100,
-                    "timeout_seconds": 30,
+                    "timeout_seconds": 60,
                     "snapshot_paths": [str(test_file), str(readline_sentinel)],
                     "baseline_source_closure_declared": True,
                     "effects_declared_complete": True,
@@ -3004,7 +3008,15 @@ class RealPytestXdistIntegrationTests(unittest.TestCase):
         self.assertEqual(result["indicator"]["native_workers_configured"], 4)
         self.assertEqual(plan["test_suites"][0]["distribution"], "worksteal")
         self.assertEqual(result["indicator"]["speedup_kind"], "measured_serial_baseline")
-        self.assertGreater(result["indicator"]["time_saved_seconds"], 0)
+        self.assertGreater(
+            result["indicator"]["time_saved_seconds"],
+            0,
+            {
+                "serial_elapsed_seconds": serial_result["summary"]["elapsed_seconds"],
+                "parallel_elapsed_seconds": result["summary"]["elapsed_seconds"],
+                "indicator": result["indicator"],
+            },
+        )
         ledger = mcp_server._read_savings_stats_document(self.stats_path)
         self.assertEqual(ledger["run_count"], 1)
         self.assertEqual(ledger["measured_run_count"], 1)

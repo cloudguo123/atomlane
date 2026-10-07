@@ -586,12 +586,21 @@ class ReportRenderingTests(unittest.TestCase):
                 "overall": "passed",
                 "generated_at": "2026-08-26T00:00:00+00:00",
                 "version": "0.11.0",
-                "summary": {"total": 76, "passed": 74},
+                "summary": {
+                    "total": 76,
+                    "passed": 74,
+                    "failed": 1,
+                    "errors": 1,
+                    "checks_passed": 8,
+                    "checks_total": 9,
+                },
                 "windows_preview": {"available": False},
             }
         )
         self.assertIn('property="og:image"', rendered)
-        self.assertIn("74 verified tests", rendered)
+        self.assertIn("74</strong><span>tests passing", rendered)
+        self.assertIn("2</strong><span>failures or errors", rendered)
+        self.assertIn("8/9</strong><span>release gates passed", rendered)
         self.assertIn('name="twitter:card" content="summary_large_image"', rendered)
         self.assertIn('rel="canonical"', rendered)
         self.assertIn('"@type":"SoftwareApplication"', rendered)
@@ -599,37 +608,58 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertNotIn(
             '"operatingSystem":"macOS Stable, native Windows Preview"', rendered
         )
-        self.assertIn("Native Windows Preview evidence", rendered)
-        self.assertIn("observedMinimum>=300", rendered)
-        self.assertIn("Every observed task ran for at least five minutes", rendered)
-        self.assertNotIn("longEnough=finite(x.minimum_task_seconds)>=300", rendered)
-        self.assertIn(
-            "const x=b.latest||{},c=b.cumulative||{},serial=",
-            rendered,
-        )
-        self.assertIn("issues/new?template=first-run.yml", rendered)
+        self.assertIn("No four-worker ceiling", rendered)
+        self.assertIn("runtime worker ceiling", rendered)
+        self.assertIn("Full machine-readable report", rendered)
+        self.assertIn("codex plugin add atomlane@atomlane", rendered)
+        self.assertIn("data-copy=", rendered)
         self.assertNotIn(".innerHTML", rendered)
-        self.assertIn("link.href='windows-preview-results.json'", rendered)
-        self.assertIn("raw.href='windows-benchmark-results.json'", rendered)
-        self.assertNotIn("href=String(wp.evidence_url)", rendered)
-        self.assertNotIn("href=String(wb.evidence_url)", rendered)
+        self.assertNotIn("All regression cases", rendered)
+        self.assertNotIn("Community pulse", rendered)
+        self.assertNotIn("report-data", rendered)
+        self.assertNotRegex(rendered, r"\{\{[A-Z_]+\}\}")
 
         verified = generate_test_report.render_html(
             {
                 "overall": "passed",
                 "generated_at": "2026-08-26T00:00:00+00:00",
                 "version": "0.12.0",
-                "summary": {"total": 76, "passed": 76},
+                "summary": {
+                    "total": 76,
+                    "passed": 76,
+                    "failed": 0,
+                    "errors": 0,
+                    "checks_passed": 9,
+                    "checks_total": 9,
+                },
                 "windows_preview": {"available": True},
             }
         )
         self.assertIn(
             '"operatingSystem":"macOS Stable, native Windows Preview"', verified
         )
-        self.assertIn("universal safety core", verified)
-        self.assertIn("platform-native execution", verified)
-        self.assertIn("workload-tailored acceleration", verified)
-        self.assertIn("In-Job execution verified on native Windows", verified)
+        self.assertIn("Adaptive parallel execution for Codex", verified)
+        self.assertIn("macOS Stable", verified)
+        self.assertIn("Windows Preview", verified)
+
+    def test_public_site_preserves_the_original_atomlane_icon(self) -> None:
+        original = generate_test_report.ROOT / "assets" / "growth" / "listing-logo.svg"
+        published = generate_test_report.ROOT / "docs" / "share" / "favicon.svg"
+        self.assertEqual(published.read_bytes(), original.read_bytes())
+
+        rendered = generate_test_report.render_html(
+            {
+                "overall": "passed",
+                "generated_at": "2026-08-26T00:00:00+00:00",
+                "version": "0.17.0",
+                "summary": {"total": 1, "passed": 1},
+            }
+        )
+        self.assertIn(
+            '<img class="brand-mark" src="share/favicon.svg" '
+            'width="34" height="34" alt="">',
+            rendered,
+        )
 
     def test_report_domains_cover_every_discovered_regression_module(self) -> None:
         discovered = {
@@ -661,7 +691,7 @@ class ReportRenderingTests(unittest.TestCase):
             rendered,
         )
 
-    def test_public_report_renders_python_advisor_integrity_evidence(self) -> None:
+    def test_public_landing_page_keeps_internal_advisor_details_out_of_primary_flow(self) -> None:
         rendered = generate_test_report.render_html(
             {
                 "overall": "passed",
@@ -671,8 +701,9 @@ class ReportRenderingTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("fixture SHA-256 unchanged", rendered)
-        self.assertIn("execution marker absent", rendered)
+        self.assertNotIn("fixture SHA-256 unchanged", rendered)
+        self.assertNotIn("execution marker absent", rendered)
+        self.assertIn("DATA / PYTHON", rendered)
 
     def test_windows_evidence_requires_a_native_windows_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

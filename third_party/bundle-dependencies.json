@@ -11,9 +11,9 @@
     },
     {
       "name": "@modelcontextprotocol/sdk",
-      "version": "1.30.0",
+      "version": "1.32.1",
       "license": "MIT",
-      "license_file": "third_party/licenses/mcp-sdk-1.30.0-LICENSE.txt"
+      "license_file": "third_party/licenses/mcp-sdk-1.32.1-LICENSE.txt"
     },
     {
       "name": "zod",
